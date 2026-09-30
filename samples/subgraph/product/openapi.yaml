@@ -1,0 +1,46 @@
+# Current REST API of the product (catalogue) service — migrates to subgraph.gql in this folder.
+openapi: 3.0.3
+info:
+  title: Product Catalogue API
+  version: 1.0.0
+  description: Core, global product attributes by SKU.
+servers:
+  - url: https://product.retail.example.com/v1
+paths:
+  /products/{sku}:
+    get:
+      operationId: product
+      summary: Fetch a product by SKU.
+      parameters:
+        - { name: sku, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+  /products:
+    get:
+      operationId: products
+      summary: Batch-fetch products by SKU.
+      parameters:
+        - { name: skus, in: query, required: true, schema: { type: array, items: { type: string } } }
+      responses:
+        "200":
+          description: Products
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Product" }
+components:
+  schemas:
+    Product:
+      type: object
+      required: [sku, title]
+      properties:
+        sku: { type: string }
+        title: { type: string }
+        description: { type: string }
+        imageUrl: { type: string, format: uri }
+        brand: { type: string }

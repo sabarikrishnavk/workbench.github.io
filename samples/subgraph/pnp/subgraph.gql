@@ -1,0 +1,51 @@
+# pnp (price & promotions) subgraph — retail pricing is rarely global; it shifts by store,
+# region or distribution centre. Extends Product and owns the store-scoped ProductStoreContext.
+# Registry: ENT-002 ProductStoreContext (BusinessApplication "pnp").
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external"])
+
+scalar Money
+
+# Stub the core entity to extend it
+type Product @key(fields: "sku") {
+  sku: String! @external
+
+  # Ask for a specific store's pricing
+  storeContext(storeId: ID!): ProductStoreContext
+
+  # Ask for prices across all stores
+  allStoreContexts: [ProductStoreContext!]!
+}
+
+"""
+The intersection of a Product and a specific physical Store. An entity (sku + storeId) so the
+inventory subgraph can contribute stock to the same object.
+"""
+type ProductStoreContext @key(fields: "sku storeId") {
+  sku: String!
+  storeId: ID!
+  price: Price!
+}
+
+type Price {
+  amount: Money!
+  currency: String!
+}
+
+input UpdateStorePriceInput {
+  sku: String!
+  storeId: ID!
+  amount: Money!
+  currency: String!
+}
+
+type Query {
+  """Store-scoped price for a SKU."""
+  productStoreContext(sku: String!, storeId: ID!): ProductStoreContext
+}
+
+type Mutation {
+  """Set the price of a SKU at a store."""
+  updateStorePrice(input: UpdateStorePriceInput!): ProductStoreContext
+}

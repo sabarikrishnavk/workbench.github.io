@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Workbench Demo</title>
+<style>
+  :root{
+    --bg: #0f1222; --stage: #ffffff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --query: #0b7285; --mutation: #b45309;
+    --ok: #15803d; --bad: #b91c1c; --warn: #b45309; --code: #0f172a;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ margin: 0; height: 100%; background: var(--bg); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); }
+  /* 1280×720 stage scaled to fit the window (PowerPoint-style) */
+  #viewport{ position: absolute; inset: 0 0 46px 0; display: flex; align-items: center; justify-content: center; }
+  #stage{ width: 1280px; height: 720px; position: relative; flex: none; transform-origin: center center; }
+  .slide{ position: absolute; inset: 0; background: var(--stage); border-radius: 14px; padding: 56px 72px 48px;
+    display: none; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  .slide.active{ display: flex; animation: in .35s ease; }
+  @keyframes in{ from{ opacity: 0; transform: translateX(24px); } to{ opacity: 1; transform: none; } }
+  .kicker{ font-size: 15px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+  .slide h1{ font-size: 50px; line-height: 1.1; margin: 0 0 14px; }
+  .slide h2{ font-size: 36px; line-height: 1.15; margin: 0 0 18px; }
+  .slide p.sub{ font-size: 21px; color: var(--muted); margin: 0 0 22px; max-width: 980px; line-height: 1.45; }
+  .cols{ display: grid; grid-template-columns: 1fr 1.15fr; gap: 40px; flex: 1; min-height: 0; align-items: start; }
+  .cols.wide{ grid-template-columns: .8fr 1.35fr; gap: 32px; }
+  table.m.wrap td{ white-space: normal; }
+  ul.pts{ margin: 0; padding: 0; list-style: none; font-size: 19px; line-height: 1.45; }
+  ul.pts li{ padding-left: 30px; position: relative; margin: 0 0 14px; }
+  ul.pts li::before{ content: ""; position: absolute; left: 4px; top: 10px; width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
+  ul.pts b{ color: var(--ink); }
+  .foot{ position: absolute; left: 72px; right: 72px; bottom: 22px; display: flex; gap: 12px; align-items: center; font-size: 14px; color: var(--muted); }
+  .foot .sp{ flex: 1; }
+  .foot a, a.cta{ color: var(--accent); text-decoration: none; font-weight: 600; border: 1px solid var(--accent); border-radius: 999px; padding: 5px 14px; }
+  .foot a:hover, a.cta:hover{ background: var(--accent); color: #fff; }
+  code, .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code{ background: #f1f3f5; padding: 1px 6px; border-radius: 5px; font-size: .88em; }
+
+  /* title slide */
+  .title{ background: radial-gradient(1200px 600px at 85% 20%, #efe9fd 0%, #fff 60%); justify-content: center; }
+  .title h1{ font-size: 64px; }
+  .badges{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .badge{ font-size: 15px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; background: #fff; }
+
+  /* mock app window */
+  .win{ border: 1px solid var(--line); border-radius: 12px; background: #f6f7f9; overflow: hidden; box-shadow: 0 10px 30px rgba(15,18,34,.12); font-size: 13px; }
+  .win .bar{ background: #fff; border-bottom: 1px solid var(--line); padding: 8px 12px; display: flex; gap: 6px; align-items: center; }
+  .win .bar i{ width: 10px; height: 10px; border-radius: 50%; background: #e4e7eb; display: inline-block; }
+  .win .bar b{ margin-left: 8px; font-size: 13px; }
+  .win .bar .btn{ margin-left: auto; }
+  .btn{ display: inline-block; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 3px 9px; font-size: 12px; white-space: nowrap; }
+  .btn.p{ background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tabs{ display: flex; gap: 2px; background: #fff; border-bottom: 1px solid var(--line); padding: 0 10px; }
+  .tabs span{ padding: 7px 10px; color: var(--muted); border-bottom: 2px solid transparent; font-size: 12.5px; }
+  .tabs span.on{ color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .body{ padding: 12px; }
+  table.m{ border-collapse: collapse; width: 100%; background: #fff; font-size: 12px; }
+  table.m th, table.m td{ border: 1px solid var(--line); padding: 5px 7px; text-align: left; white-space: nowrap; }
+  table.m th{ background: #f8f9fb; font-weight: 600; }
+  .sel{ border: 1px solid #c9ccd1; border-radius: 5px; padding: 1px 6px; background: #fff; }
+  .sel::after{ content: " ▾"; color: var(--muted); }
+  .chip{ display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11px; border: 1px solid var(--line); }
+  .chip.draft{ color: var(--muted); } .chip.prop{ color: var(--warn); border-color: var(--warn); background: #fdf4e7; }
+  .chip.appr{ color: var(--ok); border-color: var(--ok); background: #eafaf0; }
+  .chip.lt{ color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .q{ color: var(--query); font-weight: 700; } .mu{ color: var(--mutation); font-weight: 700; }
+  .warnrow td{ background: #fdf9ef; } .errcell{ outline: 2px solid var(--bad); outline-offset: -2px; }
+  .hl{ box-shadow: 0 0 0 3px #fde68a; border-radius: 6px; }
+  pre.code{ background: var(--code); color: #e2e8f0; padding: 12px 14px; border-radius: 10px; margin: 0; font-size: 12.5px; line-height: 1.5; overflow: hidden; white-space: pre; }
+  pre.code .k{ color: #c4b5fd; } pre.code .c{ color: #64748b; } pre.code .s{ color: #86efac; } pre.code mark{ background: #78350f; color: #fde68a; border-radius: 3px; padding: 0 2px; }
+
+  /* diagrams */
+  .flow{ display: flex; align-items: stretch; gap: 14px; margin-top: 10px; }
+  .node{ flex: 1; border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: #fff; }
+  .node h3{ margin: 0 0 6px; font-size: 19px; }
+  .node p{ margin: 0; color: var(--muted); font-size: 15px; line-height: 1.4; }
+  .node.hi{ border-color: var(--accent); background: var(--accent-soft); }
+  .arrow{ align-self: center; font-size: 28px; color: var(--muted); }
+  .tools{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 8px; }
+  .tool{ border: 1px solid var(--line); border-radius: 16px; padding: 22px; background: #fff; display: flex; flex-direction: column; gap: 8px; }
+  .tool .ico{ font-size: 34px; }
+  .tool h3{ margin: 0; font-size: 22px; }
+  .tool p{ margin: 0; color: var(--muted); font-size: 15.5px; line-height: 1.45; flex: 1; }
+  .sg{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .sgc{ border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fff; font-size: 14px; }
+  .sgc h4{ margin: 0 0 6px; font-size: 17px; color: var(--accent); }
+  .sgc div{ color: var(--muted); line-height: 1.45; }
+  .router{ text-align: center; margin: 0 auto 14px; width: 60%; border: 2px dashed var(--accent); border-radius: 12px; padding: 10px; font-weight: 700; color: var(--accent); }
+  ol.big{ counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 28px; }
+  ol.big li{ counter-increment: s; position: relative; padding: 10px 14px 10px 54px; border: 1px solid var(--line); border-radius: 12px; font-size: 16.5px; line-height: 1.35; }
+  ol.big li::before{ content: counter(s); position: absolute; left: 12px; top: 10px; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .seq{ font-size: 13px; }
+  .seq .lane{ display: grid; grid-template-columns: 110px repeat(4, 1fr); gap: 6px; margin-bottom: 6px; align-items: center; }
+  .seq .actor{ text-align: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px; font-weight: 600; }
+  .seq .msg{ grid-column: span 1; background: var(--accent-soft); border-radius: 6px; padding: 4px 8px; }
+
+  /* controls */
+  #controls{ position: fixed; left: 0; right: 0; bottom: 0; height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 16px; color: #cbd5e1; font-size: 13px; }
+  #controls button, #controls a{ background: transparent; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 5px 11px; font: inherit; cursor: pointer; text-decoration: none; }
+  #controls button:hover, #controls a:hover{ background: #1e293b; }
+  #controls .sp{ flex: 1; }
+  #progress{ position: fixed; left: 0; bottom: 46px; height: 3px; background: var(--accent); transition: width .3s; }
+  #dots{ display: flex; gap: 5px; }
+  #dots b{ width: 8px; height: 8px; border-radius: 50%; background: #334155; cursor: pointer; }
+  #dots b.on{ background: var(--accent); }
+  @media (prefers-reduced-motion: reduce){ .slide.active{ animation: none; } }
+</style>
+</head>
+<body>
+<div id="viewport"><div id="stage">
+
+<!-- 1 · Title -->
+<section class="slide title" data-id="intro">
+  <div class="kicker">FedGQL Migration Workbench</div>
+  <h1>From a MonoGraph and BFF REST<br>to a federated GraphQL supergraph</h1>
+  <p class="sub">Browser-only tools that share one Excel registry. Model the target subgraphs, generate them from the services you have today, and migrate the code that calls them.</p>
+  <div class="badges"><span class="badge">📘 Registry workbench</span><span class="badge">🔀 GQL migration</span><span class="badge">🧩 Code migration</span><span class="badge">📄 GQLRegistry.xlsx</span></div>
+  <div class="foot"><span>Use ← → or space to move · F for full screen</span><span class="sp"></span><a href="index.html">Home</a><a href="help.html">Help</a></div>
+</section>
+
+<!-- 2 · Journey -->
+<section class="slide" data-id="journey">
+  <div class="kicker">The journey</div>
+  <h2>Split the monolith into subgraphs, one entity at a time</h2>
+  <div class="flow">
+    <div class="node"><h3>Today</h3><p>A monolithic <b>MonoGraph</b> schema, plus <b>BFF</b> REST endpoints that fan out to several services by hand.</p></div>
+    <div class="arrow">→</div>
+    <div class="node hi"><h3>Registry</h3><p>Every entity, type, operation and auth scope in <code>GQLRegistry.xlsx</code>, with owners, approval status and links.</p></div>
+    <div class="arrow">→</div>
+    <div class="node"><h3>Target</h3><p>Federated <b>subgraphs</b> joined by <code>@key</code>. The router answers one query from several subgraphs.</p></div>
+  </div>
+  <ul class="pts" style="margin-top:34px">
+    <li><b>Generate the subgraphs</b> from each service's OpenAPI spec, and check them against the MonoGraph.</li>
+    <li><b>Govern</b> every change: Draft → Proposed → Approved, checked against the schema standards.</li>
+    <li><b>Migrate the callers</b>: REST and BFF endpoints become FedGQL client and server code.</li>
+  </ul>
+  <div class="foot"><span>2</span><span class="sp"></span><a href="help.html#overview">Help: overview</a></div>
+</section>
+
+<!-- 3 · Three tools -->
+<section class="slide" data-id="tools">
+  <div class="kicker">Three tools, one workbook</div>
+  <h2>What each tool does</h2>
+  <div class="tools">
+    <div class="tool"><div class="ico">📘</div><h3>Registry workbench</h3><p>The registry as an editable grid, with a federated graph view, an operation explorer, subgraph SDL, a summary and SharePoint / Google Drive sync.</p><a class="cta" href="workbench.html">workbench.html</a></div>
+    <div class="tool"><div class="ico">🔀</div><h3>GQL migration</h3><p>Turn a service's OpenAPI spec and the MonoGraph into FedGQL registry rows. Review, propose and copy them into the registry.</p><a class="cta" href="gql-migration.html">gql-migration.html</a></div>
+    <div class="tool"><div class="ico">🧩</div><h3>Code migration</h3><p>Map REST operations and BFF endpoints to FedGQL operations, and generate client and server code plus federated queries.</p><a class="cta" href="subgraph-codemigration.html">subgraph-codemigration.html</a></div>
+  </div>
+  <div class="foot"><span>3</span><span class="sp"></span><a href="help.html#quick-start">Help: quick start</a></div>
+</section>
+
+<!-- 4 · Registry grid -->
+<section class="slide" data-id="wb">
+  <div class="kicker">Registry workbench · workbench.html</div>
+  <h2>The registry as an editable grid</h2>
+  <div class="cols wide">
+    <ul class="pts">
+      <li><b>Five sheets</b>: Entities, Schema, Queries, Mutations, AuthScopes.</li>
+      <li><b>Dropdowns</b> for entity, Kind, Persona and Approval Status, including in the exported Excel file.</li>
+      <li><b>Row IDs include the entity</b>: <code>QRY-ENT-003-001</code>. Picking a row's entity renumbers its ID.</li>
+      <li>Excel-style <b>filter, widen and hide</b> on every column. Edits save automatically.</li>
+      <li><b>Links</b> are tagged <span class="chip lt">LeanIX</span> <span class="chip lt">Confluence</span> <span class="chip lt">ER</span>.</li>
+    </ul>
+    <div class="win">
+      <div class="bar"><i></i><i></i><i></i><b>GraphQL Schema Registry</b><span class="btn">Load .xlsx</span><span class="btn">Export .xlsx</span><span class="btn">Template</span></div>
+      <div class="tabs"><span class="on">Registry</span><span>Federated Graph</span><span>Explorer</span><span>Subgraph SDL</span><span>Summary</span></div>
+      <div class="body">
+        <div style="display:flex;gap:6px;margin-bottom:8px"><span class="btn">Entities (5)</span><span class="btn">Schema (27)</span><span class="btn p">Queries (5)</span><span class="btn">Mutations (2)</span><span class="btn">AuthScopes (11)</span></div>
+        <table class="m wrap">
+          <tr><th>QueryID</th><th>Entity</th><th>Query</th><th>Return</th><th>Approval</th></tr>
+          <tr><td class="mono">QRY-ENT-001-001</td><td><span class="sel">ENT-001 · Product</span></td><td>product</td><td>Product</td><td><span class="chip appr">Approved</span></td></tr>
+          <tr><td class="mono">QRY-ENT-002-001</td><td><span class="sel">ENT-002 · ProductStoreContext</span></td><td>productStoreContext</td><td>ProductStoreContext</td><td><span class="chip prop">Proposed</span></td></tr>
+          <tr><td class="mono">QRY-ENT-004-001</td><td><span class="sel">ENT-004 · ProductSearch</span></td><td>searchProducts</td><td>SearchResponse!</td><td><span class="chip draft">Draft</span></td></tr>
+          <tr><td class="mono hl">QRY-ENT-000-001</td><td><span class="sel">—</span></td><td></td><td></td><td></td></tr>
+        </table>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted)">↑ <b>+ Add row</b> creates <code>…-ENT-000-001</code>; pick an entity and it becomes <code>QRY-ENT-00n-###</code>.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>4</span><span class="sp"></span><a href="workbench.html">Open</a><a href="help.html#wb-registry">Help</a></div>
+</section>
+
+<!-- 5 · AuthScopes -->
+<section class="slide" data-id="wb-scopes">
+  <div class="kicker">Registry workbench · AuthScopes</div>
+  <h2>Auth scopes: one row per scope and persona</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li>Pick the <b>Persona</b> from a dropdown: Customer, CustomerCare, B2BShopper, B2BShopperCare, B2BAdmin, B2BAdminCare.</li>
+      <li>Describe the <b>Permission</b> the scope grants that persona. <b>No row means no access.</b></li>
+      <li>Scopes belong to an entity, so their IDs are <code>SCP-&lt;EntityID&gt;-###</code>.</li>
+    </ul>
+    <div class="win">
+      <div class="bar"><i></i><i></i><i></i><b>AuthScopes (11)</b></div>
+      <div class="body">
+        <table class="m">
+          <tr><th>ScopeID</th><th>Scope</th><th>Persona</th><th>Permission</th></tr>
+          <tr><td class="mono">SCP-ENT-002-001</td><td>price:read</td><td><span class="sel">Customer</span></td><td>read store shelf price</td></tr>
+          <tr><td class="mono">SCP-ENT-002-002</td><td>price:read</td><td><span class="sel">B2BShopper</span></td><td>read own org contract price</td></tr>
+          <tr><td class="mono">SCP-ENT-002-004</td><td>price:write</td><td><span class="sel hl">B2BAdmin</span></td><td>set store price for own org</td></tr>
+          <tr><td class="mono">SCP-ENT-003-001</td><td>inventory:read</td><td><span class="sel">Customer</span></td><td>read store availability</td></tr>
+          <tr><td class="mono">SCP-ENT-004-001</td><td>search:read</td><td><span class="sel">Customer</span></td><td>search the catalogue</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>5</span><span class="sp"></span><a href="workbench.html">Open</a><a href="help.html#sheet-authscopes">Help</a></div>
+</section>
+
+<!-- 6 · Standards -->
+<section class="slide" data-id="wb-standards">
+  <div class="kicker">Registry workbench · schema standards</div>
+  <h2>Schema standards checked as you type</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li>Rules come from <i>GQL Federation — Schema Standards and Patterns</i> (<code>standards.json</code>).</li>
+      <li>Flagged cells are <b>outlined</b>. The ⚠ badge lists each issue with a fix and a link to the relevant section.</li>
+      <li>Filter the grid to <b>rows with issues</b>. <b>Standards ⓘ</b> opens the full rule list.</li>
+      <li>Advisory in the registry. In GQL migration, <b>errors block</b> copying and export.</li>
+    </ul>
+    <div class="win">
+      <div class="bar"><i></i><i></i><i></i><b>Schema</b><span class="btn" style="color:var(--warn);border-color:var(--warn)">⚠ 2 rows with standards issues</span></div>
+      <div class="body">
+        <table class="m">
+          <tr><th>TypeName</th><th>Definition</th><th></th></tr>
+          <tr class="warnrow"><td>Price</td><td class="mono">amount: <span class="errcell">Float!</span></td><td><span class="chip prop">⚠ 1</span></td></tr>
+          <tr><td colspan="3" style="white-space:normal;font-size:11.5px;color:var(--warn)">SCALAR-MONEY-NOT-DECIMAL — monetary fields should use the <b>Money</b> scalar · §Scalars ↗</td></tr>
+          <tr class="warnrow"><td>SearchResponse</td><td class="mono">facets: <span class="errcell">[SearchFacet!]</span></td><td><span class="chip" style="color:var(--bad);border-color:var(--bad)">⚠ 1</span></td></tr>
+          <tr><td colspan="3" style="white-space:normal;font-size:11.5px;color:var(--bad)">NULL-ARRAY-NONNULL — arrays must be <b>[Type!]!</b> (no data = empty array) · §Nullability ↗</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>6</span><span class="sp"></span><a href="workbench.html">Open</a><a href="help.html#wb-standards">Help</a></div>
+</section>
+
+<!-- 7 · Views -->
+<section class="slide" data-id="wb-views">
+  <div class="kicker">Registry workbench · views</div>
+  <h2>See the supergraph the registry describes</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li><b>Federated Graph</b>: a Mermaid diagram of router → subgraphs → entities, grouped by application or capability.</li>
+      <li><b>Explorer</b>: search the operations and see each one's signature, a sample operation and the entity SDL.</li>
+      <li><b>Subgraph SDL</b>: the complete SDL for an entity, with <b>borrow / extend</b> for entities owned by other subgraphs.</li>
+      <li><b>Summary</b>: counts per subgraph, an approval breakdown and a tree of type relationships.</li>
+    </ul>
+<pre class="code"><span class="c"># Subgraph SDL — pnp (ENT-002)</span>
+<span class="k">type</span> ProductStoreContext <span class="c">@key(fields: "sku storeId")</span> {
+  sku: String!
+  storeId: ID!
+  price: Price!
+}
+<span class="k">type</span> Price { amount: Money!  currency: String! }
+
+<span class="k">extend type</span> Product <span class="c">@key(fields: "sku")</span> {
+  sku: String! <span class="c">@external</span>
+  <mark>storeContext(storeId: ID!): ProductStoreContext</mark>
+  <mark>allStoreContexts: [ProductStoreContext!]!</mark>
+}
+
+<span class="k">type</span> Query {
+  productStoreContext(sku: String!, storeId: ID!): ProductStoreContext
+}</pre>
+  </div>
+  <div class="foot"><span>7</span><span class="sp"></span><a href="workbench.html">Open</a><a href="help.html#wb-graph">Help</a></div>
+</section>
+
+<!-- 8 · Sync -->
+<section class="slide" data-id="wb-sync">
+  <div class="kicker">Registry workbench · sharing</div>
+  <h2>Excel is the shared copy; SharePoint or Google Drive keeps the versions</h2>
+  <div class="flow">
+    <div class="node"><h3>📥 Load / Template / Example</h3><p>Open a workbook, start from the template (it includes the FedGQL default scalars), or load the retail sample.</p></div>
+    <div class="node hi"><h3>🔀 Pull &amp; merge</h3><p>Compares your last sync, your local edits and the SharePoint or Drive copy. If both sides changed a row, both versions are kept.</p></div>
+    <div class="node"><h3>📤 Save &amp; push</h3><p>Downloads the next version (<code>…-v3.xlsx</code>) to upload next to the previous one in SharePoint or Drive.</p></div>
+  </div>
+  <ul class="pts" style="margin-top:30px">
+    <li>Switch between <b>SharePoint</b> and <b>Google Drive</b> in the sync bar. No sign-in: the page opens the file or folder for you.</li>
+    <li>Exports include <b>in-cell dropdowns</b> for Persona, Kind, Approval Status and EntityID.</li>
+  </ul>
+  <div class="foot"><span>8</span><span class="sp"></span><a href="workbench.html">Open</a><a href="help.html#wb-sharepoint">Help</a></div>
+</section>
+
+<!-- 9 · Migration: load + import -->
+<section class="slide" data-id="mig">
+  <div class="kicker">GQL migration · gql-migration.html</div>
+  <h2>Pick the entity, import the service's OpenAPI spec</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li><b>Load data</b>: load <code>GQLRegistry.xlsx</code> and pick the <b>registry entity</b> to migrate.</li>
+      <li><b>Import OpenAPI spec</b>: schemas become types, request bodies become inputs, GETs become <span class="q">queries</span> and writes become <span class="mu">mutations</span>.</li>
+      <li>Generated rows get the entity in their IDs: <code>SCH-</code>, <code>QRY-</code>, <code>MUT-ENT-002-###</code>.</li>
+      <li>You can reload a <code>…-subgraph.xlsx</code> you exported earlier to continue.</li>
+    </ul>
+    <div class="win">
+      <div class="bar"><i></i><i></i><i></i><b>FedGQL Migration Workbench</b><span class="btn">Export subgraph</span></div>
+      <div class="tabs"><span class="on">Load data</span><span>MonoGraph schema</span><span>Subgraphs</span><span>FedGQL subgraph</span><span>Code migration</span><span>GQL Registry</span></div>
+      <div class="body">
+        <div style="margin-bottom:8px"><b>GQL Registry entity</b> <span class="sel hl">ENT-002 · ProductStoreContext</span></div>
+        <table class="m"><tr><th>Field</th><th>Value</th></tr>
+          <tr><td>Business Application</td><td>pnp</td></tr>
+          <tr><td>Links &amp; References</td><td><span class="chip lt">LeanIX</span> <span class="chip lt">Confluence</span> <span class="chip lt">ER</span></td></tr></table>
+        <div style="margin-top:10px"><span class="btn p">Import OpenAPI spec (JSON/YAML)…</span> <span style="color:var(--ok);font-size:12px">✓ pnp/openapi.yaml · 3 types · 3 ops</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>9</span><span class="sp"></span><a href="gql-migration.html">Open</a><a href="help.html#mig-load">Help</a></div>
+</section>
+
+<!-- 10 · MonoGraph -->
+<section class="slide" data-id="mig-mono">
+  <div class="kicker">GQL migration · MonoGraph schema</div>
+  <h2>Track where each MonoGraph type and method moves</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li>Load the monolith's SDL, then <b>search</b> its types and root methods.</li>
+      <li>View each item's source SDL, or copy it as a <b>federation <code>@key</code> stub</b>.</li>
+      <li><b>Assign</b> each item to a target domain and entity, to see how much of the monolith is covered.</li>
+    </ul>
+    <div class="win">
+      <div class="bar"><i></i><i></i><i></i><b>MonoGraph schema · mono-graph.gql</b></div>
+      <div class="body" style="display:grid;grid-template-columns:170px 1fr;gap:10px">
+        <table class="m"><tr><th>Types &amp; methods</th></tr><tr><td>Product</td></tr><tr><td style="background:var(--accent-soft)"><b>ProductStoreContext</b></td></tr><tr><td>Inventory</td></tr><tr><td><span class="q">Q</span> searchProducts</td></tr><tr><td><span class="mu">M</span> updateStorePrice</td></tr></table>
+        <div>
+<pre class="code" style="font-size:11.5px"><span class="k">type</span> ProductStoreContext {
+  sku: String!
+  storeId: ID!
+  price: Price!
+  inventoryCount: Int!
+}</pre>
+          <div style="margin-top:8px;font-size:12px"><b>Assign to target</b> Domain <span class="sel">pnp</span> Entity <span class="sel">ProductStoreContext</span> <span class="btn p">Save</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>10</span><span class="sp"></span><a href="gql-migration.html">Open</a><a href="help.html#mig-monograph">Help</a></div>
+</section>
+
+<!-- 11 · FedGQL subgraph -->
+<section class="slide" data-id="mig-fedgql">
+  <div class="kicker">GQL migration · FedGQL subgraph</div>
+  <h2>Edit, propose, then copy into the registry</h2>
+  <div class="cols wide">
+    <ul class="pts">
+      <li><b>Step 1</b>: edit the generated rows in place, including links, approval and parameters.</li>
+      <li><b>Step 2</b>: set a row's Approval to <span class="chip prop">Proposed</span> when it's ready.</li>
+      <li><b>Step 3</b>: <b>Copy to GQL Registry →</b>. Only Proposed rows are checked and copied. <b>Standards errors must be fixed first.</b></li>
+      <li>Or <b>Export subgraph xls</b> to share the rows as a file.</li>
+    </ul>
+    <div class="win">
+      <div class="bar"><i></i><i></i><i></i><b>FedGQL subgraph — pnp</b><span class="btn p">Copy to GQL Registry →</span></div>
+      <div class="body">
+        <table class="m wrap">
+          <tr><th>ID</th><th>Name</th><th>REST API</th><th>Approval</th></tr>
+          <tr><td class="mono">QRY-ENT-002-001</td><td>productStoreContext</td><td class="mono">GET /prices/{sku}/stores/{storeId}</td><td><span class="sel hl">Proposed</span></td></tr>
+          <tr><td class="mono">QRY-ENT-002-002</td><td>allStoreContexts</td><td class="mono">GET /prices/{sku}/stores</td><td><span class="sel">Draft</span></td></tr>
+          <tr><td class="mono">MUT-ENT-002-001</td><td>updateStorePrice</td><td class="mono">PUT /prices/{sku}/stores/{storeId}</td><td><span class="sel hl">Proposed</span></td></tr>
+        </table>
+        <div style="margin-top:8px;font-size:12px;color:var(--ok)">✓ Registry merged: 1 entity · 2 queries/mutations → review under <b>GQL Registry</b></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>11</span><span class="sp"></span><a href="gql-migration.html">Open</a><a href="help.html#mig-fedgql">Help</a></div>
+</section>
+
+<!-- 12 · Code: single op -->
+<section class="slide" data-id="code">
+  <div class="kicker">Code migration · subgraph-codemigration.html</div>
+  <h2>REST call in, FedGQL client or server code out</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li>Load the registry and the service's REST spec. <b>Current Reference</b> pairs each REST operation with its GraphQL operation.</li>
+      <li><b>Client</b>: JavaScript, Java, Android (Kotlin), iOS (Swift).</li>
+      <li><b>Server</b>: Spring for GraphQL, .NET Hot Chocolate, Apollo Server.</li>
+      <li>REST and FedGQL shown side by side, with <mark style="background:#fef3c7">renamed fields highlighted</mark>.</li>
+    </ul>
+    <div style="display:grid;gap:10px">
+<pre class="code"><span class="c">// Current — REST (GET /products/{sku})</span>
+<span class="k">const</span> res = <span class="k">await</span> fetch(`${BASE}/products/${sku}`);
+<span class="k">const</span> product = <span class="k">await</span> res.json();</pre>
+<pre class="code"><span class="c">// Target — FedGQL</span>
+<span class="k">const</span> query = `<span class="k">query</span> Product($sku: String!) {
+  product(sku: $sku) { sku title <mark>imageUrl</mark> brand }
+}`;
+<span class="k">const</span> { data } = <span class="k">await</span> post(GRAPHQL_URL, { query, variables: { sku } });</pre>
+    </div>
+  </div>
+  <div class="foot"><span>12</span><span class="sp"></span><a href="subgraph-codemigration.html">Open</a><a href="help.html#code-single">Help</a></div>
+</section>
+
+<!-- 13 · Code: BFF composite -->
+<section class="slide" data-id="code-bff">
+  <div class="kicker">Code migration · BFF composite</div>
+  <h2>One BFF endpoint becomes one federated query</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li>Pick the BFF endpoint, then <b>＋ Add FedGQL op</b> for each subgraph operation it calls.</li>
+      <li>You get the <b>combined document</b>, a <b>single federated query</b> and a <b>sequence trace</b> of how the router resolves it.</li>
+      <li>Handler or client code is generated. Mappings are saved to a <code>BffMappings</code> sheet.</li>
+    </ul>
+    <div>
+      <div class="win" style="margin-bottom:10px"><div class="body seq">
+        <div class="lane"><span class="actor">Client</span><span class="actor">Router</span><span class="actor">search</span><span class="actor">product</span><span class="actor">pnp + inventory</span></div>
+        <div class="lane"><span>GET /bff/search</span><span class="msg" style="grid-column:2/4">① searchProducts → skus</span></div>
+        <div class="lane"><span></span><span class="msg" style="grid-column:3/5;margin-left:40%">② _entities: title, brand</span></div>
+        <div class="lane"><span></span><span class="msg" style="grid-column:4/6;margin-left:40%">③ storeContext → price + stock</span></div>
+      </div></div>
+<pre class="code" style="font-size:11.5px"><span class="k">query</span> SearchAndCheckStorePrices {
+  searchProducts(query: <span class="s">"running shoes"</span>) {
+    hits { sku title brand
+      storeContext(storeId: <span class="s">"store-melbourne-01"</span>) {
+        price { amount currency } inventoryCount } } } }</pre>
+    </div>
+  </div>
+  <div class="foot"><span>13</span><span class="sp"></span><a href="subgraph-codemigration.html">Open</a><a href="help.html#code-bff">Help</a></div>
+</section>
+
+<!-- 14 · Samples -->
+<section class="slide" data-id="samples">
+  <div class="kicker">samples/</div>
+  <h2>A complete retail example to practise on</h2>
+  <div class="router">Router · supergraph (4 subgraphs)</div>
+  <div class="sg">
+    <div class="sgc"><h4>product</h4><div>Owns <code>Product @key(sku)</code>: title, description, imageUrl, brand.</div></div>
+    <div class="sgc"><h4>pnp</h4><div>Owns <code>ProductStoreContext @key(sku storeId)</code> and Price, and adds <code>storeContext</code> to Product.</div></div>
+    <div class="sgc"><h4>inventory</h4><div>Owns <code>Inventory</code> and adds <code>inventoryCount</code> to ProductStoreContext.</div></div>
+    <div class="sgc"><h4>search</h4><div><code>searchProducts</code> with facets. Returns Product references that the router fills in from the other subgraphs.</div></div>
+  </div>
+  <ul class="pts" style="margin-top:24px">
+    <li><code>subgraph/&lt;name&gt;/subgraph.gql</code> (target) and <code>openapi.yaml</code> (the service's current REST API) for each subgraph. The four subgraphs compose into a valid supergraph.</li>
+    <li><code>mono-graph.gql</code>, <code>bff-openapi.yaml</code> and <code>GQLRegistry-sample.xlsx</code> for the other tools.</li>
+  </ul>
+  <div class="foot"><span>14</span><span class="sp"></span><a href="help.html#try-samples">Help: try the samples</a></div>
+</section>
+
+<!-- 15 · Get started -->
+<section class="slide" data-id="start">
+  <div class="kicker">Get started</div>
+  <h2>End to end in eight steps</h2>
+  <ol class="big">
+    <li><b>Workbench</b>: load the registry, or Load example.</li>
+    <li>Add the target <b>entities</b>: domain, application, links.</li>
+    <li><b>GQL migration</b>: pick the entity and import its OpenAPI spec.</li>
+    <li>Compare with the <b>MonoGraph</b> and assign its types.</li>
+    <li>Edit the rows and set them to <b>Proposed</b>.</li>
+    <li><b>Copy to the GQL Registry</b>, then review and approve.</li>
+    <li>Export, or <b>Save &amp; push</b> to SharePoint or Drive.</li>
+    <li><b>Code migration</b>: generate the REST/BFF → FedGQL code.</li>
+  </ol>
+  <div class="foot"><span>15</span><span class="sp"></span><a href="index.html">Home</a><a href="workbench.html">Open workbench</a><a href="help.html#quick-start">Step-by-step help</a></div>
+</section>
+
+</div></div>
+
+<div id="progress"></div>
+<div id="controls">
+  <button id="prev" title="Previous (←)">‹ Prev</button>
+  <button id="next" title="Next (→ / space)">Next ›</button>
+  <span id="count"></span>
+  <span id="dots"></span>
+  <span class="sp"></span>
+  <button id="fs" title="Full screen (F)">⛶ Full screen</button>
+  <a href="help.html">Help</a>
+  <a href="index.html">Home</a>
+</div>
+
+<script>
+const slides = [...document.querySelectorAll(".slide")];
+const stage = document.getElementById("stage");
+let cur = 0;
+// Deep links: #mig / #code (used by the tools' Demo buttons) or #<n>.
+function fromHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (!h) return 0;
+  if (/^\d+$/.test(h)) return Math.min(slides.length - 1, Math.max(0, +h - 1));
+  const i = slides.findIndex(s => s.dataset.id === h);
+  return i < 0 ? 0 : i;
+}
+function show(i) {
+  cur = Math.max(0, Math.min(slides.length - 1, i));
+  slides.forEach((s, k) => s.classList.toggle("active", k === cur));
+  document.getElementById("count").textContent = `${cur + 1} / ${slides.length}`;
+  document.getElementById("progress").style.width = ((cur + 1) / slides.length * 100) + "%";
+  document.querySelectorAll("#dots b").forEach((d, k) => d.classList.toggle("on", k === cur));
+  const id = slides[cur].dataset.id; if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
+}
+// Scale the fixed 1280×720 stage to the window, like a presentation.
+function fit() {
+  const vp = document.getElementById("viewport").getBoundingClientRect();
+  const s = Math.min((vp.width - 24) / 1280, (vp.height - 24) / 720);
+  stage.style.transform = `scale(${Math.max(0.2, s)})`;
+}
+const dots = document.getElementById("dots");
+slides.forEach((s, k) => { const d = document.createElement("b"); d.title = (k + 1) + " · " + (s.querySelector("h1,h2") || {}).textContent; d.onclick = () => show(k); dots.appendChild(d); });
+document.getElementById("prev").onclick = () => show(cur - 1);
+document.getElementById("next").onclick = () => show(cur + 1);
+const fsToggle = () => { if (document.fullscreenElement) document.exitFullscreen(); else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); };
+document.getElementById("fs").onclick = fsToggle;
+document.addEventListener("keydown", e => {
+  if (e.target.closest && e.target.closest("input,textarea,select")) return;
+  if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+  else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+  else if (e.key === "Home") show(0);
+  else if (e.key === "End") show(slides.length - 1);
+  else if (e.key === "f" || e.key === "F") fsToggle();
+});
+// Click on the slide background advances (links and buttons keep working).
+stage.addEventListener("click", e => { if (!e.target.closest("a,button")) show(cur + 1); });
+let tx = null;
+stage.addEventListener("touchstart", e => { tx = e.touches[0].clientX; }, { passive: true });
+stage.addEventListener("touchend", e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 40) show(cur + (dx < 0 ? 1 : -1)); tx = null; });
+window.addEventListener("resize", fit);
+window.addEventListener("hashchange", () => show(fromHash()));
+fit(); show(fromHash());
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+{
+  "meta": {
+    "version": "1.0",
+    "title": "GQL Federation — Schema Standards and Patterns",
+    "source": "GQL Federation - Schema Standards  and Patterns",
+    "docBase": ""
+  },
+  "patterns": {
+    "PascalCase": "^[A-Z][A-Za-z0-9]*$",
+    "camelCase": "^[a-z][A-Za-z0-9]*$",
+    "SCREAMING_SNAKE_CASE": "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$",
+    "versioned": "[Vv][0-9]+$",
+    "arrayNonNull": "^\\[.+!\\]!$"
+  },
+  "scalars": {
+    "standard": ["ID", "String", "Int", "Float", "Boolean", "CountryCode", "Currency", "Date",
+      "DateTimeISO", "Decimal", "LocalDateTime", "LocalDate", "LocalTime", "JSON", "HexColorCode",
+      "Latitude", "Longitude", "Money", "PhoneNumber", "Postcode", "TimeZone", "URL", "UUID"],
+    "discouraged": {
+      "DateTime": "Prefer DateTimeISO — a timestamp with a mandatory time-zone offset.",
+      "LocalDateTime": "Prefer DateTimeISO wherever an offset applies; LocalDateTime has no offset."
+    },
+    "monetaryHints": ["price", "cost", "amount", "total", "fee", "charge", "balance", "rrp"],
+    "monetaryScalars": ["Decimal", "Float"],
+    "monetaryExclude": ["percent", "percentage", "pct", "rate", "ratio", "factor", "count", "qty", "quantity", "index", "score", "weight"]
+  },
+  "abbreviations": {
+    "agreed": ["CTA", "Org", "Promo"],
+    "allCapsAllowed": ["ID", "URL", "URI", "UUID", "JSON", "GST"]
+  },
+  "verbHints": ["create", "update", "delete", "apply", "generate", "add", "remove", "set", "cancel",
+    "submit", "assign", "link", "unlink", "enable", "disable", "approve", "reject", "send", "start",
+    "stop", "activate", "deactivate", "confirm", "decline", "move", "copy", "share", "sync"],
+  "rules": [
+    {
+      "id": "NAME-TYPE-PASCAL",
+      "title": "Type names must be PascalCase",
+      "category": "Type names",
+      "section": "Naming Rules",
+      "severity": "error",
+      "message": "type/enum/input/interface names must be PascalCase (e.g. ProductAvailability).",
+      "fix": "Rename to PascalCase, namespaced by the owning subgraph where applicable."
+    },
+    {
+      "id": "NAME-ABBREV-CASE",
+      "title": "Avoid all-uppercase abbreviations",
+      "category": "Type names",
+      "section": "Agreed Naming Abbreviations",
+      "severity": "warning",
+      "message": "avoid all-uppercase names/abbreviations unless agreed (agreed: CTA, Org, Promo).",
+      "fix": "Use PascalCase; abbreviations are title-cased (Org, Promo) unless on the agreed all-caps list."
+    },
+    {
+      "id": "NAME-INPUT-SUFFIX",
+      "title": "Input types end with 'Input'",
+      "category": "Input types",
+      "section": "Naming Rules",
+      "severity": "warning",
+      "message": "input type names should follow <Operation>Input (end with 'Input'), e.g. ApplyPromoInput.",
+      "fix": "Name the input after the query/mutation it serves and suffix it with 'Input'."
+    },
+    {
+      "id": "NAME-FIELD-CAMEL",
+      "title": "Object/input fields must be camelCase",
+      "category": "Fields",
+      "section": "Naming Rules",
+      "severity": "error",
+      "message": "field names must be camelCase (e.g. phoneNumber).",
+      "fix": "Rename the field to camelCase."
+    },
+    {
+      "id": "NAME-BOOL-PREFIX",
+      "title": "Boolean fields avoid is/has/can prefixes",
+      "category": "Fields",
+      "section": "Naming Rules",
+      "severity": "warning",
+      "message": "Boolean fields should avoid is/has/can prefixes and negative names (prefer 'active' over 'isActive').",
+      "fix": "Drop the prefix unless it genuinely adds clarity; avoid negative names like 'inactive'."
+    },
+    {
+      "id": "NULL-KEY-NONNULL",
+      "title": "Entity @key fields must be non-null",
+      "category": "Nullability",
+      "section": "Field Nullability Rules",
+      "severity": "error",
+      "message": "entity @key fields must be non-null (end with !).",
+      "fix": "Mark every field named in @key(fields: \"…\") as non-null, e.g. sku: ID!."
+    },
+    {
+      "id": "NULL-ARRAY-NONNULL",
+      "title": "Array fields must be non-null with non-null elements",
+      "category": "Nullability",
+      "section": "Field Nullability Rules",
+      "severity": "error",
+      "message": "array fields must be non-null with non-null elements: [Type!]! (no data = empty array).",
+      "fix": "Write the type as [Type!]! so consumers only check for emptiness, never null."
+    },
+    {
+      "id": "NAME-ENUMVALUE-SCREAMING",
+      "title": "Enum values must be SCREAMING_SNAKE_CASE",
+      "category": "Enums",
+      "section": "Naming Rules",
+      "severity": "error",
+      "message": "enum values must be SCREAMING_SNAKE_CASE (e.g. NEXT_DAY).",
+      "fix": "Uppercase the value and separate words with underscores."
+    },
+    {
+      "id": "ENUM-UNKNOWN-VALUE",
+      "title": "Consider an UNKNOWN enum value",
+      "category": "Enums",
+      "section": "Enum Value Additions",
+      "severity": "info",
+      "message": "consider adding an UNKNOWN value so consumers implement catch-all handling and enum additions stay safe.",
+      "fix": "Add UNKNOWN as a catch-all value to the enum."
+    },
+    {
+      "id": "SCALAR-STANDARD",
+      "title": "Use a standardized custom scalar",
+      "category": "Scalars",
+      "section": "Custom Scalars",
+      "severity": "warning",
+      "message": "is not in the approved custom-scalar list — confirm it is a standardized scalar before use.",
+      "fix": "Use one of the curated scalars (DateTimeISO, Money, URL, UUID, …) or propose the new scalar in a schema review."
+    },
+    {
+      "id": "SCALAR-PREFER-DATETIMEISO",
+      "title": "Prefer DateTimeISO for timestamps",
+      "category": "Scalars",
+      "section": "Custom Scalars",
+      "severity": "warning",
+      "message": "prefer DateTimeISO for timestamps (it mandates a time-zone offset).",
+      "fix": "Replace DateTime/LocalDateTime with DateTimeISO where an offset applies."
+    },
+    {
+      "id": "SCALAR-MONEY-NOT-DECIMAL",
+      "title": "Use Money for monetary values",
+      "category": "Scalars",
+      "section": "Custom Scalars",
+      "severity": "warning",
+      "message": "monetary fields should use the Money scalar, not Decimal/Float (percentages/ratios/counts are exempt).",
+      "fix": "Change the field type to Money to signal monetary intent. Fields that are percentages, ratios, rates or counts (e.g. meatYieldCostPercent) may keep Decimal."
+    },
+    {
+      "id": "NAME-QUERY-CAMEL",
+      "title": "Query names must be camelCase",
+      "category": "Queries",
+      "section": "Naming Rules",
+      "severity": "error",
+      "message": "query names must be camelCase and namespaced (e.g. product, loyaltyPlans).",
+      "fix": "Rename to camelCase; use the singular for 0/1 result and plural for many."
+    },
+    {
+      "id": "NAME-MUTATION-CAMEL",
+      "title": "Mutation names must be camelCase",
+      "category": "Mutations",
+      "section": "Naming Rules",
+      "severity": "error",
+      "message": "mutation names must be camelCase (e.g. applyDiscountCodePromo).",
+      "fix": "Rename to camelCase."
+    },
+    {
+      "id": "NAME-MUTATION-VERB",
+      "title": "Mutations start with a domain verb",
+      "category": "Mutations",
+      "section": "Use Business/Domain Language",
+      "severity": "info",
+      "message": "mutation names should start with a domain verb (e.g. applyDiscountCodePromo, createDiscountSubscription).",
+      "fix": "Lead with a verb in business/domain language; prefer domain terms over CRUD."
+    },
+    {
+      "id": "OP-SINGLE-INPUT",
+      "title": "Use a single input type argument",
+      "category": "Operations",
+      "section": "Use a Single Input Type Argument for Queries/Mutations",
+      "severity": "warning",
+      "message": "queries/mutations should take a single input: <Name>Input argument (exempt: stable lookup-by-id queries).",
+      "fix": "Group arguments into one input type, e.g. products(input: ProductsInput)."
+    },
+    {
+      "id": "ANTI-FIELD-VERSION",
+      "title": "No field/type versioning",
+      "category": "Anti-patterns",
+      "section": "Field Versioning",
+      "severity": "warning",
+      "message": "avoid version suffixes like V2 — schema versioning is a GQL anti-pattern.",
+      "fix": "Use the 2-stage deprecation approach (@deprecated with a planned deletion date) instead of a versioned name."
+    }
+  ]
+}

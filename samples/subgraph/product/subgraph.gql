@@ -1,0 +1,24 @@
+# product subgraph — owns the core, global attributes of a product that rarely change and
+# don't depend on the user's location or store choice.
+# Registry: ENT-001 Product (BusinessApplication "product").
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key"])
+
+"""
+Product is an entity uniquely identified globally by its SKU.
+"""
+type Product @key(fields: "sku") {
+  sku: String!
+  title: String!
+  description: String
+  imageUrl: String
+  brand: String
+}
+
+type Query {
+  """Fetch a product by SKU."""
+  product(sku: String!): Product
+  """Batch-fetch products by SKU."""
+  products(skus: [String!]!): [Product!]!
+}

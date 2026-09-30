@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Workbench Help</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  :root{
+    --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --query: #0b7285; --mutation: #b45309;
+    --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+  }
+  html, body{ height: auto; }   /* normal document scroll so #anchors from the ? icons land correctly */
+  body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 14.5px; line-height: 1.55; }
+  header{ background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex;
+    align-items: center; gap: 8px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
+  header a.btn{ text-decoration: none; }
+  .layout{ display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; max-width: 1180px; margin: 0 auto; padding: 20px 16px 60px; }
+  .toc{ position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 80px); overflow: auto; font-size: 13px; }
+  .toc input{ width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; margin-bottom: 10px; }
+  .toc a{ display: block; color: var(--ink); text-decoration: none; padding: 2px 8px; border-radius: 5px; }
+  .toc a:hover{ background: var(--accent-soft); }
+  .toc .grp{ font-weight: 650; margin-top: 10px; }
+  .toc .sub{ padding-left: 18px; color: var(--muted); }
+  article{ min-width: 0; }
+  article h1{ font-size: 24px; margin: 0 0 6px; }
+  article h2{ font-size: 19px; margin: 34px 0 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+  article h3{ font-size: 15px; margin: 22px 0 6px; }
+  section[id], h3[id], div.feat[id]{ scroll-margin-top: 70px; }
+  .lead{ color: var(--muted); font-size: 15px; margin: 0 0 14px; }
+  .feat{ background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  .feat h3{ margin: 0 0 4px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .feat h3 .where{ font-size: 12px; font-weight: 400; color: var(--muted); }
+  .feat p{ margin: 4px 0; }
+  .feat:target{ border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .ui{ display: inline-block; border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 0 6px; font-size: 12.5px; white-space: nowrap; }
+  code{ background: #f1f3f5; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+  ol.steps{ counter-reset: s; list-style: none; padding: 0; margin: 10px 0; }
+  ol.steps > li{ counter-increment: s; position: relative; padding: 8px 12px 8px 46px; margin: 6px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  ol.steps > li::before{ content: counter(s); position: absolute; left: 12px; top: 8px; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 12.5px; display: flex; align-items: center; justify-content: center; }
+  ol.steps > li b.t{ display: block; }
+  .note{ border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 8px 12px; border-radius: 0 8px 8px 0; margin: 10px 0; font-size: 13.5px; }
+  .flow{ display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0; font-size: 13px; }
+  .flow span{ background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .flow i{ color: var(--muted); font-style: normal; }
+  table{ background: var(--panel); margin: 8px 0; }
+  th{ background: #f8f9fb; }
+  .hidden{ display: none !important; }
+  @media (max-width: 820px){ .layout{ grid-template-columns: 1fr; } .toc{ position: static; max-height: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="index.html" style="color:inherit;text-decoration:none">FedGQL Migration Workbench</a> · Help</h1>
+  <span class="spacer"></span>
+  <a class="btn" href="index.html">Home</a>
+  <a class="btn" href="workbench.html">Registry workbench</a>
+  <a class="btn" href="gql-migration.html">GQL migration</a>
+  <a class="btn" href="subgraph-codemigration.html">Code migration</a>
+  <a class="btn" href="demo.html">▶ Demo</a>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="Help contents">
+  <input type="search" id="tocSearch" placeholder="Search help…" aria-label="Search help" />
+  <a class="grp" href="#overview">Overview</a>
+  <a class="grp" href="#quick-start">Quick start (end to end)</a>
+  <a class="sub" href="#try-samples">Try it with the samples</a>
+  <a class="grp" href="#workbench">Registry workbench</a>
+  <a class="sub" href="#wb-load">Load / Export / Template</a>
+  <a class="sub" href="#wb-sharepoint">SharePoint / Google Drive sync</a>
+  <a class="sub" href="#wb-registry">Registry grid</a>
+  <a class="sub" href="#sheet-entities">Sheets</a>
+  <a class="sub" href="#row-ids">Row IDs</a>
+  <a class="sub" href="#links">Links &amp; References</a>
+  <a class="sub" href="#wb-standards">Schema standards</a>
+  <a class="sub" href="#wb-graph">Federated Graph</a>
+  <a class="sub" href="#wb-explorer">Explorer</a>
+  <a class="sub" href="#wb-subgraph-sdl">Subgraph SDL</a>
+  <a class="sub" href="#wb-summary">Summary</a>
+  <a class="grp" href="#migration">GQL migration</a>
+  <a class="sub" href="#mig-load">Load data</a>
+  <a class="sub" href="#mig-import">Import OpenAPI</a>
+  <a class="sub" href="#mig-monograph">MonoGraph schema</a>
+  <a class="sub" href="#mig-subgraphs">Subgraphs</a>
+  <a class="sub" href="#mig-fedgql">FedGQL subgraph</a>
+  <a class="sub" href="#mig-copy">Copy to GQL Registry</a>
+  <a class="grp" href="#code-migration">Code migration</a>
+  <a class="sub" href="#code-inputs">Inputs</a>
+  <a class="sub" href="#code-single">Single op</a>
+  <a class="sub" href="#code-bff">BFF composite</a>
+  <a class="sub" href="#code-export">Export BFF mappings</a>
+  <a class="grp" href="#faq">FAQ &amp; troubleshooting</a>
+</nav>
+
+<article id="helpBody">
+  <section id="overview">
+    <h1>FedGQL Migration Workbench — Help</h1>
+    <p class="lead">Browser-only tools for moving a monolithic GraphQL schema (the <b>MonoGraph</b>) and
+      BFF REST APIs onto a <b>federated GraphQL</b> supergraph. Every tool reads and writes the same
+      Excel workbook, <code>GQLRegistry.xlsx</code>. Nothing is uploaded: files are read in your browser and
+      your work is cached in the browser's local storage.</p>
+    <div class="flow">
+      <span>MonoGraph SDL<br><small class="hint">+ subgraph REST (OpenAPI)</small></span><i>→</i>
+      <span><b>GQL migration</b><br><small class="hint">generate FedGQL subgraph rows</small></span><i>→</i>
+      <span><b>Registry workbench</b><br><small class="hint">curate · validate · approve</small></span><i>→</i>
+      <span><b>Code migration</b><br><small class="hint">REST / BFF → FedGQL code</small></span>
+    </div>
+    <table>
+      <thead><tr><th>Tool</th><th>Page</th><th>Use it to…</th></tr></thead>
+      <tbody>
+        <tr><td><a href="#workbench">Registry workbench</a></td><td><code>workbench.html</code></td><td>Maintain the registry of entities, schema types, queries, mutations and auth scopes. Validate them against the schema standards, view the federated graph, and sync the workbook with SharePoint or Google Drive.</td></tr>
+        <tr><td><a href="#migration">GQL migration</a></td><td><code>gql-migration.html</code></td><td>Turn a subgraph service's OpenAPI spec (and the MonoGraph schema) into registry rows for one entity, review them, and copy the approved ones into the registry.</td></tr>
+        <tr><td><a href="#code-migration">Code migration</a></td><td><code>subgraph-codemigration.html</code></td><td>Map REST operations or composite BFF endpoints to FedGQL operations and generate client and server code.</td></tr>
+      </tbody>
+    </table>
+    <p>Look for the <span class="help-ico" style="display:inline-flex">?</span> icon next to buttons and tabs in each tool. It opens the matching section of this page.</p>
+  </section>
+
+  <section id="quick-start">
+    <h2>Quick start — end to end</h2>
+    <ol class="steps">
+      <li><b class="t">Start a registry</b>Open the <a href="workbench.html">Registry workbench</a>. Click <span class="ui">Load .xlsx</span> to open your team's <code>GQLRegistry.xlsx</code>. Or click <span class="ui">Template</span> for an empty workbook, or <span class="ui">Load example</span> for the retail sample.</li>
+      <li><b class="t">Register the target entities</b>On the <b>Entities</b> sheet, add one row per entity you will migrate. Fill in its domain, business application (this becomes its subgraph) and capability, then add LeanIX / Confluence / ER links.</li>
+      <li><b class="t">Export the workbook</b>Click <span class="ui">Export .xlsx</span>, or <span class="ui">Save &amp; push</span> to share it through SharePoint or Google Drive.</li>
+      <li><b class="t">Generate a subgraph</b>Open <a href="gql-migration.html">GQL migration</a>. On <b>Load data</b>, load the workbook, pick the <b>GQL Registry entity</b>, and <span class="ui">Import OpenAPI spec</span> for that entity's service.</li>
+      <li><b class="t">Review against the MonoGraph</b>Optionally load the MonoGraph SDL on <b>MonoGraph schema</b>, browse its types and methods, and assign each to a target domain and entity.</li>
+      <li><b class="t">Edit and propose</b>On <b>FedGQL subgraph</b>, edit the generated rows and fix any standards issues. Then set <b>Approval</b> to <code>Proposed</code> on each row that is ready.</li>
+      <li><b class="t">Copy to the registry</b>Click <span class="ui">Copy to GQL Registry →</span>. Proposed rows are validated and merged into the registry on the <b>GQL Registry</b> tab. Or use <span class="ui">Export subgraph xls</span> to hand the rows over as a file.</li>
+      <li><b class="t">Approve</b>In the Registry workbench, reviewers change <code>Proposed</code> to <code>Approved</code>, add auth scopes, then export or push the new workbook version.</li>
+      <li><b class="t">Migrate the code</b>Open <a href="subgraph-codemigration.html">Code migration</a>. Load the approved registry and the REST/BFF spec, map each endpoint to its FedGQL operations, and copy the generated client or server code.</li>
+    </ol>
+
+    <h3 id="try-samples">Try it with the samples</h3>
+    <p>The <code>samples/</code> folder holds a complete retail example with four subgraphs: <b>product</b>, <b>pnp</b> (pricing), <b>inventory</b> and <b>search</b>.</p>
+    <ol class="steps">
+      <li><b class="t">Registry</b>In the workbench click <span class="ui">Load example</span>, or <span class="ui">Load .xlsx</span> → <code>samples/GQLRegistry-sample.xlsx</code>.</li>
+      <li><b class="t">MonoGraph</b>In GQL migration, go to <b>MonoGraph schema</b> → <span class="ui">Choose file…</span> → <code>samples/mono-graph.gql</code>.</li>
+      <li><b class="t">A subgraph</b>On <b>Load data</b>, load <code>samples/GQLRegistry-sample.xlsx</code> and pick <code>ENT-002 · ProductStoreContext</code>. Then <span class="ui">Import OpenAPI spec</span> → <code>samples/subgraph/pnp/openapi.yaml</code>. Compare the result with the target <code>samples/subgraph/pnp/subgraph.gql</code>.</li>
+      <li><b class="t">BFF code</b>In Code migration, load the sample registry and <code>samples/bff-openapi.yaml</code>, and switch Mode to <b>BFF composite</b>. The spec's header comment lists which FedGQL operations each endpoint composes.</li>
+    </ol>
+  </section>
+
+  <!-- ============================ Workbench ============================ -->
+  <section id="workbench">
+    <h2>Registry workbench <small class="hint">workbench.html</small></h2>
+    <p>The registry spreadsheet with a grid editor on top. Edits save automatically in the browser. The Excel workbook is the portable copy you share.</p>
+
+    <div class="feat" id="wb-load"><h3>Load .xlsx <span class="where">header</span></h3>
+      <p>Opens a <code>GQLRegistry.xlsx</code> and <b>replaces</b> the data in the browser.</p></div>
+    <div class="feat" id="wb-export"><h3>Export .xlsx <span class="where">header</span></h3>
+      <p>Downloads the registry as a new version of the loaded file (for example <code>GQLRegistry-v3.xlsx</code>). The export has in-cell dropdowns for Persona, Kind, Approval Status and EntityID; a value outside the list gets a warning but is kept.</p></div>
+    <div class="feat" id="wb-template"><h3>Template <span class="where">header</span></h3>
+      <p>Downloads an empty workbook with all five sheets and their dropdowns. It already contains the foundational <code>FedGQL</code> entity and its default scalar types.</p></div>
+    <div class="feat" id="wb-example"><h3>Load example <span class="where">header</span></h3>
+      <p>Replaces the current data with the retail sample (product, pnp, inventory and search subgraphs), the same data as <code>samples/GQLRegistry-sample.xlsx</code>.</p></div>
+    <div class="feat" id="wb-clear"><h3>Clear <span class="where">header</span></h3>
+      <p>Deletes all registry data in this browser. Export first if you need to keep it.</p></div>
+
+    <div class="feat" id="wb-sharepoint"><h3>SharePoint / Google Drive sync <span class="where">SharePoint | Google Drive · Pull &amp; merge · Save &amp; push · Settings</span></h3>
+      <p><b>SharePoint | Google Drive</b>: choose where the shared workbook lives. Each target keeps its own links and last-sync time, and the buttons act on the selected one. The page never signs in; it opens SharePoint or Drive for you to download and upload.</p>
+      <p><b>Settings</b>: paste the workbook's link and the folder's link. For SharePoint that's the file and its document library. For Google Drive, use <i>Share → Copy link</i> on the file and on its folder; a Google Sheet link also works.</p>
+      <p><b>Pull &amp; merge</b>: download the latest workbook (for Drive, the link downloads the file directly and exports a Google Sheet as .xlsx), then select it. The workbench compares three versions: your last sync, your local edits and the shared copy. Changes from either side are merged. If a row changed on both sides, the shared version wins and your version is added as a separate “(local copy)” row, so nothing is lost.</p>
+      <p><b>Save &amp; push</b>: downloads a version-bumped workbook. Upload it to the same SharePoint or Drive folder as a new file, so the version history is kept.</p></div>
+
+    <div class="feat" id="wb-registry"><h3>Registry grid <span class="where">Registry tab</span></h3>
+      <p>One tab per sheet. Every cell is editable in place, and dropdowns appear for entities (EntityID), Kind, Persona and Approval Status. Row colour follows Approval Status. Hover a column header to filter it Excel-style (▾), widen it (⤢) or hide it (×).</p></div>
+    <div class="feat" id="wb-add-row"><h3>+ Add row</h3>
+      <p>Adds a row at the top of the sheet with a generated ID (see <a href="#row-ids">Row IDs</a>). If the grid is filtered to a single entity, the new row belongs to that entity.</p></div>
+    <div class="feat" id="wb-columns"><h3>Columns</h3>
+      <p>Show or hide columns, and reset widths. Hidden columns are still saved and exported.</p></div>
+
+    <h3>Sheets</h3>
+    <div class="feat" id="sheet-entities"><h3>Entities <span class="where">ID ENT-###</span></h3>
+      <p>One row per canonical entity: Name, Experience Domain, <b>Business Application</b> (the subgraph it belongs to), Business Capability and Description. Everything else hangs off an entity.</p></div>
+    <div class="feat" id="sheet-schema"><h3>Schema <span class="where">ID SCH-&lt;EntityID&gt;-###</span></h3>
+      <p>Every GraphQL type under an entity. <b>Kind</b> is <code>Key</code> (an entity with <code>@key</code>), <code>Type</code>, <code>Enum</code>, <code>Input</code>, <code>Interface</code>, <code>Scalar</code>, <code>Reference</code> (a stub of another subgraph's entity) or <code>Extend</code> (adds fields to another subgraph's entity). <b>Definition</b> holds the SDL body.</p></div>
+    <div class="feat" id="sheet-queries"><h3>Queries <span class="where">ID QRY-&lt;EntityID&gt;-###</span></h3>
+      <p>Root <code>Query</code> fields. Parameters are edited one per line as <code>name: Type</code>. Return Type is a combo box listing the registry's types, and you can still type wrappers like <code>[T!]!</code>. Auth Scopes is a comma-separated list.</p></div>
+    <div class="feat" id="sheet-mutations"><h3>Mutations <span class="where">ID MUT-&lt;EntityID&gt;-###</span></h3>
+      <p>Root <code>Mutation</code> fields, edited the same way as Queries. The standards prefer a single <code>input: &lt;Name&gt;Input!</code> argument.</p></div>
+    <div class="feat" id="sheet-authscopes"><h3>AuthScopes <span class="where">ID SCP-&lt;EntityID&gt;-###</span></h3>
+      <p>One row per scope and persona: pick the <b>Persona</b> (Customer, CustomerCare, B2BShopper, B2BShopperCare, B2BAdmin or B2BAdminCare) from the dropdown and describe the <b>Permission</b> it grants. If a persona has no row for a scope, it has no access to it.</p></div>
+
+    <div class="feat" id="row-ids"><h3>Row IDs</h3>
+      <p>Entities use <code>ENT-###</code>. Rows that belong to an entity include its ID in their own: <code>SCH-</code>, <code>QRY-</code>, <code>MUT-</code> and <code>SCP-&lt;EntityID&gt;-&lt;seq&gt;</code>, for example <code>QRY-ENT-003-002</code>. The migration tool generates IDs the same way. A new row starts as <code>…-ENT-000-###</code> (no entity yet); when you pick its Entity, the ID is renumbered under that entity. IDs you typed yourself are never changed.</p></div>
+    <div class="feat" id="links"><h3>Links &amp; References and governance columns</h3>
+      <p>Every sheet ends with <b>Contacts</b> (Domain Architect / Technical Service Owner), <b>Approval Status</b> (Draft → Proposed → Approved → Deprecated), <b>Comments</b>, <b>Current Reference</b> (the legacy REST or MonoGraph operation this row replaces) and <b>Links &amp; References</b>.</p>
+      <p>In <b>Links &amp; References</b>, each line has a type from the dropdown (<b>LeanIX</b>, <b>Confluence</b>, <b>ER</b> or <b>Other</b>) and a URL or text. ↗ opens the URL. Lines without a type are treated as Other.</p></div>
+    <div class="feat" id="wb-standards"><h3>Standards ⓘ and issue flags</h3>
+      <p>Schema, Queries and Mutations rows are checked as you edit against the <i>GQL Federation — Schema Standards and Patterns</i> rules (<code>standards.json</code>). Flagged cells are outlined. A ⚠ badge on a row lists its issues with a fix and a link to the relevant section of the standards document. The toolbar chip filters the grid to rows with issues. Issues are advisory in the registry and never block saving.</p></div>
+
+    <div class="feat" id="wb-graph"><h3>Federated Graph</h3>
+      <p>A Mermaid diagram: router → one subgraph per Business Application (or per Business Capability) → its entities, with <code>@key</code> fields and operation counts. Entities with the same name in different subgraphs are joined by a dashed federation edge. <span class="ui">Copy Mermaid source</span> copies the diagram source for docs.</p></div>
+    <div class="feat" id="wb-explorer"><h3>Explorer</h3>
+      <p>A GraphiQL-style browser for the registry's operations. Search, or filter by Queries / Mutations, then open an operation to see its auth scopes, parameters, signature, a sample operation document and the entity's SDL, each with a Copy button.</p></div>
+    <div class="feat" id="wb-subgraph-sdl"><h3>Subgraph SDL</h3>
+      <p>The complete SDL a subgraph contributes for an entity: every type registered under it plus its root operations. <span class="ui">Copy SDL</span> copies it.</p></div>
+    <div class="feat" id="wb-borrow"><h3>＋ Borrow / extend entity</h3>
+      <p>Use an entity owned by another subgraph. <b>Reference</b> adds a stub (<code>@key(…, resolvable: false)</code>) so you can use it as a field type. <b>Extend</b> adds a field to it (for example, pnp adds <code>storeContext</code> to <code>Product</code>). Suggestions appear when your types already refer to another subgraph's entity.</p></div>
+    <div class="feat" id="wb-summary"><h3>Summary</h3>
+      <p>Per-subgraph counts of keys, types, inputs, enums, scalars, queries and mutations, with an approval-status breakdown. It also shows a collapsible tree of each type's relationships; use <span class="ui">Expand all</span> / <span class="ui">Collapse all</span>.</p></div>
+  </section>
+
+  <!-- ============================ Migration ============================ -->
+  <section id="migration">
+    <h2>GQL migration <small class="hint">gql-migration.html</small></h2>
+    <p>Migrates one registry entity at a time: its service's OpenAPI spec becomes FedGQL registry rows, which you review, propose and copy into the registry.</p>
+
+    <div class="feat" id="mig-load"><h3>Load data <span class="where">tab</span></h3>
+      <p>Load <code>GQLRegistry.xlsx</code> with <span class="ui">Choose file…</span>. When the pages are served over http(s), the workbook and MonoGraph schema load automatically from the same folder. Then, under <b>Domain details</b>, pick the <b>GQL Registry entity</b> you are migrating; its EntityID and domain details become the target for everything generated.</p></div>
+    <div class="feat" id="mig-resume"><h3>Subgraph migration (.xlsx)</h3>
+      <p>Optional. Reloads a <code>…-subgraph.xlsx</code> you exported earlier, so you can continue where you left off.</p></div>
+    <div class="feat" id="mig-clear"><h3>Clear cached data &amp; mapping</h3>
+      <p>Clears everything this page cached in the browser: loaded files, imported subgraphs, assignments and row edits.</p></div>
+    <div class="feat" id="mig-import"><h3>Import OpenAPI spec (JSON/YAML)</h3>
+      <p>Imports one spec per subgraph. Component schemas become GraphQL types, request bodies become <code>input</code> types, GET operations become queries and other methods become mutations. The <code>operationId</code> becomes the operation name. Generated rows take IDs like <code>SCH-</code>, <code>QRY-</code> and <code>MUT-&lt;EntityID&gt;-###</code> under the chosen entity.</p>
+      <p class="note">Keys are auto-detected only from an <code>id</code> or <code>&lt;Type&gt;Id</code> field. For other keys (such as <code>sku</code>), choosing the registry entity is enough: every generated row belongs to it.</p></div>
+    <div class="feat" id="mig-monograph"><h3>MonoGraph schema <span class="where">tab</span></h3>
+      <p>Load the monolith's SDL (<code>.graphqls</code>, <code>.graphql</code> or <code>.gql</code>). Search its types and root methods, view each one's SDL, and copy a type as a federation <code>@key</code> stub. Under <b>Assign to target domain / entity</b>, click <span class="ui">Save</span> to record where the type or method moves, which tracks migration coverage. <span class="ui">Unassign</span> removes it.</p></div>
+    <div class="feat" id="mig-subgraphs"><h3>Subgraphs <span class="where">tab</span></h3>
+      <p>Review an imported subgraph: its operations (switch one between query and mutation, or delete it), its types, and the generated federated SDL. You can also rename or delete the subgraph here.</p></div>
+    <div class="feat" id="mig-borrow"><h3>＋ Borrow / extend entity <span class="where">Subgraphs tab</span></h3>
+      <p>Add a <b>reference</b> or <b>extend</b> stub for an entity owned by another subgraph, the same way as in the workbench's <a href="#wb-borrow">Subgraph SDL</a> tab. Suggestions show the owning subgraph.</p></div>
+    <div class="feat" id="mig-fedgql"><h3>FedGQL subgraph <span class="where">tab</span></h3>
+      <p>The exact registry rows the subgraph will produce, grouped by Entities, Schema, Queries and Mutations. Cells are editable and your edits are kept (<span class="ui">Reset edits</span> discards them). Rows that break the standards are highlighted, with the issue shown underneath. New rows start as <code>Draft</code>; set <b>Approval</b> to <code>Proposed</code> when a row is ready.</p></div>
+    <div class="feat" id="mig-add-rows"><h3>＋ Add type / query / mutation</h3>
+      <p>Adds a row of your own to the subgraph, with an ID under the migration entity. <b>✕</b> removes a row you added.</p></div>
+    <div class="feat" id="mig-reset"><h3>Reset edits</h3>
+      <p>Discards your cell edits and regenerates the rows from the imported spec.</p></div>
+    <div class="feat" id="mig-export"><h3>Export subgraph / Export subgraph xls</h3>
+      <p>Downloads <code>&lt;subgraph&gt;-subgraph.xlsx</code> with Entities, Schema, Queries and Mutations sheets laid out like the registry. <b>Standards errors block the export</b>; warnings ask you to confirm. Check that the EntityIDs match the registry before sharing it.</p></div>
+    <div class="feat" id="mig-copy"><h3>Copy to GQL Registry →</h3>
+      <p>Checks the <b>Proposed</b> rows, together with the Entities rows they belong to, against the standards, then merges them into the registry on the <b>GQL Registry</b> tab. A row with the same ID is updated; any other row is added. Rows still in Draft are not copied.</p></div>
+    <div class="feat" id="mig-registry"><h3>GQL Registry <span class="where">tab</span></h3>
+      <p>The Registry workbench, embedded in this page. It uses the same browser storage as <code>workbench.html</code>, so copied rows also appear there. Approve and export from it.</p></div>
+  </section>
+
+  <!-- ========================== Code migration ========================== -->
+  <section id="code-migration">
+    <h2>Code migration <small class="hint">subgraph-codemigration.html</small></h2>
+    <p>Generates the code that moves callers from REST to FedGQL. It opens on its own, or embedded in the <b>Code migration</b> tab of GQL migration.</p>
+    <div class="feat" id="code-inputs"><h3>Inputs</h3>
+      <p>Load <code>GQLRegistry.xlsx</code>, which supplies the FedGQL operations and types, and the REST spec (OpenAPI or Swagger, in YAML or JSON). Pick the registry entity (subgraph) to limit the list to that subgraph's operations.</p></div>
+    <div class="feat" id="code-modes"><h3>Mode</h3>
+      <p><b>Single op</b> maps one REST operation to one FedGQL operation. <b>BFF composite</b> maps one BFF endpoint to a set of FedGQL queries and mutations from different subgraphs.</p></div>
+    <div class="feat" id="code-single"><h3>Single op</h3>
+      <p>Pick the REST operation and the GraphQL operation; they are paired automatically when an operation's <b>Current Reference</b> matches the REST method and path. Choose <b>Client</b> (JavaScript, Java, Android/Kotlin, iOS/Swift) or <b>Server</b> (Java Spring for GraphQL, .NET Hot Chocolate, Node.js Apollo Server). You get the REST and FedGQL versions side by side, with renamed fields and types highlighted, plus a sample response.</p></div>
+    <div class="feat" id="code-bff"><h3>BFF composite</h3>
+      <p>Pick the BFF REST endpoint, then click <span class="ui">＋ Add FedGQL op</span> for each operation it composes, and set an alias and arguments for each. The page generates:</p>
+      <ul>
+        <li>the combined FedGQL document;</li>
+        <li>a single federated query, with a sequence diagram of how the router resolves the entity and then fetches from each subgraph by <code>@key</code>;</li>
+        <li>the SDL for each subgraph involved;</li>
+        <li>BFF handler (server) or client code.</li>
+      </ul></div>
+    <div class="feat" id="code-export"><h3>Export registry + BFF mappings (.xlsx)</h3>
+      <p>Writes the loaded registry back with a <code>BffMappings</code> sheet holding each endpoint's operations, aliases, arguments, order and owning operation. Load that workbook again later to restore the mappings.</p></div>
+  </section>
+
+  <section id="faq">
+    <h2>FAQ &amp; troubleshooting</h2>
+    <div class="feat"><h3>Where is my data stored?</h3>
+      <p>Each page caches its data in this browser's local storage. The Excel workbook is the only thing you share: export it, or push it to SharePoint or Google Drive. Clearing site data in the browser, or using a different browser, starts empty.</p></div>
+    <div class="feat"><h3>Files don't load automatically</h3>
+      <p>When a page is opened straight from disk (<code>file://</code>), the browser blocks automatic loading. Use the file pickers, or serve the folder over http(s), for example with GitHub Pages or <code>python3 -m http.server</code>.</p></div>
+    <div class="feat"><h3>Copy to GQL Registry does nothing</h3>
+      <p>Only <code>Proposed</code> rows are copied, and standards <b>errors</b> must be fixed first. Also make sure a registry entity is selected on <b>Load data</b>.</p></div>
+    <div class="feat"><h3>Excel warns about a value in a dropdown column</h3>
+      <p>The exported dropdowns only warn. They accept values outside the list, so you can add a new persona or status and update the workbench to match later.</p></div>
+  </section>
+</article>
+</div>
+
+<script>
+// Filter the contents and sections as you type in "Search help…".
+document.getElementById("tocSearch").addEventListener("input", e => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll("#helpBody .feat").forEach(f => f.classList.toggle("hidden", !!q && !f.textContent.toLowerCase().includes(q)));
+  document.querySelectorAll(".toc a").forEach(a => {
+    const t = document.querySelector(a.getAttribute("href"));
+    a.classList.toggle("hidden", !!q && !(t && t.textContent.toLowerCase().includes(q)));
+  });
+});
+</script>
+</body>
+</html>

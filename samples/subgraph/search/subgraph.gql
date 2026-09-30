@@ -1,0 +1,43 @@
+# search subgraph — full-text indexing, fuzzy matching, filtering and facets (e.g. Elasticsearch
+# or Algolia). It doesn't duplicate product data: hits are Product references (the @key) that the
+# router hydrates from the product / pnp / inventory subgraphs.
+# Registry: ENT-004 ProductSearch (BusinessApplication "search").
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key"])
+
+type Query {
+  """Main entry point for search and catalogue exploration."""
+  searchProducts(
+    query: String!
+    filters: ProductFilterInput
+    limit: Int = 20
+    offset: Int = 0
+  ): SearchResponse!
+}
+
+type SearchResponse {
+  hits: [Product!]!
+  totalCount: Int!
+  facets: [SearchFacet!]!
+}
+
+type SearchFacet {
+  field: String!
+  options: [FacetOption!]!
+}
+
+type FacetOption {
+  value: String!
+  count: Int!
+}
+
+# Reference stub so the router can link hits back to the other subgraphs
+type Product @key(fields: "sku", resolvable: false) {
+  sku: String!
+}
+
+input ProductFilterInput {
+  brand: [String!]!       # [] = any brand
+  inStockAtStore: ID      # filter the search index by store inventory
+}

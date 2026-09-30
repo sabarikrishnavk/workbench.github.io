@@ -1,0 +1,1892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GraphQL Schema Registry</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="common.js"></script>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  :root{
+    --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --query: #0b7285; --mutation: #b45309; --sub: #15803d;
+    --ok: #15803d; --bad: #b91c1c;
+  }
+  body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 14px; display: flex; flex-direction: column; height: 100vh; }
+  header{ background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  nav{ background: var(--panel); border-bottom: 1px solid var(--line); display: flex; gap: 2px; padding: 0 12px; }
+  main{ flex: 1; overflow: auto; padding: 16px; }
+  .sheet-tabs{ display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+  .sheet-tabs button{ font-size: 12px; padding: 4px 10px; border-radius: 999px; }
+  .sheet-tabs button.active{ background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  th{ background: #fafbfc; position: sticky; top: 0; font-weight: 600; }
+  td input, td select, td textarea{ width: 100%; border: 1px solid transparent; background: transparent; font: inherit; padding: 3px 4px; border-radius: 4px; resize: vertical; }
+  td input:focus, td select:focus, td textarea:focus{ border-color: var(--accent); background: #fff; outline: none; }
+  /* Row tint by Approval Status (Draft = default white). td must stay transparent to let it show. */
+  tr.status-approved td{ background: #e5f6e9; }
+  tr.status-deprecated td{ background: #fde3e3; }
+  tr.status-proposed td{ background: #fdf6d8; }
+  tr.status-draft td{ background: transparent; }
+  .row-actions{ white-space: nowrap; width: 1%; }
+  /* --- Standards validation --- */
+  .cell-invalid, .cell-invalid input, .cell-invalid textarea, .cell-invalid select{ outline: 2px solid #d33; outline-offset: -2px; border-radius: 3px; }
+  .cell-warn, .cell-warn input, .cell-warn textarea, .cell-warn select{ outline: 2px solid #e0a800; outline-offset: -2px; border-radius: 3px; }
+  .val-badge{ border: none; cursor: pointer; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 10px; margin-right: 4px; color: #fff; }
+  .val-badge.sev-error{ background: #d33; }
+  .val-badge.sev-warning{ background: #e0a800; }
+  .val-badge.sev-info{ background: #3b82c4; }
+  .val-summary{ border: 1px solid #e0a800; background: #fdf6d8; color: #7a5c00; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .val-summary.active{ background: #e0a800; color: #fff; font-weight: 600; }
+  tr.val-detail td{ background: #fbfbfd; border-top: none; padding: 4px 10px 8px; }
+  .val-list{ display: flex; flex-direction: column; gap: 4px; }
+  .val-item{ font-size: 12px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; }
+  .val-item code{ background: #eef; padding: 0 4px; border-radius: 3px; font-size: 11px; }
+  .val-fix{ color: var(--muted); }
+  .val-ref{ font-size: 11px; white-space: nowrap; }
+  .sev-dot{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .sev-error .sev-dot{ background: #d33; }
+  .sev-warning .sev-dot{ background: #e0a800; }
+  .sev-info .sev-dot{ background: #3b82c4; }
+  /* --- Standards help drawer --- */
+  .std-backdrop{ position: fixed; inset: 0; background: rgba(0,0,0,.28); opacity: 0; transition: opacity .2s; z-index: 90; }
+  .std-backdrop.open{ opacity: 1; }
+  .std-drawer{ position: fixed; top: 0; right: 0; height: 100%; width: 420px; max-width: 92vw; background: #fff; box-shadow: -4px 0 20px rgba(0,0,0,.15); z-index: 91; transform: translateX(100%); transition: transform .2s; display: flex; flex-direction: column; }
+  .std-drawer.open{ transform: translateX(0); }
+  .std-head{ display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .std-head h2{ margin: 0; font-size: 16px; }
+  .std-note{ margin: 10px 16px 4px; font-size: 12px; color: var(--muted); }
+  #stdBody{ overflow: auto; padding: 4px 16px 24px; }
+  .std-group{ margin-top: 14px; }
+  .std-group h3{ margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+  .std-rule{ border-left: 3px solid var(--line); padding: 6px 8px; margin: 6px 0; background: #fafafc; border-radius: 0 6px 6px 0; }
+  .std-rule.sev-error{ border-left-color: #d33; }
+  .std-rule.sev-warning{ border-left-color: #e0a800; }
+  .std-rule.sev-info{ border-left-color: #3b82c4; }
+  .std-rule-h{ display: flex; align-items: center; gap: 6px; }
+  .std-rule-h code{ background: #eef; padding: 0 4px; border-radius: 3px; font-size: 11px; }
+  .std-sev{ margin-left: auto; font-size: 10px; text-transform: uppercase; color: var(--muted); }
+  .std-rule-t{ font-weight: 600; font-size: 13px; margin: 3px 0 1px; }
+  .std-rule-m{ font-size: 12px; }
+  .std-rule-f{ font-size: 12px; color: #2e7d32; margin-top: 3px; }
+  .icon-btn{ border: none; background: transparent; padding: 2px 6px; color: var(--muted); cursor: pointer; }
+  .icon-btn:hover{ color: var(--bad); }
+  .table-wrap{ overflow: auto; max-height: 60vh; border: 1px solid var(--line); border-radius: 8px; }
+  /* Column show/hide + widen */
+  .hidden-col{ display: none !important; }
+  th.wide-col, td.wide-col{ min-width: 460px; }
+  .th-wrap{ display: flex; align-items: center; gap: 6px; }
+  .th-wrap .th-label{ flex: 1; }
+  .th-tools{ display: inline-flex; gap: 1px; opacity: 0; transition: opacity .1s; }
+  th:hover .th-tools{ opacity: 1; }
+  .th-tools button{ border: none; background: transparent; cursor: pointer; color: var(--muted); font-size: 12px; padding: 0 3px; line-height: 1.2; border-radius: 3px; }
+  .th-tools button:hover{ background: #e5e8ec; color: var(--ink); }
+  .th-tools button.on{ color: var(--accent); }
+  /* Filter funnel: always visible (outside the hover-only .th-tools), highlighted when active. */
+  .th-wrap > .filter-btn{ border: none; background: transparent; cursor: pointer; color: var(--muted); font-size: 12px; padding: 0 3px; line-height: 1.2; border-radius: 3px; }
+  .th-wrap > .filter-btn:hover{ background: #e5e8ec; color: var(--ink); }
+  .th-wrap > .filter-btn.active{ color: var(--accent); font-weight: 700; background: var(--accent-soft); }
+  .filter-pop{ position: fixed; z-index: 60; width: 240px; max-width: 90vw; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.16); padding: 8px; font-size: 12.5px; }
+  .filter-pop .filter-search{ width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; margin-bottom: 6px; }
+  .filter-pop .filter-all{ display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-bottom: 1px solid var(--line); margin-bottom: 4px; font-weight: 600; cursor: pointer; }
+  .filter-pop .filter-list{ max-height: 220px; overflow: auto; }
+  .filter-pop .filter-list label{ display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 4px; cursor: pointer; }
+  .filter-pop .filter-list label:hover{ background: var(--accent-soft); }
+  .filter-pop .filter-foot{ display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+  .filter-pop .filter-foot button{ padding: 4px 10px; font-size: 12px; }
+  .filter-empty{ color: var(--muted); padding: 6px 4px; }
+  .col-panel{ display: none; flex-wrap: wrap; gap: 6px 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fbfbfd; margin: 2px 0 10px; }
+  .col-panel.open{ display: flex; }
+  .col-panel label{ display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; cursor: pointer; }
+  .col-panel .panel-actions{ width: 100%; display: flex; gap: 8px; align-items: center; margin-bottom: 2px; }
+  .col-panel .panel-actions .hint{ margin-left: auto; }
+  /* Structured attribute / parameter / type editors */
+  .attrs-cell{ min-width: 220px; }
+  .attrs-list{ display: flex; flex-direction: column; gap: 3px; }
+  .attr-line{ display: flex; align-items: center; gap: 3px; }
+  .attr-line .attr-name{ flex: 1 1 40%; min-width: 60px; }
+  .attr-colon{ color: var(--muted); }
+  .attr-line .type-combo{ flex: 1 1 55%; }
+  .type-combo{ display: inline-flex; width: 100%; }
+  .type-combo input{ width: 100%; }
+  .attr-line .icon-btn{ flex: 0 0 auto; }
+  .mini-add{ margin-top: 4px; border: 1px dashed var(--line); background: #fff; color: var(--muted); border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
+  .mini-add:hover{ color: var(--accent); border-color: var(--accent); }
+  .table-toolbar{ display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+  .links-cell{ min-width: 200px; }
+  .links-list{ display: flex; flex-direction: column; gap: 3px; }
+  .link-line{ display: flex; align-items: center; gap: 2px; }
+  .link-line select, .link-line input{ border: 1px solid var(--line); background: #fff; }
+  .link-line select{ max-width: 96px; }
+  .link-open{ text-decoration: none; color: var(--accent); padding: 0 4px; }
+  .add-link{ border: none; background: transparent; color: var(--accent); padding: 2px 0; cursor: pointer; font-size: 12px; }
+  .contacts-cell{ min-width: 260px; }
+  .contact-line{ display: flex; align-items: center; gap: 2px; }
+  .contact-line select, .contact-line input{ border: 1px solid var(--line); background: #fff; }
+  .contact-line select{ max-width: 110px; }
+  .ops-cell{ min-width: 240px; }
+  .op-line{ display: flex; align-items: center; gap: 2px; }
+  .op-line select, .op-line input{ border: 1px solid var(--line); background: #fff; }
+  .op-line select{ max-width: 84px; }
+  .add-link:hover{ text-decoration: underline; background: transparent; }
+  /* Graph */
+  .toolbar-inline{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .seg{ display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button{ border: none; border-radius: 0; padding: 5px 12px; background: #fff; }
+  .seg button.active{ background: var(--accent); color: #fff; }
+  #graphOut{ overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fff; min-height: 200px; }
+  .code-head{ display: flex; align-items: center; justify-content: space-between; margin: 12px 0 6px; }
+  /* Explorer (GraphiQL-like) */
+  .gql{ display: grid; grid-template-columns: 300px 1fr; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; height: calc(100vh - 220px); min-height: 440px; }
+  .gql .side{ border-right: 1px solid var(--line); background: #fbfbfd; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .gql .side .filters{ padding: 8px; border-bottom: 1px solid var(--line); }
+  .gql .side .filters input{ width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; margin-bottom: 6px; }
+  .optype-tabs{ display: flex; gap: 4px; }
+  .optype-tabs button{ flex: 1; font-size: 12px; padding: 4px; }
+  .optype-tabs button.active{ background: var(--accent); color: #fff; border-color: var(--accent); }
+  .op-list{ overflow: auto; flex: 1; min-height: 0; }
+  .op-group{ padding: 6px 10px 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); position: sticky; top: 0; background: #fbfbfd; z-index: 1; }
+  .op-item{ padding: 6px 10px; cursor: pointer; border-left: 3px solid transparent; font-size: 13px; }
+  .op-item:hover{ background: #f1eefe; }
+  .op-item.active{ background: var(--accent-soft); border-left-color: var(--accent); }
+  .op-item .dot{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .dot.query{ background: var(--query); }
+  .dot.mutation{ background: var(--mutation); }
+  .dot.subscription{ background: var(--sub); }
+  .gql .detail{ padding: 14px; overflow: auto; min-height: 0; background: #fff; }
+  /* Independent, visually distinct scroll panes: neutral-grey left, accent-purple right */
+  .op-list{ scrollbar-width: thin; scrollbar-color: #c7cdd4 #fbfbfd; }
+  .gql .detail{ scrollbar-width: thin; scrollbar-color: #d3c6f2 #fff; }
+  .op-list::-webkit-scrollbar, .gql .detail::-webkit-scrollbar{ width: 11px; }
+  .op-list::-webkit-scrollbar-thumb{ background: #c7cdd4; border-radius: 8px; border: 3px solid #fbfbfd; }
+  .op-list::-webkit-scrollbar-thumb:hover{ background: #a7b0ba; }
+  .gql .detail::-webkit-scrollbar-thumb{ background: #d3c6f2; border-radius: 8px; border: 3px solid #fff; }
+  .gql .detail::-webkit-scrollbar-thumb:hover{ background: var(--accent); }
+  .tag{ display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); margin-right: 4px; }
+  .tag.query{ color: var(--query); border-color: var(--query); }
+  .tag.mutation{ color: var(--mutation); border-color: var(--mutation); }
+  .tag.subscription{ color: var(--sub); border-color: var(--sub); }
+  .tag.scope{ color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .kv{ color: var(--muted); font-size: 12px; margin: 8px 0 2px; text-transform: uppercase; letter-spacing: .03em; }
+  /* SharePoint sync bar */
+  .syncbar{ display: flex; align-items: center; gap: 8px; padding: 7px 16px; background: #f0eefb; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .syncbar .sp-ico{ font-size: 14px; }
+  .sp-state{ color: var(--muted); }
+  .sp-state a{ color: var(--accent); text-decoration: none; }
+  .sp-state a:hover{ text-decoration: underline; }
+  .sp-state.ok b{ color: var(--ink); }
+  .syncbar button{ font-size: 12px; padding: 4px 10px; }
+  .syncbar .spacer{ flex: 1; }
+  /* Modal */
+  .modal{ position: fixed; inset: 0; background: rgba(15,23,42,.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal[hidden]{ display: none; }
+  .modal-card{ background: #fff; border-radius: 12px; padding: 20px 22px; width: 520px; max-width: 92vw; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  .modal-card h2{ margin: 0 0 10px; font-size: 16px; }
+  .modal-card ol{ margin: 0 0 12px; padding-left: 20px; }
+  .modal-card li{ margin: 6px 0; }
+  .modal-card label.field{ display: block; margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
+  .modal-card input[type=text], .modal-card input[type=url]{ width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  .modal-actions{ display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .step{ border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+  .step b{ display: block; margin-bottom: 6px; }
+  .merge-report{ background: #f6f7f9; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+  .merge-report .num{ font-weight: 650; }
+  /* Summary tab */
+  .sum-sec-head{ display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; }
+  .sum-sec-head h3{ margin: 0; font-size: 13px; }
+  .sum-sec-head .hint{ margin-left: auto; }
+  .sg-dot{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 5px; border: 1px solid rgba(0,0,0,.15); }
+  /* Collapsible type tree */
+  .tree{ border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fbfbfd; max-height: 60vh; overflow: auto; font-size: 13px; }
+  .tree details{ margin: 1px 0; }
+  .tree summary{ cursor: pointer; list-style: none; padding: 2px 4px; border-radius: 4px; white-space: nowrap; }
+  .tree summary::-webkit-details-marker{ display: none; }
+  .tree summary::before{ content: "▸"; display: inline-block; width: 1em; color: var(--muted); transition: transform .1s; }
+  .tree details[open] > summary::before{ transform: rotate(90deg); }
+  .tree summary:hover{ background: #eef1f5; }
+  .tree details details, .tree details .tree-leaf{ margin-left: 15px; border-left: 1px dotted #d7dbe0; padding-left: 6px; }
+  .tree-leaf{ padding: 2px 4px; white-space: nowrap; }
+  .tree-group{ font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 0 3px; font-weight: 600; }
+  .tree-subgroup{ font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin: 4px 0 2px; font-weight: 600; opacity: .8; }
+  .tree-op{ color: var(--query); font-weight: 600; }
+  .tree-field{ color: var(--ink); }
+  .tree-fieldtype, .tree-type{ color: #0369a1; }
+  .tree-kind{ color: var(--muted); font-size: 11px; }
+  .tree-scalar{ color: #15803d; }
+  .tree-enumval{ color: #b45309; }
+  .tree-colon{ color: var(--muted); }
+  .fed-chip{ display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid; font-weight: 600; }
+  .tree-leaf.fed{ border-left-width: 3px !important; border-left-style: solid !important; }
+  /* Subgraph colour legend */
+  .legend{ display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 10px; }
+  .legend span{ font-size: 12px; }
+  /* Rollup table */
+  .sum-table{ border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  .sum-table th, .sum-table td{ border: 1px solid var(--line); padding: 5px 8px; text-align: left; }
+  .sum-table th{ background: #fafbfc; font-weight: 600; }
+  .sum-table td.num, .sum-table th.num{ text-align: right; font-variant-numeric: tabular-nums; }
+  .sum-table tfoot td{ font-weight: 650; background: #f6f7f9; }
+  .st-chip{ display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); margin: 0 3px 2px 0; }
+  .st-approved{ background: #e5f6e9; border-color: #86c99a; color: #1a7a3c; }
+  .st-deprecated{ background: #fde3e3; border-color: #e59a9a; color: #b03535; }
+  .st-proposed{ background: #fdf6d8; border-color: #ddc766; color: #8a6d0b; }
+  .st-draft{ background: #f1f3f5; border-color: #ced2d6; color: #5a636b; }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  #subgraphBorrow table{ width: 100%; border-collapse: collapse; font-size: 13px; }
+  #subgraphBorrow th, #subgraphBorrow td{ text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  #subgraphBorrow .empty{ color: var(--muted); text-align: center; }
+  .borrow-chips{ display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+  .borrow-form{ display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 10px; }
+  .borrow-form label{ display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 2px; }
+  .borrow-form input, .borrow-form select{ padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; }
+  #brwContrib{ display: flex; gap: 8px; align-items: flex-end; }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="index.html" style="color:inherit;text-decoration:none" title="Workbench home">GraphQL Schema Registry</a></h1>
+  <span class="status" id="status"></span>
+  <span class="status" id="fileName"></span>
+  <span class="spacer"></span>
+  <a class="btn" href="gql-migration.html" target="_blank" rel="noopener" data-help="migration">GQL migration ↗</a>
+  <a class="btn" href="subgraph-codemigration.html" target="_blank" rel="noopener" data-help="code-migration" title="Subgraph code migration">Code migration ↗</a>
+  <label class="btn" for="fileInput" data-help="wb-load">Load .xlsx</label>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" />
+  <button id="exportBtn" data-help="wb-export">Export .xlsx</button>
+  <button id="templateBtn" data-help="wb-template">Template</button>
+  <button id="seedBtn" data-help="wb-example">Load example</button>
+  <button class="danger" id="clearBtn" data-help="wb-clear">Clear</button>
+  <a class="btn help-link" href="help.html#workbench" target="_blank" rel="noopener" title="How to use the registry workbench">❓ Help</a>
+  <a class="btn help-link" href="demo.html" target="_blank" rel="noopener" title="Slide walkthrough of the features">▶ Demo</a>
+</header>
+
+<div class="syncbar">
+  <span class="seg" id="syncTarget" title="Where the shared workbook lives" data-help="wb-sharepoint"><button data-t="sharepoint">SharePoint</button><button data-t="gdrive">Google Drive</button></span>
+  <span class="sp-ico" id="spIco">🔗</span>
+  <span class="sp-state" id="spState">SharePoint: not configured</span>
+  <span class="spacer"></span>
+  <button id="spPull" data-help="wb-sharepoint">Pull &amp; merge</button>
+  <button id="spPush" class="primary" data-help="wb-sharepoint">Save &amp; push</button>
+  <button id="spSettings" data-help="wb-sharepoint">SharePoint settings</button>
+</div>
+
+<div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
+
+<nav id="nav">
+  <button data-view="registry" class="active" data-help="wb-registry">Registry</button>
+  <button data-view="graph" data-help="wb-graph">Federated Graph</button>
+  <button data-view="explorer" data-help="wb-explorer">Explorer</button>
+  <button data-view="subgraph" data-help="wb-subgraph-sdl">Subgraph SDL</button>
+  <button data-view="summary" data-help="wb-summary">Summary</button>
+</nav>
+
+<main>
+  <section class="view active" id="view-registry">
+    <div class="sheet-tabs" id="sheetTabs"></div>
+    <div class="card" id="sheetCard"></div>
+  </section>
+
+  <section class="view" id="view-graph">
+    <div class="card">
+      <h2>Federated GraphQL graph</h2>
+      <p class="desc">Supergraph gateway → one subgraph per domain → entities (with <code>@key</code> + operation counts). Entities sharing a canonical name across domains are joined by a dashed federation edge.</p>
+      <div class="toolbar-inline">
+        <span class="hint">Group subgraphs by:</span>
+        <span class="seg" id="groupSeg">
+          <button data-group="BusinessApplication" class="active">Application</button>
+          <button data-group="BusinessCapability">Business Capability</button>
+        </span>
+        <button id="copyMermaid" class="copy-btn" data-help="wb-graph">Copy Mermaid source</button>
+      </div>
+      <div id="graphOut"></div>
+      <div class="code-head"><h3>Mermaid source</h3></div>
+      <pre class="code" id="mermaidSrc"></pre>
+    </div>
+  </section>
+
+  <section class="view" id="view-explorer">
+    <div class="gql">
+      <div class="side">
+        <div class="filters">
+          <input type="text" id="opSearch" placeholder="Search operations…" />
+          <div class="optype-tabs" id="optypeTabs">
+            <button data-t="All" class="active">All</button>
+            <button data-t="Query">Queries</button>
+            <button data-t="Mutation">Mutations</button>
+          </div>
+        </div>
+        <div class="op-list" id="opList"></div>
+      </div>
+      <div class="detail" id="opDetail"><div class="empty">Select an operation.</div></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-subgraph">
+    <div class="card">
+      <h2>Subgraph SDL</h2>
+      <p class="desc">The <strong>full</strong> SDL a subgraph contributes for an entity — every <code>@key</code>, type, input, enum, interface and scalar registered under it, plus its <code>Query</code>/<code>Mutation</code> operations. Unlike the Explorer's per-operation <em>Entity SDL</em> (scoped to what one operation reaches), this is the whole set.</p>
+      <div class="toolbar-inline">
+        <span class="hint">Entity / subgraph:</span>
+        <select id="subgraphSel"></select>
+        <button id="copySubgraph" class="copy-btn" data-help="wb-subgraph-sdl">Copy SDL</button>
+      </div>
+      <pre class="code" id="subgraphSDL"></pre>
+      <div id="subgraphBorrow"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-summary">
+    <div class="card">
+      <h2>Subgraph summary &amp; federation</h2>
+      <p class="desc">Per-subgraph counts (Types / Enums / Inputs / Queries / Mutations) with an approval-status breakdown and a collapsible tree of each type's relationships. Each subgraph has its own colour (below); a field whose type is owned by another subgraph shows as a coloured <code>@key</code> reference chip in the tree.</p>
+      <div class="legend" id="summaryLegend"></div>
+
+      <div class="sum-sec-head"><h3>Type relationships</h3>
+        <span class="hint">Subgraph:</span>
+        <select id="summarySel"></select>
+        <button id="sumExpand">Expand all</button>
+        <button id="sumCollapse" data-help="wb-summary">Collapse all</button>
+      </div>
+      <div class="tree" id="summaryTree"></div>
+
+      <div class="sum-sec-head"><h3>Per-subgraph rollup</h3></div>
+      <div id="summaryTable"></div>
+    </div>
+  </section>
+</main>
+
+<div id="stdBackdrop" class="std-backdrop" hidden></div>
+<aside id="stdDrawer" class="std-drawer" hidden aria-label="Schema standards">
+  <div class="std-head">
+    <h2>Schema standards</h2>
+    <button id="stdClose" class="icon-btn" title="Close">✕</button>
+  </div>
+  <p class="std-note" id="stdNote"></p>
+  <div id="stdBody"></div>
+</aside>
+
+<script>
+/* --------------------------- Schema (sheets) ---------------------------- */
+const PERSONAS = ["Customer", "CustomerCare", "B2BShopper", "B2BShopperCare", "B2BAdmin", "B2BAdminCare"];
+const KINDS = ["Key", "Type", "Enum", "Input", "Interface", "Scalar", "Reference", "Extend"]; // GraphQL kind of a Schema row ("Reference"/"Extend" = an entity borrowed from another subgraph via federation)
+const GQL_SCALARS = ["ID", "String", "Int", "Float", "Boolean"];        // built-in scalars always offered
+// Default scalars every entity schema may reference — built-ins + common custom scalars.
+// Registered as Scalar rows owned by the foundational "FedGQL" entity, so the type dropdowns
+// and generated SDL cover them out of the box (in a fresh template and the example seed).
+const DEFAULT_SCALARS = ["ID", "String", "Int", "Float", "Boolean", "DateTime", "Date",
+  "DateTimeISO", "JSON", "Long", "BigDecimal", "Decimal", "Money", "URL"];
+// The foundational federation entity that owns the default/shared scalar types.
+const FEDGQL_ENTITY = {
+  Name: "FedGQL", ExperienceDomain: "Federation", BusinessApplication: "FedGQL",
+  BusinessCapability: "Federation Foundation",
+  Description: "Foundational federation entity that owns the default scalar types shared across all entity schemas.",
+  Links: ""
+};
+// Build Scalar rows for the default scalars, owned by `entityId` (SCH-<EntityID>-001…).
+function defaultScalarRows(entityId) {
+  return DEFAULT_SCALARS.map((s, i) => ({
+    SchemaID: "SCH-" + entityId + "-" + String(i + 1).padStart(3, "0"),
+    EntityID: entityId, Kind: "Scalar", TypeName: s, Definition: "", Links: ""
+  }));
+}
+const SCHEMA = {
+  Entities: {
+    id: "EntityID",
+    desc: "GraphQL entities, tagged with the domain hierarchy. Links carry LeanIX / Confluence / ER references.",
+    cols: [
+      { key: "EntityID", label: "EntityID" },
+      { key: "Name", label: "Entity" },
+      { key: "ExperienceDomain", label: "Experience Domain" },
+      { key: "BusinessApplication", label: "Business Application" },
+      { key: "BusinessCapability", label: "Business Capability" },
+      { key: "Description", label: "Description", area: true },
+    ],
+  },
+  Schema: {
+    id: "SchemaID",
+    desc: "GraphQL schema definition per entity — federation @key + field list (name: Type per line).",
+    cols: [
+      { key: "SchemaID", label: "SchemaID" },
+      { key: "EntityID", label: "Entity", fk: "Entities", rerender: true },
+      { key: "Kind", label: "Kind", options: KINDS, rerender: true },
+      { key: "TypeName", label: "Type / Enum name" },
+      { key: "Definition", label: "Definition (SDL body · enum values)", area: true, rows: 8 },
+    ],
+  },
+  Queries: {
+    id: "QueryID",
+    desc: "Root Query operations. Parameters: one name: Type per line.",
+    cols: [
+      { key: "QueryID", label: "QueryID" },
+      { key: "EntityID", label: "Entity", fk: "Entities", rerender: true },
+      { key: "Name", label: "Query" },
+      { key: "Parameters", label: "Parameters (name: Type)", params: true },
+      { key: "ReturnType", label: "Return Type", typeref: true },
+      { key: "AuthScopes", label: "Auth Scopes (comma/space)" },
+      { key: "Description", label: "Description", area: true },
+    ],
+  },
+  Mutations: {
+    id: "MutationID",
+    desc: "Root Mutation operations. Parameters: one name: Type per line.",
+    cols: [
+      { key: "MutationID", label: "MutationID" },
+      { key: "EntityID", label: "Entity", fk: "Entities", rerender: true },
+      { key: "Name", label: "Mutation" },
+      { key: "Parameters", label: "Parameters (name: Type)", params: true },
+      { key: "ReturnType", label: "Return Type", typeref: true },
+      { key: "AuthScopes", label: "Auth Scopes (comma/space)" },
+      { key: "Description", label: "Description", area: true },
+    ],
+  },
+  AuthScopes: {
+    id: "ScopeID",
+    desc: "Auth scope → persona access. One row per scope × persona: pick the Persona and describe the Permission that scope grants it (no row = no access).",
+    cols: [
+      { key: "ScopeID", label: "ScopeID" },
+      { key: "EntityID", label: "Entity", fk: "Entities", rerender: true },
+      { key: "Scope", label: "Auth Scope" },
+      { key: "Persona", label: "Persona", options: PERSONAS },
+      { key: "Permission", label: "Permission", area: true },
+      { key: "Description", label: "Description", area: true },
+    ],
+  },
+};
+const APPROVAL_STATES = ["Draft", "Proposed", "Approved", "Deprecated"];
+for (const s of Object.keys(SCHEMA)) {
+  // Governance columns common to every sheet.
+  SCHEMA[s].cols.push({ key: "Contacts", label: "Contacts", contacts: true });
+  SCHEMA[s].cols.push({ key: "ApprovalStatus", label: "Approval Status", options: APPROVAL_STATES, rerender: true });
+  SCHEMA[s].cols.push({ key: "Comments", label: "Comments", area: true, rows: 1 });
+  SCHEMA[s].cols.push({ key: "CurrentReference", label: "Current Reference", ops: true });
+  SCHEMA[s].cols.push({ key: "Links", label: "Links & References", links: true });
+}
+const SHEET_ORDER = Object.keys(SCHEMA);
+const ID_PREFIX = { Entities: "ENT", Schema: "SCH", Queries: "QRY", Mutations: "MUT", AuthScopes: "SCP" };
+const LS_KEY = "gqlreg-v1";
+const LS_SP = "gqlreg-sp-v1";     // SharePoint { fileUrl, libraryUrl, lastSync }
+const LS_GD = "gqlreg-gd-v1";     // Google Drive { fileUrl, libraryUrl (folder), lastSync }
+const LS_SYNC = "gqlreg-sync-target-v1";   // which target the sync bar acts on: "sharepoint" | "gdrive"
+const LS_BASE = "gqlreg-base-v1"; // snapshot of the last state synced with either target (for 3-way merge)
+
+/* -------------------------------- State --------------------------------- */
+let DB = {};
+let activeSheet = SHEET_ORDER[0];
+let groupBy = "BusinessApplication";
+let opFilter = "All";
+let opSearch = "";
+let selectedOp = null;
+let selectedSubgraph = null;
+let selectedSummarySub = null;   // Summary tab: which subgraph's relationship tree is shown
+let filters = {};          // filters[sheet][colKey] = Set of allowed raw values (absent = no filter)
+let issuesOnly = {};       // issuesOnly[sheet] = true → show only rows with standards violations
+let SP = loadSP(LS_SP), GD = loadSP(LS_GD);
+let syncTarget = (() => { try { return localStorage.getItem(LS_SYNC) === "gdrive" ? "gdrive" : "sharepoint"; } catch (e) { return "sharepoint"; } })();
+
+/* ------------------- Schema standards & live validation ------------------ */
+// Rules that enforce the "GQL Federation — Schema Standards and Patterns" doc.
+// The canonical, editable source is standards.json (loaded over http); this embedded
+// copy is the working default when the app is opened from file:// (fetch is blocked).
+// Keep the two in sync.
+// Build a violation entry against a rule id (skipped if the rule is absent/disabled).
+// Top-level @key field tokens (ignores nested selection braces).
+// Validate one row → array of violation entries. Pure (no DOM); safe to unit test.
+// Count of rows with at least one violation on the active (validated) sheet.
+function sheetIssueCount(sheet) {
+  if (!VALIDATED_SHEETS.has(sheet) || !DB[sheet]) return 0;
+  return DB[sheet].reduce((n, row) => n + (validateRow(sheet, row).length ? 1 : 0), 0);
+}
+// Load the canonical standards.json when served over http; keep the embedded default otherwise.
+function tryLoadStandards() {
+  if (typeof fetch !== "function") return;
+  fetch("standards.json").then(r => r.ok ? r.json() : Promise.reject()).then(j => {
+    if (j && Array.isArray(j.rules)) { STANDARDS = j; for (const k in __reCache) delete __reCache[k]; renderSheet(); renderStandardsDrawer(); }
+  }).catch(() => {});
+}
+// Help drawer: list the active rules grouped by schema section.
+const STD_GROUP_ORDER = ["Type names", "Fields", "Input types", "Enums", "Scalars", "Queries", "Mutations", "Operations", "Nullability", "Anti-patterns"];
+function renderStandardsDrawer() {
+  const body = document.getElementById("stdBody"); if (!body) return;
+  const note = document.getElementById("stdNote");
+  const m = STANDARDS.meta || {};
+  if (note) note.innerHTML = "Rules from <strong>" + esc(m.title || "schema standards") + "</strong>" +
+    (m.version ? " v" + esc(m.version) : "") + ". Flagged inline as you edit the Schema, Queries and Mutations sheets (advisory — never blocks saving).";
+  const rules = (STANDARDS.rules || []).filter(r => r.enabled !== false);
+  const groups = {}; for (const r of rules) (groups[r.category] = groups[r.category] || []).push(r);
+  const order = [...STD_GROUP_ORDER.filter(g => groups[g]), ...Object.keys(groups).filter(g => !STD_GROUP_ORDER.includes(g))];
+  body.innerHTML = order.map(cat => {
+    const items = groups[cat].map(r =>
+      '<div class="std-rule sev-' + (r.severity || "warning") + '">' +
+        '<div class="std-rule-h"><span class="sev-dot"></span><code>' + esc(r.id) + '</code>' +
+        '<span class="std-sev">' + esc(r.severity || "warning") + '</span></div>' +
+        '<div class="std-rule-t">' + esc(r.title) + '</div>' +
+        '<div class="std-rule-m">' + esc(r.message) + '</div>' +
+        (r.fix ? '<div class="std-rule-f">✔ ' + esc(r.fix) + '</div>' : '') +
+        '<a class="val-ref" href="' + esc(docUrlFor(r)) + '" target="_blank" rel="noopener">§' + esc(r.section || "") + ' ↗</a>' +
+      '</div>').join("");
+    return '<div class="std-group"><h3>' + esc(cat) + '</h3>' + items + '</div>';
+  }).join("");
+}
+function openStandardsDrawer() {
+  renderStandardsDrawer();
+  const d = document.getElementById("stdDrawer"), b = document.getElementById("stdBackdrop");
+  if (!d) return; d.hidden = false; b.hidden = false; requestAnimationFrame(() => { d.classList.add("open"); b.classList.add("open"); });
+}
+function closeStandardsDrawer() {
+  const d = document.getElementById("stdDrawer"), b = document.getElementById("stdBackdrop");
+  if (!d) return; d.classList.remove("open"); b.classList.remove("open");
+  setTimeout(() => { d.hidden = true; b.hidden = true; }, 200);
+}
+
+/* ---- Column show/hide + widen (per sheet, persisted) ---- */
+const LS_COLVIEW = "gqlreg-colview-v1";
+let COLVIEW = (() => { try { return JSON.parse(localStorage.getItem(LS_COLVIEW)) || {}; } catch (e) { return {}; } })();
+let colPanelOpen = false;
+function colView(sheet) { const v = (COLVIEW[sheet] = COLVIEW[sheet] || { hidden: [], wide: [] }); v.hidden = v.hidden || []; v.wide = v.wide || []; return v; }
+function saveColView() { try { localStorage.setItem(LS_COLVIEW, JSON.stringify(COLVIEW)); } catch (e) {} }
+function toggleHiddenCol(sheet, key) { const v = colView(sheet); const i = v.hidden.indexOf(key); if (i < 0) { v.hidden.push(key); const w = v.wide.indexOf(key); if (w >= 0) v.wide.splice(w, 1); } else v.hidden.splice(i, 1); saveColView(); renderSheet(); }
+function toggleWideCol(sheet, key) { const v = colView(sheet); const i = v.wide.indexOf(key); if (i < 0) v.wide.push(key); else v.wide.splice(i, 1); saveColView(); renderSheet(); }
+function showAllCols(sheet) { colView(sheet).hidden = []; saveColView(); renderSheet(); }
+function resetColWidths(sheet) { colView(sheet).wide = []; saveColView(); renderSheet(); }
+
+/* ---- Loaded-file name + version bump on export ---- */
+const LS_FILE = "gqlreg-file-v1";
+let loadedFileName = (() => { try { return localStorage.getItem(LS_FILE) || ""; } catch (e) { return ""; } })();
+function setLoadedFileName(n) { loadedFileName = n || ""; try { loadedFileName ? localStorage.setItem(LS_FILE, loadedFileName) : localStorage.removeItem(LS_FILE); } catch (e) {} renderFileName(); renderSyncBar(); }
+// "3PRL-V0.1" -> "3PRL-V0.2"; "MyFile-v2" -> "MyFile-v3"; no version -> append "-v2"
+function bumpVersion(baseNoExt) {
+  const rx = /[vV]\d+(?:\.\d+)*/g; let last = null, m;
+  while ((m = rx.exec(baseNoExt)) !== null) last = m;
+  if (!last) return baseNoExt + "-v2";
+  const tok = last[0], prefix = tok[0], parts = tok.slice(1).split(".");
+  parts[parts.length - 1] = String((+parts[parts.length - 1] || 0) + 1);
+  return baseNoExt.slice(0, last.index) + prefix + parts.join(".") + baseNoExt.slice(last.index + tok.length);
+}
+function exportFileName() {
+  const src = loadedFileName || "GQLRegistry.xlsx";
+  const dot = src.lastIndexOf("."); const base = dot > 0 ? src.slice(0, dot) : src; const ext = dot > 0 ? src.slice(dot) : ".xlsx";
+  return bumpVersion(base) + ext;
+}
+function renderFileName() {
+  const el = document.getElementById("fileName"); if (!el) return;
+  if (loadedFileName) { el.textContent = `${loadedFileName} → ${exportFileName()}`; el.title = `Loaded ${loadedFileName}; next export/push writes ${exportFileName()} (same folder)`; }
+  else { el.textContent = ""; el.title = ""; }
+}
+
+function loadSP(key) { try { return JSON.parse(localStorage.getItem(key)) || {}; } catch (e) { return {}; } }
+function saveSP() { try { localStorage.setItem(LS_SP, JSON.stringify(SP)); localStorage.setItem(LS_GD, JSON.stringify(GD)); localStorage.setItem(LS_SYNC, syncTarget); } catch (e) {} renderSyncBar(); }
+function loadBase() { try { return JSON.parse(localStorage.getItem(LS_BASE)); } catch (e) { return null; } }
+function saveBase(db) { try { localStorage.setItem(LS_BASE, JSON.stringify(db)); } catch (e) {} }
+
+function emptyDB() { const db = {}; for (const s of SHEET_ORDER) db[s] = []; return db; }
+function optionsFor(col) { return typeof col.options === "function" ? col.options() : (col.options || null); }
+// Sheets whose rows hang off an entity. Their ids embed the owning entity, matching the migration
+// workbench: SCH-/QRY-/MUT-/SCP-<EntityID>-<seq>, seq per (prefix, entity); ENT-000 = unassigned.
+const ENTITY_OWNED = new Set(["Schema", "Queries", "Mutations", "AuthScopes"]);
+function nextId(sheet, entityId) {
+  const pre = ID_PREFIX[sheet] || sheet.slice(0,3).toUpperCase(); const idKey = SCHEMA[sheet].id; let max = 0;
+  if (!ENTITY_OWNED.has(sheet)) {
+    for (const r of DB[sheet]) { const m = String(r[idKey]||"").match(/(\d+)\s*$/); if (m) max = Math.max(max, +m[1]); }
+    return pre + "-" + String(max+1).padStart(3,"0");
+  }
+  const stem = pre + "-" + (entityId || "ENT-000") + "-";
+  for (const r of DB[sheet]) { const id = String(r[idKey]||""); if (id.startsWith(stem) && /^\d+$/.test(id.slice(stem.length))) max = Math.max(max, +id.slice(stem.length)); }
+  return stem + String(max+1).padStart(3,"0");
+}
+// True when `id` has the generated <PRE>-ENT-###-### shape (safe to re-number when the entity changes).
+function isGeneratedChildId(sheet, id) { return !id || new RegExp("^" + ID_PREFIX[sheet] + "-ENT-\\d+-\\d+$").test(id); }
+function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch(e){} setStatus(); }
+function load() { try { const raw = localStorage.getItem(LS_KEY); if (raw) { DB = { ...emptyDB(), ...JSON.parse(raw) }; return; } } catch(e){} DB = emptyDB(); }
+function setStatus() { const n = SHEET_ORDER.reduce((a,s)=>a+DB[s].length,0); document.getElementById("status").textContent = n ? `${DB.Entities.length} entities · ${DB.Queries.length} queries · ${DB.Mutations.length} mutations` : "Empty registry"; }
+function index(sheet) { const k = SCHEMA[sheet].id, m = {}; for (const r of DB[sheet]) m[r[k]] = r; return m; }
+
+/* ------------------------------ XLSX I/O -------------------------------- */
+function parseWorkbook(data) {
+  const wb = XLSX.read(data, { type: "array" }); const db = emptyDB();
+  for (const s of SHEET_ORDER) if (wb.Sheets[s]) db[s] = XLSX.utils.sheet_to_json(wb.Sheets[s], { defval:"", raw:false }).map(r => normalizeRow(s, r));
+  return db;
+}
+function readFile(file, cb) { const r = new FileReader(); r.onload = (e) => cb(parseWorkbook(e.target.result)); r.readAsArrayBuffer(file); }
+function importWorkbook(file) { readFile(file, (db) => { DB = db; setLoadedFileName(file.name); save(); renderAll(); alert(`Loaded ${file.name} (replaced local data). Next export → ${exportFileName()}`); }); }
+function normalizeRow(sheet, r) { const o = {}; for (const c of SCHEMA[sheet].cols) o[c.key] = r[c.key] != null ? String(r[c.key]) : ""; return o; }
+function buildWorkbook() {
+  const wb = XLSX.utils.book_new();
+  for (const s of SHEET_ORDER) {
+    const headers = SCHEMA[s].cols.map(c => c.key);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...DB[s].map(row => SCHEMA[s].cols.map(c => row[c.key] ?? ""))]);
+    ws["!cols"] = headers.map(h => ({ wch: Math.max(12, h.length + 2) }));
+    XLSX.utils.book_append_sheet(wb, ws, s);
+  }
+  return wb;
+}
+function exportWorkbook() { const name = exportFileName(); writeWorkbookFile(buildWorkbook(), name); setLoadedFileName(name); return name; }
+// A fresh template is not blank: it ships the foundational FedGQL entity (ENT-001) and the
+// default scalar rows mapped to it, so every new registry starts with the standard scalars.
+function templateDB() {
+  const db = emptyDB();
+  db.Entities = [{ EntityID: "ENT-001", ...FEDGQL_ENTITY }];
+  db.Schema = defaultScalarRows("ENT-001");
+  return db;
+}
+function downloadTemplate() { const b = DB; DB = templateDB(); writeWorkbookFile(buildWorkbook(), "GQLRegistry-template.xlsx"); DB = b; }
+// SheetJS CE can't write data validation, so patch the zipped sheet XML (via its bundled CFB zip
+// codec) to add in-cell dropdowns: fixed option lists (Persona, Kind, Approval Status) and FK
+// EntityID columns → the Entities sheet's id column. Out-of-list values only warn.
+function addListValidations(data) {
+  const zip = XLSX.CFB.read(new Uint8Array(data), { type: "array" });
+  const tail = /<(?:hyperlinks|printOptions|pageMargins|pageSetup|headerFooter|rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|tableParts|extLst)\b|<\/worksheet>/;  // elements that must follow <dataValidations>
+  SHEET_ORDER.forEach((s, i) => {
+    const entry = XLSX.CFB.find(zip, "/xl/worksheets/sheet" + (i + 1) + ".xml"); if (!entry) return;
+    const last = Math.max(1000, DB[s].length + 500);
+    const dvs = [];
+    SCHEMA[s].cols.forEach((c, ci) => {
+      const opts = Array.isArray(c.options) ? c.options : null;
+      const f = opts ? '"' + opts.join(",") + '"' : c.fk ? c.fk + "!$A$2:$A$" + last : null; if (!f) return;
+      const col = XLSX.utils.encode_col(ci);
+      dvs.push(`<dataValidation type="list" allowBlank="1" showErrorMessage="1" errorStyle="warning" sqref="${col}2:${col}${last}"><formula1>${f.replace(/&/g, "&amp;")}</formula1></dataValidation>`);
+    });
+    if (!dvs.length) return;
+    let xml = new TextDecoder().decode(entry.content);
+    const m = xml.match(tail); if (!m) return;
+    xml = xml.slice(0, m.index) + `<dataValidations count="${dvs.length}">${dvs.join("")}</dataValidations>` + xml.slice(m.index);
+    entry.content = new TextEncoder().encode(xml); entry.size = entry.content.length;
+  });
+  return XLSX.CFB.write(zip, { fileType: "zip", type: "array", compression: true });
+}
+function writeWorkbookFile(wb, name) {
+  let data = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  try { data = addListValidations(data); } catch (e) { console.warn("Dropdown validation skipped:", e); }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* --------------------- 3-way merge (keep-both policy) ------------------- */
+/* Compares a base snapshot (last synced), the current local DB, and the
+   remote DB pulled from SharePoint. New rows on either side are added;
+   deletions are honoured when the other side didn't edit the row; a row
+   edited on BOTH sides keeps the SharePoint version and re-adds the local
+   version as a new "(local copy)" row with a suffixed ID — nothing is lost. */
+function rowSig(sheet, row) { return SCHEMA[sheet].cols.map(c => String(row && row[c.key] != null ? row[c.key] : "").trim()).join(""); }
+function idMap(rows, idK) { const m = {}; for (const r of (rows || [])) m[r[idK]] = r; return m; }
+function conflictId(baseId, taken) { let n = 1, cand; do { cand = baseId + "-L" + n; n++; } while (taken.has(cand)); taken.add(cand); return cand; }
+
+function mergeDB(base, local, remote) {
+  base = base || emptyDB();
+  const out = emptyDB();
+  const rep = { added: 0, updated: 0, kept: 0, deleted: 0, conflicts: 0 };
+  for (const s of SHEET_ORDER) {
+    const idK = SCHEMA[s].id;
+    const bi = idMap(base[s], idK), li = idMap(local[s], idK), ri = idMap(remote[s], idK);
+    const taken = new Set([...Object.keys(li), ...Object.keys(ri)]);
+    const nameCol = SCHEMA[s].cols.find(c => c.key === "Name");
+    const localCopies = [];
+    /* Pass 1: remote-ordered — shared rows and remote-only rows. */
+    for (const r of (remote[s] || [])) {
+      const id = r[idK], inL = li[id], inB = bi[id];
+      if (inL) {
+        const lChanged = !inB || rowSig(s, inL) !== rowSig(s, inB);
+        const rChanged = !inB || rowSig(s, r) !== rowSig(s, inB);
+        const differ = rowSig(s, inL) !== rowSig(s, r);
+        if (lChanged && rChanged && differ) {           // conflict → keep both
+          out[s].push({ ...r }); rep.conflicts++;
+          const copy = { ...inL }; copy[idK] = conflictId(id, taken);
+          if (nameCol) copy.Name = (copy.Name || "") + " (local copy)";
+          localCopies.push(copy);
+        } else if (lChanged && !rChanged) {              // only local edited → keep local
+          out[s].push({ ...inL }); rep.kept++;
+        } else {                                         // remote edited, or identical
+          out[s].push({ ...r }); if (rChanged) rep.updated++;
+        }
+      } else if (inB) {                                  // deleted locally
+        if (rowSig(s, r) !== rowSig(s, inB)) { out[s].push({ ...r }); rep.kept++; } // but remote edited → keep remote
+        else rep.deleted++;                              // both agree it's gone
+      } else { out[s].push({ ...r }); rep.added++; }      // brand new on remote
+    }
+    /* Pass 2: local-only rows (new locally, or deleted on remote). */
+    for (const r of (local[s] || [])) {
+      const id = r[idK]; if (ri[id]) continue;
+      const inB = bi[id];
+      if (inB) {                                         // deleted on remote
+        if (rowSig(s, r) !== rowSig(s, inB)) { out[s].push({ ...r }); rep.kept++; } // local edited → keep local
+        else rep.deleted++;
+      } else { out[s].push({ ...r }); rep.added++; }      // brand new local
+    }
+    for (const c of localCopies) out[s].push(c);
+  }
+  return { db: out, rep };
+}
+
+/* ----------------------- SharePoint / Google Drive sync ------------------ */
+// Both targets use the same link-based flow — the page never signs in (a shared static HTML file
+// can't hold credentials): Pull = download the shared workbook and pick it here for a 3-way merge;
+// Push = download the version-bumped export and upload it next to the previous one.
+const SYNC_TARGETS = {
+  sharepoint: {
+    label: "SharePoint", ico: "🔗", state: () => SP,
+    fileLabel: "Workbook URL (the GQLRegistry.xlsx file in SharePoint)", filePh: "https://contoso.sharepoint.com/.../GQLRegistry.xlsx",
+    folderLabel: "Document library / folder URL (where you upload new versions)", folderPh: "https://contoso.sharepoint.com/sites/.../Shared%20Documents",
+    openFile: "Open in SharePoint ↗", openFolder: "Open document library ↗",
+    downloadHint: "Opens SharePoint; use <em>Download</em> to save GQLRegistry.xlsx locally (or edit in Excel Online, then download).",
+    uploadHint: "In SharePoint use <em>Upload → Files</em> (or drag the file in). This is a <em>new version</em> — upload it alongside the previous file (don't replace) so the version history is preserved.",
+  },
+  gdrive: {
+    label: "Google Drive", ico: "🟢", state: () => GD,
+    fileLabel: "Workbook link (the GQLRegistry .xlsx — or a Google Sheet — in Drive: Share → Copy link)", filePh: "https://drive.google.com/file/d/…/view",
+    folderLabel: "Drive folder link (where you upload new versions)", folderPh: "https://drive.google.com/drive/folders/…",
+    openFile: "Open in Google Drive ↗", openFolder: "Open Drive folder ↗",
+    downloadHint: "Downloads the workbook straight from Drive (a Google Sheet is exported as .xlsx). If Drive shows a preview instead, use <em>⋮ → Download</em>.",
+    uploadHint: "In Drive use <em>New → File upload</em> (or drag the file into the folder). Upload it alongside the previous file so earlier versions stay available.",
+  },
+};
+const syncCfg = () => SYNC_TARGETS[syncTarget];
+// Direct-download link for a Drive file / Google Sheet share link; other URLs are returned as-is.
+function driveDownloadUrl(url) {
+  const u = String(url || "").trim();
+  const sheet = u.match(/docs\.google\.com\/spreadsheets\/d\/([\w-]+)/);
+  if (sheet) return `https://docs.google.com/spreadsheets/d/${sheet[1]}/export?format=xlsx`;
+  const file = u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([\w-]+)/);
+  return file ? `https://drive.google.com/uc?export=download&id=${file[1]}` : u;
+}
+function setSyncTarget(t) { syncTarget = SYNC_TARGETS[t] ? t : "sharepoint"; saveSP(); }
+function renderSyncBar() {
+  const el = document.getElementById("spState"); if (!el) return;
+  const cfg = syncCfg(), st = cfg.state();
+  document.querySelectorAll("#syncTarget button").forEach(b => b.classList.toggle("active", b.dataset.t === syncTarget));
+  const ico = document.getElementById("spIco"); if (ico) ico.textContent = cfg.ico;
+  const sb = document.getElementById("spSettings"); if (sb) sb.textContent = cfg.label + " settings";
+  if (st.fileUrl) {
+    const when = st.lastSync ? " · last sync " + new Date(st.lastSync).toLocaleString() : " · never synced";
+    el.className = "sp-state ok";
+    el.innerHTML = `${esc(cfg.label)}: <a href="${esc(st.fileUrl)}" target="_blank" rel="noopener">${esc(exportFileName())} ↗</a><span class="hint">${esc(when)}</span>`;
+  } else {
+    el.className = "sp-state";
+    el.innerHTML = `${esc(cfg.label)}: not configured — <a href="#" id="spConfigLink">set the file URL</a>`;
+    const lk = document.getElementById("spConfigLink"); if (lk) lk.onclick = (e) => { e.preventDefault(); openSettings(); };
+  }
+}
+function openModal(html) { const m = document.getElementById("modal"); document.getElementById("modalCard").innerHTML = html; m.hidden = false; }
+function closeModal() { document.getElementById("modal").hidden = true; }
+
+function openSettings() {
+  const cfg = syncCfg(), st = cfg.state();
+  openModal(`
+    <h2>${esc(cfg.label)} settings</h2>
+    <p class="hint">Paste the links from ${esc(cfg.label)}. The app opens these for you when pulling/pushing — it never needs your password (no sign-in from a shared HTML file).</p>
+    <label class="field">${esc(cfg.fileLabel)}</label>
+    <input type="url" id="spFileUrl" placeholder="${esc(cfg.filePh)}" value="${esc(st.fileUrl || "")}" />
+    <label class="field">${esc(cfg.folderLabel)}</label>
+    <input type="url" id="spLibUrl" placeholder="${esc(cfg.folderPh)}" value="${esc(st.libraryUrl || "")}" />
+    <div class="modal-actions">
+      <button id="spCancel">Cancel</button>
+      <button class="primary" id="spSave">Save</button>
+    </div>`);
+  document.getElementById("spCancel").onclick = closeModal;
+  document.getElementById("spSave").onclick = () => {
+    st.fileUrl = document.getElementById("spFileUrl").value.trim();
+    st.libraryUrl = document.getElementById("spLibUrl").value.trim();
+    saveSP(); closeModal();
+  };
+}
+
+function openPull() {
+  const cfg = syncCfg(), st = cfg.state();
+  const href = syncTarget === "gdrive" ? driveDownloadUrl(st.fileUrl) : st.fileUrl;
+  const openLink = st.fileUrl
+    ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(syncTarget === "gdrive" ? "Download from Google Drive ↗" : cfg.openFile)}</a>`
+    : `<a href="#" id="spGoConfig">set the workbook URL first</a>`;
+  openModal(`
+    <h2>Pull &amp; merge from ${esc(cfg.label)}</h2>
+    <div class="step"><b>1 · Download the latest workbook</b>${openLink}<div class="hint">${cfg.downloadHint}</div></div>
+    <div class="step"><b>2 · Select the file you just downloaded</b><label class="btn" for="spPullFile">Choose the downloaded .xlsx…</label><input type="file" id="spPullFile" accept=".xlsx,.xls" /><div class="hint">Merge policy: <strong>keep both</strong> — a row changed on both sides keeps the ${esc(cfg.label)} version and adds your version as a new “(local copy)” row.</div></div>
+    <div class="modal-actions"><button id="spPullCancel">Cancel</button></div>`);
+  document.getElementById("spPullCancel").onclick = closeModal;
+  const gc = document.getElementById("spGoConfig"); if (gc) gc.onclick = (e) => { e.preventDefault(); openSettings(); };
+  document.getElementById("spPullFile").onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    readFile(f, (remote) => {
+      const { db, rep } = mergeDB(loadBase(), DB, remote);
+      DB = db; setLoadedFileName(f.name); saveBase(remote); st.lastSync = Date.now(); saveSP(); save(); renderAll();
+      showReport(`Merged ${cfg.label} changes`, rep, `The merged result is now local. <b>Save &amp; push</b> when you want to send it back to ${esc(cfg.label)}.`);
+    });
+  };
+}
+
+function openPush() {
+  const cfg = syncCfg(), st = cfg.state();
+  const pushedName = exportWorkbook();    // downloads the version-bumped workbook
+  saveBase(DB); st.lastSync = Date.now(); saveSP();
+  const openLib = st.libraryUrl ? `<a href="${esc(st.libraryUrl)}" target="_blank" rel="noopener">${esc(cfg.openFolder)}</a>`
+    : (st.fileUrl ? `<a href="${esc(st.fileUrl)}" target="_blank" rel="noopener">${esc(cfg.openFile)}</a>` : `<a href="#" id="spGoConfig2">set the folder URL first</a>`);
+  openModal(`
+    <h2>Save &amp; push to ${esc(cfg.label)}</h2>
+    <div class="step"><b>1 · Exported</b><b>${esc(pushedName)}</b> was downloaded to your computer (version bumped).</div>
+    <div class="step"><b>2 · Upload it to ${esc(cfg.label)}, in the same folder</b>${openLib}<div class="hint">${cfg.uploadHint}</div></div>
+    <div class="hint">Tip: <b>Pull &amp; merge</b> first if others may have edited it since your last sync.</div>
+    <div class="modal-actions"><button class="primary" id="spPushDone">Done</button></div>`);
+  document.getElementById("spPushDone").onclick = closeModal;
+  const gc = document.getElementById("spGoConfig2"); if (gc) gc.onclick = (e) => { e.preventDefault(); openSettings(); };
+}
+
+function showReport(title, rep, note) {
+  openModal(`
+    <h2>${esc(title)}</h2>
+    <div class="merge-report">
+      <div><span class="num">${rep.added}</span> added · <span class="num">${rep.updated}</span> updated from ${esc(syncCfg().label)} · <span class="num">${rep.kept}</span> local edits kept</div>
+      <div><span class="num">${rep.conflicts}</span> conflicts → kept both (see “(local copy)” rows) · <span class="num">${rep.deleted}</span> removed</div>
+    </div>
+    ${note ? `<p class="hint" style="margin-top:12px;">${note}</p>` : ""}
+    <div class="modal-actions"><button class="primary" id="spReportOk">OK</button></div>`);
+  document.getElementById("spReportOk").onclick = closeModal;
+}
+
+/* -------------------------------- Render -------------------------------- */
+function renderAll() { renderSheetTabs(); renderSheet(); renderGraph(); renderExplorer(); renderSubgraph(); renderSummary(); renderSyncBar(); setStatus(); renderFileName(); }
+
+function renderSheetTabs() {
+  const el = document.getElementById("sheetTabs"); el.innerHTML = "";
+  for (const s of SHEET_ORDER) {
+    const b = document.createElement("button");
+    b.textContent = `${s} (${DB[s].length})`; b.className = s === activeSheet ? "active" : "";
+    b.dataset.help = "sheet-" + s.toLowerCase();
+    b.onclick = () => { activeSheet = s; renderSheetTabs(); renderSheet(); };
+    el.appendChild(b);
+  }
+}
+/* ------------------------- Column filters (Excel-like) ------------------ */
+function rawVal(row, col) { return String(row[col.key] == null ? "" : row[col.key]).trim(); }
+function distinctVals(sheet, col) {
+  const set = new Set(); DB[sheet].forEach(r => set.add(rawVal(r, col)));
+  return [...set].sort((a, b) => a === "" ? 1 : b === "" ? -1 : a.localeCompare(b, undefined, { numeric: true }));
+}
+// Friendlier label in the checklist (blanks + FK → show the referenced entity name).
+function filterLabel(col, v) {
+  if (v === "") return "(Blanks)";
+  if (col.fk) { const e = index(col.fk)[v]; if (e && e.Name) return v + " · " + e.Name; }
+  return v;
+}
+function rowPassesFilters(sheet, row) {
+  const f = filters[sheet]; if (!f) return true;
+  for (const key in f) {
+    const allowed = f[key]; if (!allowed) continue;
+    const col = SCHEMA[sheet].cols.find(c => c.key === key); if (!col) continue;
+    if (!allowed.has(rawVal(row, col))) return false;
+  }
+  return true;
+}
+function activeFilterCount(sheet) { const f = filters[sheet]; return f ? Object.keys(f).length : 0; }
+function clearFilters(sheet) { delete filters[sheet]; closeFilterPopup(); renderSheet(); renderSheetTabs(); }
+function closeFilterPopup() { const p = document.getElementById("filterPop"); if (p) p.remove(); }
+function openFilterPopup(sheet, col, btn) {
+  const wasThis = document.getElementById("filterPop") && document.getElementById("filterPop").dataset.col === col.key;
+  closeFilterPopup(); if (wasThis) return;   // clicking the open column's funnel again closes it
+  const f = filters[sheet] || (filters[sheet] = {});
+  const dvals = distinctVals(sheet, col);
+  const active = f[col.key];                 // Set or undefined
+  const pop = document.createElement("div"); pop.className = "filter-pop"; pop.id = "filterPop"; pop.dataset.col = col.key;
+  pop.onclick = e => e.stopPropagation();
+
+  const search = document.createElement("input"); search.type = "text"; search.className = "filter-search"; search.placeholder = "Search " + col.label + "…"; pop.appendChild(search);
+  const allLab = document.createElement("label"); allLab.className = "filter-all";
+  const allCb = document.createElement("input"); allCb.type = "checkbox";
+  allCb.checked = !active || active.size === dvals.length;
+  allCb.indeterminate = !!active && active.size > 0 && active.size < dvals.length;
+  allLab.append(allCb, document.createTextNode(" (Select all)")); pop.appendChild(allLab);
+
+  const list = document.createElement("div"); list.className = "filter-list"; const boxes = [];
+  dvals.forEach(v => {
+    const lab = document.createElement("label");
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !active || active.has(v);
+    const txt = filterLabel(col, v);
+    lab.append(cb, document.createTextNode(" " + txt));
+    list.appendChild(lab); boxes.push({ cb, v, lab, txt: txt.toLowerCase() });
+  });
+  pop.appendChild(list);
+
+  search.oninput = () => { const q = search.value.toLowerCase(); boxes.forEach(b => b.lab.style.display = b.txt.includes(q) ? "" : "none"); };
+  allCb.onchange = () => boxes.forEach(b => { if (b.lab.style.display !== "none") b.cb.checked = allCb.checked; });
+
+  const foot = document.createElement("div"); foot.className = "filter-foot";
+  const clr = document.createElement("button"); clr.textContent = "Clear";
+  const ok = document.createElement("button"); ok.className = "primary"; ok.textContent = "Apply";
+  clr.onclick = () => { delete f[col.key]; if (!Object.keys(f).length) delete filters[sheet]; closeFilterPopup(); renderSheet(); renderSheetTabs(); };
+  ok.onclick = () => {
+    const checked = boxes.filter(b => b.cb.checked).map(b => b.v);
+    if (checked.length === dvals.length) delete f[col.key];   // everything selected → no filter
+    else f[col.key] = new Set(checked);
+    if (!Object.keys(f).length) delete filters[sheet];
+    closeFilterPopup(); renderSheet(); renderSheetTabs();
+  };
+  foot.append(clr, ok); pop.appendChild(foot);
+
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect();
+  pop.style.top = Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8) + "px";
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + "px";
+  setTimeout(() => search.focus(), 0);
+}
+
+function renderSheet() {
+  const card = document.getElementById("sheetCard"); const def = SCHEMA[activeSheet]; card.innerHTML = "";
+  const view = colView(activeSheet); const hidden = new Set(view.hidden), wide = new Set(view.wide);
+  const h = document.createElement("h2"); h.textContent = activeSheet; card.appendChild(h);
+  const p = document.createElement("p"); p.className = "desc"; p.textContent = def.desc; card.appendChild(p);
+  const toolbar = document.createElement("div"); toolbar.className = "table-toolbar";
+  const add = document.createElement("button"); add.className = "primary"; add.textContent = "+ Add row"; add.dataset.help = "wb-add-row";
+  add.onclick = () => {
+    const row = {}; def.cols.forEach(c => row[c.key] = "");
+    // Owned sheets: inherit the entity when the grid is filtered to exactly one, so the id is SCH-/QRY-/MUT-/SCP-<EntityID>-<seq>.
+    const ef = filters[activeSheet] && filters[activeSheet].EntityID;
+    if (ENTITY_OWNED.has(activeSheet) && ef && ef.size === 1) row.EntityID = [...ef][0];
+    row[def.id] = nextId(activeSheet, row.EntityID); DB[activeSheet].unshift(row); delete filters[activeSheet]; delete issuesOnly[activeSheet]; save(); renderSheet(); renderSheetTabs(); const w = card.querySelector(".table-wrap"); if (w) w.scrollTop = 0; };
+  toolbar.appendChild(add);
+
+  // "Columns" panel toggle
+  const panel = document.createElement("div"); panel.className = "col-panel";
+  const colsBtn = document.createElement("button");
+  colsBtn.dataset.help = "wb-columns"; colsBtn.textContent = "Columns" + (hidden.size ? ` (${hidden.size} hidden)` : "") + " ▾";
+  colsBtn.onclick = () => { colPanelOpen = !colPanelOpen; panel.classList.toggle("open", colPanelOpen); };
+  toolbar.appendChild(colsBtn);
+  const nFilters = activeFilterCount(activeSheet);
+  if (nFilters) {
+    const shownCount = DB[activeSheet].filter(row => rowPassesFilters(activeSheet, row)).length;
+    const clr = document.createElement("button"); clr.textContent = `Clear filters (${nFilters}) ✕`; clr.title = "Remove all column filters on this sheet"; clr.onclick = () => clearFilters(activeSheet);
+    toolbar.appendChild(clr);
+    const fc = document.createElement("span"); fc.className = "hint"; fc.textContent = `${shownCount} of ${DB[activeSheet].length} rows shown`; toolbar.appendChild(fc);
+  }
+  // Standards help + validation summary
+  const stdBtn = document.createElement("button"); stdBtn.dataset.help = "wb-standards"; stdBtn.textContent = "Standards ⓘ"; stdBtn.title = "Show the schema standards that apply to each section"; stdBtn.onclick = () => openStandardsDrawer();
+  toolbar.appendChild(stdBtn);
+  if (VALIDATED_SHEETS.has(activeSheet)) {
+    const issues = sheetIssueCount(activeSheet);
+    const only = !!issuesOnly[activeSheet];
+    if (issues || only) {
+      const ib = document.createElement("button"); ib.id = "valSummaryChip"; ib.className = "val-summary" + (only ? " active" : "");
+      ib.textContent = only ? `Showing ${issues} issue ${issues === 1 ? "row" : "rows"} — show all`
+                            : `⚠ ${issues} ${issues === 1 ? "row" : "rows"} with standards issues`;
+      ib.title = only ? "Show all rows again" : "Show only rows with standards issues";
+      ib.onclick = () => { if (only) delete issuesOnly[activeSheet]; else issuesOnly[activeSheet] = true; renderSheet(); };
+      toolbar.appendChild(ib);
+    } else {
+      delete issuesOnly[activeSheet];
+    }
+  }
+  const hint = document.createElement("span"); hint.className = "hint"; hint.textContent = "Edits save automatically. Hover a header to filter ▾, widen ⤢ or hide ×."; toolbar.appendChild(hint);
+  card.appendChild(toolbar);
+
+  // Column visibility panel (checkbox per column)
+  const actions = document.createElement("div"); actions.className = "panel-actions";
+  const showAll = document.createElement("button"); showAll.textContent = "Show all"; showAll.onclick = () => showAllCols(activeSheet);
+  const resetW = document.createElement("button"); resetW.textContent = "Reset widths"; resetW.onclick = () => resetColWidths(activeSheet);
+  const phint = document.createElement("span"); phint.className = "hint"; phint.textContent = "Hidden columns are still saved & exported to Excel.";
+  actions.append(showAll, resetW, phint); panel.appendChild(actions);
+  def.cols.forEach(c => {
+    const lab = document.createElement("label");
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !hidden.has(c.key);
+    cb.onchange = () => toggleHiddenCol(activeSheet, c.key);
+    lab.append(cb, document.createTextNode(" " + c.label));
+    panel.appendChild(lab);
+  });
+  panel.classList.toggle("open", colPanelOpen);
+  card.appendChild(panel);
+
+  const wrap = document.createElement("div"); wrap.className = "table-wrap"; const table = document.createElement("table");
+  const thead = document.createElement("thead"); const trh = document.createElement("tr");
+  def.cols.forEach(c => {
+    const th = document.createElement("th");
+    if (hidden.has(c.key)) th.className = "hidden-col"; else if (wide.has(c.key)) th.className = "wide-col";
+    const tw = document.createElement("div"); tw.className = "th-wrap";
+    const lbl = document.createElement("span"); lbl.className = "th-label"; lbl.textContent = c.label;
+    const tools = document.createElement("span"); tools.className = "th-tools";
+    const active = !!(filters[activeSheet] && filters[activeSheet][c.key]);
+    const fbtn = document.createElement("button"); fbtn.type = "button"; fbtn.textContent = "▾"; fbtn.className = "filter-btn" + (active ? " active" : ""); fbtn.title = active ? "Filtered — click to edit" : "Filter this column"; fbtn.onclick = (e) => { e.stopPropagation(); openFilterPopup(activeSheet, c, fbtn); };
+    const wbtn = document.createElement("button"); wbtn.type = "button"; wbtn.textContent = "⤢"; wbtn.title = wide.has(c.key) ? "Reset width" : "Widen column"; if (wide.has(c.key)) wbtn.className = "on"; wbtn.onclick = () => toggleWideCol(activeSheet, c.key);
+    const hbtn = document.createElement("button"); hbtn.type = "button"; hbtn.textContent = "×"; hbtn.title = "Hide column"; hbtn.onclick = () => toggleHiddenCol(activeSheet, c.key);
+    tools.append(wbtn, hbtn); tw.append(lbl, fbtn, tools); th.appendChild(tw); trh.appendChild(th);
+  });
+  const thx = document.createElement("th"); thx.className = "row-actions"; trh.appendChild(thx); thead.appendChild(trh); table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  const colSpan = def.cols.length - hidden.size + 1;
+  let shown = DB[activeSheet].filter(row => rowPassesFilters(activeSheet, row));
+  if (VALIDATED_SHEETS.has(activeSheet) && issuesOnly[activeSheet]) shown = shown.filter(row => validateRow(activeSheet, row).length);
+
+  // Keep the toolbar's issue count in sync after a single-row update, without
+  // re-rendering the whole grid.
+  function updateIssueSummary() {
+    if (!VALIDATED_SHEETS.has(activeSheet)) return;
+    const chip = document.getElementById("valSummaryChip"); if (!chip) return;
+    const issues = sheetIssueCount(activeSheet), only = !!issuesOnly[activeSheet];
+    if (!issues && !only) { chip.remove(); return; }
+    chip.className = "val-summary" + (only ? " active" : "");
+    chip.textContent = only ? `Showing ${issues} issue ${issues === 1 ? "row" : "rows"} — show all`
+                            : `⚠ ${issues} ${issues === 1 ? "row" : "rows"} with standards issues`;
+  }
+  // Rebuild just one row in place after an edit resolves/introduces a violation,
+  // leaving every other row (and its scroll position, focus elsewhere) untouched.
+  function replaceRow(oldTr, row) {
+    const parent = oldTr.parentNode; if (!parent) return;
+    const oldDetail = oldTr._valDetail;
+    const newTr = buildRow(row);
+    parent.insertBefore(newTr, oldTr);
+    if (newTr._valDetail) parent.insertBefore(newTr._valDetail, oldTr);
+    parent.removeChild(oldTr);
+    if (oldDetail && oldDetail.parentNode) oldDetail.remove();
+    updateIssueSummary();
+  }
+  function buildRow(row) {
+    const tr = document.createElement("tr");
+    const st = String(row.ApprovalStatus || "").trim().toLowerCase();
+    if (st) tr.className = "status-" + st;   // status-approved / -deprecated / -proposed / -draft
+    // Standards validation — group violations by column so cells can be flagged.
+    const viols = VALIDATED_SHEETS.has(activeSheet) ? validateRow(activeSheet, row) : [];
+    const byCol = {}; for (const v of viols) (byCol[v.col] = byCol[v.col] || []).push(v);
+    const reval = () => replaceRow(tr, row);   // incremental single-row re-render
+    def.cols.forEach(c => { const td = document.createElement("td"); if (hidden.has(c.key)) td.className = "hidden-col"; else if (wide.has(c.key)) td.className = "wide-col"; td.appendChild(makeCell(activeSheet, row, c, byCol[c.key], reval)); tr.appendChild(td); });
+    const tda = document.createElement("td"); tda.className = "row-actions";
+    if (viols.length) {
+      const worst = worstSeverity(viols);
+      const badge = document.createElement("button"); badge.className = "val-badge sev-" + worst;
+      badge.textContent = "⚠ " + viols.length;
+      badge.title = viols.map(v => "[" + v.ruleId + "] " + v.subject + v.message).join("\n");
+      const detail = document.createElement("tr"); detail.className = "val-detail"; detail.style.display = "none";
+      const dtd = document.createElement("td"); dtd.colSpan = colSpan;
+      dtd.innerHTML = '<div class="val-list">' + viols.map(v =>
+        '<div class="val-item sev-' + v.severity + '"><span class="sev-dot"></span>' +
+        '<code>' + esc(v.ruleId) + '</code> ' + esc(v.subject) + esc(v.message) +
+        (v.fix ? ' <span class="val-fix">' + esc(v.fix) + '</span>' : '') +
+        ' <a class="val-ref" href="' + esc(v.doc) + '" target="_blank" rel="noopener">§' + esc(v.section) + ' ↗</a></div>'
+      ).join("") + '</div>';
+      detail.appendChild(dtd);
+      badge.onclick = () => { detail.style.display = detail.style.display === "none" ? "" : "none"; };
+      tda.appendChild(badge);
+      tr._valDetail = detail;
+    }
+    const del = document.createElement("button"); del.className = "icon-btn"; del.textContent = "✕"; del.title = "Delete";
+    del.onclick = () => { const i = DB[activeSheet].indexOf(row); if (i >= 0) DB[activeSheet].splice(i,1); save(); renderSheet(); renderSheetTabs(); renderGraph(); renderExplorer(); };
+    tda.appendChild(del); tr.appendChild(tda);
+    return tr;
+  }
+
+  if (!DB[activeSheet].length) { const tr = document.createElement("tr"); const td = document.createElement("td"); td.colSpan = colSpan; td.className = "empty"; td.textContent = "No rows yet — click “Add row”."; tr.appendChild(td); tbody.appendChild(tr); }
+  else if (!shown.length) { const tr = document.createElement("tr"); const td = document.createElement("td"); td.colSpan = colSpan; td.className = "empty"; td.textContent = issuesOnly[activeSheet] ? "No rows with standards issues 🎉" : "No rows match the active filters."; tr.appendChild(td); tbody.appendChild(tr); }
+  shown.forEach(row => { const tr = buildRow(row); tbody.appendChild(tr); if (tr._valDetail) tbody.appendChild(tr._valDetail); });
+  table.appendChild(tbody); wrap.appendChild(table); card.appendChild(wrap);
+}
+function makeCell(sheet, row, col, colViols, reval) {
+  // Flag a cell (red outline for errors, amber for warnings/info) + tooltip of its violations.
+  const flag = elm => {
+    if (!colViols || !colViols.length || !elm || !elm.classList) return elm;
+    const worst = worstSeverity(colViols);
+    elm.classList.add(worst === "error" ? "cell-invalid" : "cell-warn");
+    elm.title = colViols.map(v => "[" + v.ruleId + "] " + v.subject + v.message).join("\n");
+    return elm;
+  };
+  reval = reval || (() => {});   // incremental single-row re-render supplied by buildRow
+  if (col.links) return makeLinksCell(row, col);
+  if (col.contacts) return makeContactsCell(row, col);
+  if (col.ops) return makeOpsCell(row, col);
+  if (col.params) return flag(makeParamsCell(row, col, reval));
+  if (col.typeref) return flag(typeCombo(row.EntityID, row[col.key], v => { row[col.key] = v; save(); renderGraph(); renderExplorer(); reval(); }, "Type"));
+  const opts = optionsFor(col); let el;
+  if (col.fk) {
+    el = document.createElement("select");
+    const b = document.createElement("option"); b.value = ""; b.textContent = "—"; el.appendChild(b);
+    const fk = SCHEMA[col.fk], idKey = fk.id, nameKey = fk.cols.find(c=>c.key==="Name") ? "Name" : idKey;
+    for (const r of DB[col.fk]) { const o = document.createElement("option"); o.value = r[idKey]; o.textContent = r[idKey] + (r[nameKey]&&nameKey!==idKey?" · "+r[nameKey]:""); el.appendChild(o); }
+    el.value = row[col.key] || "";
+  } else if (opts) {
+    el = document.createElement("select");
+    const b = document.createElement("option"); b.value = ""; b.textContent = "—"; el.appendChild(b);
+    for (const o of opts) { const op = document.createElement("option"); op.value = o; op.textContent = o; el.appendChild(op); }
+    el.value = row[col.key] || "";
+  } else if (col.area) {
+    el = document.createElement("textarea"); el.value = row[col.key] || "";
+    const min = col.rows || 1, max = 24;
+    const fit = () => { const lines = (el.value.match(/\n/g)||[]).length + 1; el.rows = Math.min(max, Math.max(min, lines)); };
+    fit(); el.addEventListener("input", fit);
+  }
+  else { el = document.createElement("input"); el.type = "text"; el.value = row[col.key] || ""; }
+  el.onchange = () => {
+    const idKey = SCHEMA[sheet].id;
+    // Re-point a generated child id at its new owner: SCH-ENT-000-001 → SCH-ENT-003-00n.
+    if (col.key === "EntityID" && ENTITY_OWNED.has(sheet) && el.value !== row.EntityID && isGeneratedChildId(sheet, row[idKey])) row[idKey] = nextId(sheet, el.value);
+    row[col.key] = el.value; save(); renderGraph(); renderExplorer(); if (col.fk || col.key === SCHEMA[sheet].id) renderSheetTabs(); if (col.rerender) renderSheet(); else if (VALIDATED_SHEETS.has(sheet)) reval(); };
+  return flag(el);
+}
+/* ---- GraphQL type combobox (dropdown suggestions + free text for [T!]! wrappers) ---- */
+let __dlSeq = 0;
+function entityName(id) { const e = index("Entities")[id]; return e ? e.Name : ""; }
+function typeNameOf(r) { return (r.TypeName && r.TypeName.trim()) || entityName(r.EntityID); }
+function availableTypes(entityId) {
+  const seen = new Set(), own = [], rest = [];
+  for (const r of DB.Schema) { const n = typeNameOf(r); if (!n || seen.has(n)) continue; seen.add(n); (entityId && r.EntityID === entityId ? own : rest).push({ name: n, kind: r.Kind || "Type" }); }
+  rest.sort((a, b) => a.name.localeCompare(b.name));
+  const scalars = GQL_SCALARS.filter(s => !seen.has(s)).map(s => ({ name: s, kind: "Scalar" }));
+  return [...own, ...rest, ...scalars];
+}
+function typeCombo(entityId, value, onCommit, placeholder) {
+  const wrap = document.createElement("span"); wrap.className = "type-combo";
+  const id = "dl-" + (++__dlSeq);
+  const inp = document.createElement("input"); inp.type = "text"; inp.setAttribute("list", id); inp.value = value || ""; if (placeholder) inp.placeholder = placeholder;
+  const dl = document.createElement("datalist"); dl.id = id;
+  const own = entityId ? availableTypes(entityId).filter(t => DB.Schema.some(r => r.EntityID === entityId && typeNameOf(r) === t.name)) : [];
+  for (const t of availableTypes(entityId)) { const o = document.createElement("option"); o.value = t.name; o.label = (own.some(x => x.name === t.name) ? "★ " : "") + t.kind; dl.appendChild(o); }
+  inp.onchange = () => onCommit(inp.value);
+  wrap.append(inp, dl); return wrap;
+}
+/* ---- Definition (raw SDL body) parsers, used by the graph + explorer + SDL generators ---- */
+/* ---- Structured parameters editor (Queries/Mutations): name : Type per line ---- */
+function makeParamsCell(row, col, reval) {
+  const wrap = document.createElement("div"); wrap.className = "attrs-cell";
+  const list = document.createElement("div"); list.className = "attrs-list";
+  const commit = () => {
+    row[col.key] = [...list.querySelectorAll(".attr-line")].map(ln => {
+      const name = ln.querySelector(".attr-name").value.trim(); if (!name) return "";
+      const t = ln.querySelector(".attr-type input"); const type = t ? t.value.trim() : "";
+      return type ? `${name}: ${type}` : name;
+    }).filter(Boolean).join("\n");
+    save(); renderGraph(); renderExplorer(); if (reval) reval();
+  };
+  const addLine = (a) => {
+    const line = document.createElement("div"); line.className = "attr-line";
+    const name = document.createElement("input"); name.className = "attr-name"; name.placeholder = "arg"; name.value = (a && a.name) || ""; name.onchange = commit;
+    const colon = document.createElement("span"); colon.className = "attr-colon"; colon.textContent = ":";
+    const tc = typeCombo(row.EntityID, (a && a.type) || "", commit, "Type"); tc.classList.add("attr-type");
+    const rm = document.createElement("button"); rm.type = "button"; rm.className = "icon-btn"; rm.textContent = "✕"; rm.title = "Remove"; rm.onclick = () => { line.remove(); commit(); };
+    line.append(name, colon, tc, rm); list.appendChild(line);
+  };
+  const rows = String(row[col.key] || "").split(/[\n,]+/).map(s => s.trim()).filter(Boolean).map(line => { const i = line.indexOf(":"); return i < 0 ? { name: line, type: "" } : { name: line.slice(0, i).trim(), type: line.slice(i + 1).trim() }; });
+  rows.forEach(addLine);
+  const add = document.createElement("button"); add.type = "button"; add.className = "mini-add"; add.textContent = "+ parameter"; add.onclick = () => addLine();
+  wrap.append(list, add); return wrap;
+}
+// Links & References cell — one reference per line, each tagged with a LINK_TYPES type
+// (LeanIX / Confluence / ER / Other) from a dropdown. Stored one "Type: target" per line so it
+// round-trips through a single Excel cell; "↗" opens targets that are URLs.
+function makeLinksCell(row, col) {
+  const wrap = document.createElement("div"); wrap.className = "links-cell";
+  const list = document.createElement("div"); list.className = "links-list";
+  const commit = () => {
+    row[col.key] = formatLinks([...list.querySelectorAll(".link-line")].map(l => ({ type: l.querySelector("select").value, value: l.querySelector("input").value.trim() })));
+    save();
+  };
+  const addRow = (l) => {
+    const line = document.createElement("div"); line.className = "link-line";
+    const sel = document.createElement("select");
+    for (const t of LINK_TYPES) { const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o); }
+    sel.value = (l && l.type) || LINK_TYPES[0]; sel.onchange = commit;
+    const inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "https://…"; inp.value = (l && l.value) || ""; inp.onchange = commit;
+    const open = document.createElement("a"); open.className = "link-open"; open.textContent = "↗"; open.target = "_blank"; open.rel = "noopener"; open.title = "Open link";
+    const sync = () => { const u = inp.value.trim(), isUrl = /^https?:\/\//i.test(u); open.href = isUrl ? u : "#"; open.style.visibility = isUrl ? "visible" : "hidden"; }; inp.oninput = sync; sync();
+    const rm = document.createElement("button"); rm.type = "button"; rm.className = "icon-btn"; rm.textContent = "✕"; rm.onclick = () => { line.remove(); commit(); };
+    line.append(sel, inp, open, rm); list.appendChild(line);
+  };
+  parseLinks(row[col.key]).forEach(addRow);
+  const add = document.createElement("button"); add.type = "button"; add.className = "add-link"; add.textContent = "+ link";
+  add.onclick = () => { addRow(null); list.lastChild.querySelector("input").focus(); };
+  wrap.append(list, add); return wrap;
+}
+// Contacts cell — like Links, but each line is a "Role: value" pair (Domain
+// Architect / Technical Service Owner). Stored one
+// "Role: value" per line so it round-trips through a single Excel cell.
+const CONTACT_ROLES = ["Domain Architect", "Technical Service Owner"];
+function parseContacts(v) {
+  return String(v||"").split(/[\n\r]+/).map(s=>s.trim()).filter(Boolean).map(line => {
+    const i = line.indexOf(":");
+    if (i < 0) return { role: CONTACT_ROLES[0], value: line };
+    const role = line.slice(0, i).trim();
+    return { role: CONTACT_ROLES.includes(role) ? role : CONTACT_ROLES[0], value: line.slice(i+1).trim() };
+  });
+}
+function makeContactsCell(row, col) {
+  const wrap = document.createElement("div"); wrap.className = "contacts-cell";
+  const list = document.createElement("div"); list.className = "links-list";
+  const commit = () => {
+    row[col.key] = [...list.querySelectorAll(".contact-line")]
+      .map(l => ({ role: l.querySelector("select").value, value: l.querySelector("input").value.trim() }))
+      .filter(c => c.value).map(c => `${c.role}: ${c.value}`).join("\n");
+    save();
+  };
+  const addRow = (c) => {
+    const line = document.createElement("div"); line.className = "contact-line";
+    const sel = document.createElement("select");
+    for (const r of CONTACT_ROLES) { const o = document.createElement("option"); o.value = r; o.textContent = r; sel.appendChild(o); }
+    sel.value = (c && c.role) || CONTACT_ROLES[0]; sel.onchange = commit;
+    const inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "name / email"; inp.value = (c && c.value) || ""; inp.onchange = commit;
+    const rm = document.createElement("button"); rm.type = "button"; rm.className = "icon-btn"; rm.textContent = "✕"; rm.onclick = () => { line.remove(); commit(); };
+    line.append(sel, inp, rm); list.appendChild(line);
+  };
+  parseContacts(row[col.key]).forEach(addRow);
+  const add = document.createElement("button"); add.type = "button"; add.className = "add-link"; add.textContent = "+ contact";
+  add.onclick = () => { addRow(null); list.lastChild.querySelector("input").focus(); };
+  wrap.append(list, add); return wrap;
+}
+
+// Current Reference cell — a list of legacy operationIds this entity/operation
+// migrates from, each tagged with its source system (REST / monograph). Stored one
+// "Source: operationId" per line so it round-trips through a single Excel cell.
+const OP_SOURCES = ["REST", "monograph", "Other"];
+function parseOps(v) {
+  return String(v||"").split(/[\n\r]+/).map(s=>s.trim()).filter(Boolean).map(line => {
+    const i = line.indexOf(":");
+    if (i < 0) return { src: OP_SOURCES[0], value: line };
+    const src = line.slice(0, i).trim();
+    return { src: OP_SOURCES.includes(src) ? src : OP_SOURCES[0], value: line.slice(i+1).trim() };
+  });
+}
+function makeOpsCell(row, col) {
+  const wrap = document.createElement("div"); wrap.className = "ops-cell";
+  const list = document.createElement("div"); list.className = "links-list";
+  const commit = () => {
+    row[col.key] = [...list.querySelectorAll(".op-line")]
+      .map(l => ({ src: l.querySelector("select").value, value: l.querySelector("input").value.trim() }))
+      .filter(o => o.value).map(o => `${o.src}: ${o.value}`).join("\n");
+    save();
+  };
+  const addRow = (o) => {
+    const line = document.createElement("div"); line.className = "op-line";
+    const sel = document.createElement("select");
+    for (const s of OP_SOURCES) { const op = document.createElement("option"); op.value = s; op.textContent = s; sel.appendChild(op); }
+    sel.value = (o && o.src) || OP_SOURCES[0]; sel.onchange = commit;
+    const inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "operationId"; inp.value = (o && o.value) || ""; inp.onchange = commit;
+    const rm = document.createElement("button"); rm.type = "button"; rm.className = "icon-btn"; rm.textContent = "✕"; rm.onclick = () => { line.remove(); commit(); };
+    line.append(sel, inp, rm); list.appendChild(line);
+  };
+  parseOps(row[col.key]).forEach(addRow);
+  const add = document.createElement("button"); add.type = "button"; add.className = "add-link"; add.textContent = "+ operationId";
+  add.onclick = () => { addRow(null); list.lastChild.querySelector("input").focus(); };
+  wrap.append(list, add); return wrap;
+}
+
+/* ---------------------------- Helpers ----------------------------------- */
+function schemaFor(entId) { return DB.Schema.find(r => r.EntityID === entId) || null; }
+// Unified operation view over the Queries + Mutations sheets, shaped so the
+// explorer's existing code (op.OpID / op.OpType / op.Args) works unchanged.
+function allOps() {
+  const q = DB.Queries.map(o => ({ ...o, OpID: o.QueryID, OpType: "Query", Args: o.Parameters }));
+  const m = DB.Mutations.map(o => ({ ...o, OpID: o.MutationID, OpType: "Mutation", Args: o.Parameters }));
+  return [...q, ...m];
+}
+function opsForEntity(entId) { return allOps().filter(o => o.EntityID === entId); }
+function sanitize(id) { return "n_" + String(id).replace(/[^a-zA-Z0-9_]/g, "_"); }
+
+/* ----------------------------- Graph (Mermaid) -------------------------- */
+function buildMermaid() {
+  const lines = ["flowchart TD", '  GW([Supergraph Gateway]):::gw'];
+  const groups = {};
+  for (const e of DB.Entities) { const g = (e[groupBy] || "Ungrouped").trim() || "Ungrouped"; (groups[g] = groups[g] || []).push(e); }
+  let gi = 0;
+  const byName = {};
+  for (const [g, ents] of Object.entries(groups)) {
+    const sgId = "sg_" + (gi++);
+    lines.push(`  subgraph ${sgId}["${g}"]`);
+    for (const e of ents) {
+      const nid = sanitize(e.EntityID);
+      const sch = schemaFor(e.EntityID);
+      const key = sch && parseDefKey(sch.Definition) ? `@key: ${parseDefKey(sch.Definition)}` : "";
+      const nOps = opsForEntity(e.EntityID).length;
+      const label = [e.Name || e.EntityID, key, nOps ? `${nOps} ops` : ""].filter(Boolean).join("<br/>");
+      lines.push(`    ${nid}["${label}"]`);
+      (byName[(e.Name||"").trim().toLowerCase()] = byName[(e.Name||"").trim().toLowerCase()] || []).push(nid);
+    }
+    lines.push("  end");
+    lines.push(`  GW --> ${sgId}`);
+  }
+  // federation edges: same canonical name across >1 node
+  for (const [, nids] of Object.entries(byName)) {
+    if (nids.length > 1) for (let i = 1; i < nids.length; i++) lines.push(`  ${nids[0]} -. "extends" .- ${nids[i]}`);
+  }
+  lines.push("  classDef gw fill:#7048e8,stroke:#5936c9,color:#fff;");
+  return lines.join("\n");
+}
+let mermaidReady = false;
+function ensureMermaid() { if (!mermaidReady && window.mermaid) { mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" }); mermaidReady = true; } }
+async function renderGraph() {
+  const out = document.getElementById("graphOut"); const srcEl = document.getElementById("mermaidSrc");
+  if (!DB.Entities.length) { out.innerHTML = '<div class="empty">Add entities to render the federated graph.</div>'; srcEl.textContent = ""; return; }
+  const src = buildMermaid(); srcEl.textContent = src;
+  ensureMermaid();
+  if (!window.mermaid) { out.innerHTML = '<div class="empty">Mermaid failed to load (offline?). The source below is still valid.</div>'; return; }
+  try { const { svg } = await mermaid.render("gqlGraph_" + Date.now(), src); out.innerHTML = svg; }
+  catch (e) { out.innerHTML = '<div class="empty">Could not render diagram: ' + esc(e.message) + '</div>'; }
+}
+
+/* ---------------------------- Explorer (GraphiQL-like) ------------------ */
+function renderExplorer() {
+  renderOpList();
+  if (selectedOp && !allOps().some(o => o.OpID === selectedOp)) selectedOp = null;
+  renderOpDetail();
+}
+function renderOpList() {
+  const host = document.getElementById("opList"); host.innerHTML = "";
+  const entIdx = index("Entities");
+  let ops = allOps();
+  if (opFilter !== "All") ops = ops.filter(o => (o.OpType||"Query") === opFilter);
+  if (opSearch) { const q = opSearch.toLowerCase(); ops = ops.filter(o => (o.Name||"").toLowerCase().includes(q) || (o.AuthScopes||"").toLowerCase().includes(q)); }
+  if (!ops.length) { host.innerHTML = '<div class="empty">No operations.</div>'; return; }
+  // group by domain → entity
+  const groups = {};
+  for (const o of ops) { const e = entIdx[o.EntityID]; const g = e ? (e.BusinessApplication || "—") + " › " + (e.Name || e.EntityID) : "(unlinked)"; (groups[g] = groups[g] || []).push(o); }
+  for (const [g, list] of Object.entries(groups)) {
+    const gl = document.createElement("div"); gl.className = "op-group"; gl.textContent = g; host.appendChild(gl);
+    for (const o of list) {
+      const it = document.createElement("div"); it.className = "op-item" + (o.OpID === selectedOp ? " active" : "");
+      const t = (o.OpType || "Query").toLowerCase();
+      it.innerHTML = `<span class="dot ${t}"></span>${esc(o.Name || o.OpID)}`;
+      it.onclick = () => { selectedOp = o.OpID; renderOpList(); renderOpDetail(); };
+      host.appendChild(it);
+    }
+  }
+}
+function baseTypeName(t) { return String(t || "").replace(/[\[\]!]/g, "").trim(); }
+function entityFieldDefs(ent) {
+  if (!ent) return [];
+  const sch = schemaFor(ent.EntityID);
+  return defBodyLines(sch ? sch.Definition : "").map(l => {
+    const i = l.indexOf(":");
+    if (i === -1) return { name: l.replace(/\s+@.*$/, "").trim(), type: "" };
+    return { name: l.slice(0, i).trim(), type: l.slice(i + 1).trim().replace(/\s+@.*$/, "").trim() };
+  });
+}
+function entitiesByName() {
+  const idx = {};
+  for (const e of DB.Entities) idx[(e.Name || "").trim().toLowerCase()] = e;
+  return idx;
+}
+// Recursive selection set: object-typed fields that resolve to a known entity are
+// expanded (so e.g. product → availability → price/promotions surface), capped by
+// depth and guarded against cycles.
+function selectionSet(ent, byName, depth, seen, indent) {
+  const defs = entityFieldDefs(ent);
+  if (!defs.length) return "";
+  const pad = "  ".repeat(indent);
+  const lines = defs.map(f => {
+    const child = byName[baseTypeName(f.type).toLowerCase()];
+    if (child && depth > 0 && !seen.has(child.EntityID)) {
+      const sub = selectionSet(child, byName, depth - 1, new Set([...seen, child.EntityID]), indent + 1);
+      if (sub) return `${pad}${f.name} {\n${sub}\n${pad}}`;
+    }
+    return `${pad}${f.name}`;
+  });
+  return lines.join("\n");
+}
+function buildOperationDoc(op, ent) {
+  const type = (op.OpType || "Query").toLowerCase();
+  const args = parseArgs(op.Args);
+  const varDecl = args.length ? "(" + args.map(a => `$${a.name}: ${a.type || "String"}`).join(", ") + ")" : "";
+  const argUse = args.length ? "(" + args.map(a => `${a.name}: $${a.name}`).join(", ") + ")" : "";
+  const byName = entitiesByName();
+  const inner = ent ? selectionSet(ent, byName, 3, new Set([ent.EntityID]), 2) : "";
+  const sel = inner ? " {\n" + inner + "\n  }" : "";
+  return `${type} ${op.Name || "operation"}${varDecl} {\n  ${op.Name || "operation"}${argUse}${sel}\n}`;
+}
+// Render one Schema row as an SDL block, using its real TypeName + Kind:
+//   Key/Type → `type X …`, Input → `input X …`, Interface → `interface X …`,
+//   Enum → `enum X { … }` (Definition holds the values), Scalar → `scalar X`.
+function sdlForSchemaRow(r, ent) {
+  const name = (r.TypeName || "").trim() || (ent && ent.Name) || "Type";
+  const kind = r.Kind || "Type";
+  const def = String(r.Definition || "").trim();
+  if (kind === "Scalar") return `scalar ${name}`;
+  if (kind === "Enum") {
+    const vals = def.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    return `enum ${name} {\n${vals.map(v => "  " + v).join("\n")}\n}`;
+  }
+  const kw = kind === "Input" ? "input" : kind === "Interface" ? "interface" : "type";
+  const body = def.includes("{") ? def : `{\n${defBodyLines(def).map(f => "  " + f).join("\n")}\n}`;
+  // "Extend" = borrowed entity this subgraph contributes a field to → `extend type X @key(…) { … }`.
+  // "Reference" = borrowed entity used only as a field type → its Definition already carries `resolvable: false`.
+  const prefix = kind === "Extend" ? "extend " : "";
+  return `${prefix}${kw} ${name} ${body}`.replace(/\s+$/, "");
+}
+function isKeyRow(r) { return (r.Kind === "Key") || /@key/i.test(String(r.Definition || "")); }
+// First Schema row that DEFINES a given type name (names are unique except @key entities).
+function isBorrowRow(r) { return r && (r.Kind === "Reference" || r.Kind === "Extend"); }
+function schemaRowByType(name) {
+  const n = String(name || "").trim(); if (!n) return null;
+  const rows = DB.Schema.filter(r => (r.TypeName || "").trim() === n);
+  return rows.find(r => !isBorrowRow(r)) || rows[0] || null;  // the real definition wins over borrowed reference/extend stubs
+}
+// Base type names referenced by a type/input body (drops list/non-null wrappers + directives).
+function referencedTypeNames(def) {
+  const out = [];
+  for (const l of defBodyLines(def)) {
+    const i = l.indexOf(":"); if (i < 0) continue;
+    const t = baseTypeName(String(l.slice(i + 1)).trim().split(/[\s@]/)[0]);
+    if (t) out.push(t);
+  }
+  return out;
+}
+// A federation reference stub for an entity owned elsewhere: its @key + just the key fields.
+function keyStub(r) {
+  const name = (r.TypeName || "").trim(); const def = String(r.Definition || "");
+  const keyExpr = parseDefKey(def);
+  const byName = {}; for (const l of defBodyLines(def)) { const i = l.indexOf(":"); if (i > 0) byName[l.slice(0, i).trim()] = l.trim(); }
+  const fields = keyExpr.split(/[\s,]+/).filter(Boolean).map(f => "  " + (byName[f] || `${f}: ID!`));
+  return `type ${name} @key(fields: "${keyExpr}", resolvable: false)` + (fields.length ? ` {\n${fields.join("\n")}\n}` : "");
+}
+function opSig(o, ent) { const args = parseArgs(o.Args); return `${o.Name}${args.length ? "(" + args.map(a => `${a.name}: ${a.type || "String"}`).join(", ") + ")" : ""}: ${o.ReturnType || (ent && ent.Name) || "Boolean"}`; }
+function opBlocks(ops, ent) {
+  const byType = {}; for (const o of ops) { const t = o.OpType || "Query"; (byType[t] = byType[t] || []).push(opSig(o, ent)); }
+  return Object.entries(byType).map(([t, sigs]) => `type ${t} {\n${sigs.map(s => "  " + s).join("\n")}\n}`);
+}
+// Entity SDL (explorer op detail): only the types reachable from the viewed operation's
+// return + parameter types (or the entity's own key type). Value types / inputs / enums /
+// scalars are expanded inline; OTHER @key entities appear as short reference stubs — so it
+// reads like a single subgraph's slice, not the whole subgraph's type set.
+function buildEntitySDL(ent, op) {
+  const roots = [];
+  const add = n => { n = baseTypeName(n); if (n && schemaRowByType(n) && !roots.includes(n)) roots.push(n); };
+  if (op) { add(op.ReturnType); for (const a of parseArgs(op.Args)) add(a.type); }
+  if (!roots.length && ent) {
+    const own = DB.Schema.find(r => r.EntityID === ent.EntityID && (r.TypeName || "").trim() === (ent.Name || "").trim());
+    const firstKey = DB.Schema.find(r => r.EntityID === ent.EntityID && r.Kind === "Key");
+    if (own || firstKey) add((own || firstKey).TypeName);
+  }
+  const rootSet = new Set(roots);
+  const done = new Set(), blocks = [], queue = [...roots];
+  while (queue.length) {
+    const name = queue.shift();
+    if (done.has(name)) continue;
+    const r = schemaRowByType(name); if (!r) continue;
+    done.add(name);
+    if (isKeyRow(r) && !rootSet.has(name)) { blocks.push(keyStub(r)); continue; }  // referenced entity → stub
+    blocks.push(sdlForSchemaRow(r, ent));
+    if (r.Kind === "Enum" || r.Kind === "Scalar") continue;
+    for (const t of referencedTypeNames(r.Definition)) if (!done.has(t)) queue.push(t);
+  }
+  const ops = op ? [op] : opsForEntity(ent ? ent.EntityID : "");
+  return [...blocks, ...opBlocks(ops, ent)].join("\n\n");
+}
+// Subgraph SDL: the full, unscoped set — every type / input / enum / scalar registered under
+// the entity, plus all its operations. (This is the previous "Entity SDL" behaviour.)
+function buildSubgraphSDL(ent) {
+  if (!ent) return "";
+  const typeBlocks = DB.Schema.filter(r => r.EntityID === ent.EntityID).map(r => sdlForSchemaRow(r, ent)).filter(Boolean);
+  return [...typeBlocks, ...opBlocks(opsForEntity(ent.EntityID), ent)].join("\n\n");
+}
+/* ---------------- borrow / extend an entity from another subgraph -------------- */
+// The Schema row that DEFINES `name` as a @key entity under an entity OTHER than excludeId.
+function owningEntityRow(name, excludeId) {
+  const n = String(name || "").trim(); if (!n) return null;
+  return DB.Schema.find(r => (r.TypeName || "").trim() === n && r.EntityID !== excludeId && !isBorrowRow(r) && isKeyRow(r)) || null;
+}
+// This entity's own primary @key type name (auto-derives the contributed field for an extend).
+function primaryTypeOf(entId) {
+  const ent = index("Entities")[entId];
+  const own = DB.Schema.find(r => r.EntityID === entId && !isBorrowRow(r) && (r.TypeName || "").trim() === ((ent && ent.Name) || "").trim() && isKeyRow(r));
+  const firstKey = DB.Schema.find(r => r.EntityID === entId && !isBorrowRow(r) && isKeyRow(r));
+  return (own || firstKey) ? (own || firstKey).TypeName : ((ent && ent.Name) || "");
+}
+// @key entities owned by ANOTHER subgraph that this entity references but has not borrowed yet.
+function borrowSuggestions(entId) {
+  const mine = new Set(DB.Schema.filter(r => r.EntityID === entId).map(r => (r.TypeName || "").trim()));
+  const referenced = new Set();
+  for (const r of DB.Schema.filter(r => r.EntityID === entId && !isBorrowRow(r))) for (const t of referencedTypeNames(r.Definition)) referenced.add(t);
+  for (const o of opsForEntity(entId)) { referenced.add(baseTypeName(o.ReturnType)); for (const a of parseArgs(o.Args)) referenced.add(baseTypeName(a.type)); }
+  const out = [], seen = new Set();
+  for (const name of referenced) {
+    if (!name || mine.has(name) || seen.has(name)) continue;
+    const owner = owningEntityRow(name, entId);
+    if (owner) { seen.add(name); out.push({ name, ownerEntity: owner.EntityID, ownerSg: subgraphOfEntity(owner.EntityID), key: parseDefKey(owner.Definition) || "id" }); }
+  }
+  return out;
+}
+// Owned key entities in OTHER subgraphs (datalist for the manual borrow form).
+function borrowableTypeNames(entId) {
+  const seen = new Set(), out = [];
+  for (const r of DB.Schema) if (r.EntityID !== entId && !isBorrowRow(r) && isKeyRow(r)) { const n = (r.TypeName || "").trim(); if (n && !seen.has(n)) { seen.add(n); out.push(n); } }
+  return out.sort();
+}
+function addBorrowRow(entId, opts) {
+  opts = opts || {};
+  const name = String(opts.name || "").trim();
+  if (!name) { alert("Entity name is required."); return; }
+  if (DB.Schema.some(r => r.EntityID === entId && (r.TypeName || "").trim() === name)) { alert(`"${name}" already exists under this entity.`); return; }
+  const mode = opts.mode === "extend" ? "extend" : "reference";
+  const owner = owningEntityRow(name, entId);
+  const key = (String(opts.key || "").trim() || (owner ? parseDefKey(owner.Definition) : "") || "id");
+  const keyNames = key.split(/[\s,]+/).filter(Boolean);
+  const ownerFields = {};
+  if (owner) for (const l of defBodyLines(owner.Definition)) { const i = l.indexOf(":"); if (i > 0) ownerFields[l.slice(0, i).trim()] = l.slice(i + 1).trim().split("@")[0].trim(); }
+  const keyLine = (f, external) => `  ${f}: ${ownerFields[f] || "ID!"}${external ? " @external" : ""}`;
+  let directive, bodyLines;
+  if (mode === "reference") { directive = `@key(fields: "${key}", resolvable: false)`; bodyLines = keyNames.map(f => keyLine(f, false)); }
+  else {
+    directive = `@key(fields: "${key}")`; bodyLines = keyNames.map(f => keyLine(f, true));
+    const fn = String(opts.fieldName || "").trim(), ft = String(opts.fieldType || "").trim();
+    if (fn && ft) bodyLines.push(`  ${fn}: ${ft}`);
+  }
+  const row = {}; SCHEMA.Schema.cols.forEach(c => row[c.key] = "");
+  row.SchemaID = nextId("Schema", entId); row.EntityID = entId; row.Kind = mode === "extend" ? "Extend" : "Reference";
+  row.TypeName = name; row.Definition = `${directive} {\n${bodyLines.join("\n")}\n}`; row.ApprovalStatus = "Draft";
+  DB.Schema.unshift(row); save();
+  renderSubgraph(); renderSheetTabs(); if (activeSheet === "Schema") renderSheet(); renderGraph(); renderExplorer(); renderSummary();
+}
+function removeBorrowRow(schemaId) {
+  const i = DB.Schema.findIndex(r => r.SchemaID === schemaId); if (i < 0) return;
+  DB.Schema.splice(i, 1); save();
+  renderSubgraph(); renderSheetTabs(); if (activeSheet === "Schema") renderSheet(); renderGraph(); renderExplorer(); renderSummary();
+}
+function renderBorrowPanel(ent) {
+  const host = document.getElementById("subgraphBorrow"); if (!host) return;
+  if (!ent) { host.innerHTML = ""; return; }
+  const borrowed = DB.Schema.filter(r => r.EntityID === ent.EntityID && isBorrowRow(r));
+  const contribOf = r => defBodyLines(r.Definition).filter(l => !/@external/.test(l)).map(l => l.trim()).join(", ") || "—";
+  const rows = borrowed.map(r => `<tr><td class="mono">${esc((r.TypeName || "").trim())}</td>
+      <td>${r.Kind === "Extend" ? "extend" : "reference"}</td>
+      <td class="mono">@key ${esc(parseDefKey(r.Definition) || "")}</td>
+      <td class="mono">${r.Kind === "Extend" ? esc(contribOf(r)) : '<span class="hint">stub — field reference only</span>'}</td>
+      <td><button class="icon-btn" title="Remove" data-rm="${esc(r.SchemaID)}">✕</button></td></tr>`).join("")
+    || '<tr><td colspan="5" class="empty">No borrowed entities — reference or extend a @key entity owned by another subgraph below.</td></tr>';
+  const sugg = borrowSuggestions(ent.EntityID);
+  const suggHTML = sugg.length ? `<div class="kv">Suggested references</div>
+    <div class="borrow-chips">${sugg.map(s => `<button class="copy-btn" data-add-ref="${esc(s.name)}" data-key="${esc(s.key)}">＋ ${esc(s.name)} <span class="hint">(${esc(s.ownerSg)})</span></button>`).join("")}</div>` : "";
+  const focusType = primaryTypeOf(ent.EntityID);
+  const defName = focusType ? focusType.charAt(0).toLowerCase() + focusType.slice(1) : "";
+  const opts = borrowableTypeNames(ent.EntityID).map(n => `<option value="${esc(n)}">`).join("");
+  host.innerHTML = `<div class="code-head" style="margin-top:14px"><div class="kv" style="margin:0">Entity extensions (from other subgraphs)</div></div>
+    <p class="desc" style="margin:2px 0 8px">Borrow a type owned by another subgraph via <code>@key</code> — a <strong>reference</strong> stub (<code>resolvable: false</code>) to use it as a field type, or an <strong>extend</strong> to contribute a field onto it.</p>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Mode</th><th>@key</th><th>Contributed field</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${suggHTML}
+    <div class="borrow-form">
+      <label>Entity <input id="brwName" list="dl-borrowable" placeholder="Product"></label>
+      <datalist id="dl-borrowable">${opts}</datalist>
+      <label>Mode <select id="brwMode"><option value="reference">reference (stub)</option><option value="extend">extend (add field)</option></select></label>
+      <label>@key fields <input id="brwKey" placeholder="id"></label>
+      <span id="brwContrib" style="display:none">
+        <label>Field name <input id="brwFieldName" value="${esc(defName)}" placeholder="availableToSell"></label>
+        <label>Field type <input id="brwFieldType" value="${esc(focusType)}" placeholder="ProductAvailableToSell"></label>
+      </span>
+      <button class="primary" id="brwAdd" data-help="wb-borrow">＋ Borrow / extend entity</button>
+    </div>`;
+  // wire handlers (workbench.html uses programmatic/delegated handlers, not inline onclick)
+  host.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => removeBorrowRow(b.getAttribute("data-rm")));
+  host.querySelectorAll("[data-add-ref]").forEach(b => b.onclick = () => addBorrowRow(ent.EntityID, { name: b.getAttribute("data-add-ref"), mode: "reference", key: b.getAttribute("data-key") }));
+  const modeSel = host.querySelector("#brwMode"), contrib = host.querySelector("#brwContrib");
+  if (modeSel) modeSel.onchange = () => { contrib.style.display = modeSel.value === "extend" ? "" : "none"; };
+  const addBtn = host.querySelector("#brwAdd");
+  if (addBtn) addBtn.onclick = () => addBorrowRow(ent.EntityID, {
+    name: host.querySelector("#brwName").value, mode: host.querySelector("#brwMode").value,
+    key: host.querySelector("#brwKey").value, fieldName: host.querySelector("#brwFieldName").value, fieldType: host.querySelector("#brwFieldType").value
+  });
+}
+function renderSubgraph() {
+  const sel = document.getElementById("subgraphSel");
+  const out = document.getElementById("subgraphSDL");
+  if (!sel || !out) return;
+  const ents = DB.Entities.slice();
+  if (!ents.some(e => e.EntityID === selectedSubgraph)) selectedSubgraph = ents.length ? ents[0].EntityID : null;
+  sel.innerHTML = ents.map(e => `<option value="${esc(e.EntityID)}"${e.EntityID === selectedSubgraph ? " selected" : ""}>${esc(e.Name || e.EntityID)}${e.BusinessApplication ? " · " + esc(e.BusinessApplication) : ""}</option>`).join("");
+  const ent = ents.find(e => e.EntityID === selectedSubgraph) || null;
+  out.innerHTML = ent ? highlightSDL(buildSubgraphSDL(ent)) : '<span class="hint">No entity selected.</span>';
+  renderBorrowPanel(ent);
+}
+function highlightSDL(sdl) {
+  return esc(sdl)
+    .replace(/\b(extend|type|query|mutation|subscription|scalar|enum|interface|input)\b/g, '<span class="k">$1</span>')
+    .replace(/@key\(fields: &quot;[^&]*&quot;(?:, resolvable: (?:true|false))?\)/g, m => '<span class="c">' + m + '</span>')
+    .replace(/@external\b/g, '<span class="c">@external</span>');
+}
+
+/* ------------------------------ Summary tab ----------------------------- */
+// A "subgraph" is an entity's Business Application. Types live on the Schema sheet
+// (EntityID → entity → subgraph); operations on Queries/Mutations.
+function subgraphOfEntity(entId) { const e = index("Entities")[entId]; return e ? (String(e.BusinessApplication || "").trim() || "—") : "—"; }
+function allSubgraphs() { return [...new Set(DB.Entities.map(e => String(e.BusinessApplication || "").trim() || "—"))].sort((a, b) => a.localeCompare(b)); }
+// Which subgraph(s) own (declare a Schema row for) a given type name.
+function ownersOfType(name) {
+  const n = String(name || "").trim(); const set = new Set();
+  if (!n) return set;
+  for (const r of DB.Schema) if ((r.TypeName || "").trim() === n) set.add(subgraphOfEntity(r.EntityID));
+  return set;
+}
+// Parse a Definition body into {name, rawType, base} field descriptors.
+// Stable per-subgraph colour derived from the name.
+const __sgColorCache = {};
+function subColor(name) {
+  if (__sgColorCache[name]) return __sgColorCache[name];
+  let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const hue = h % 360;
+  return (__sgColorCache[name] = { border: `hsl(${hue} 60% 42%)`, bg: `hsl(${hue} 70% 95%)`, dot: `hsl(${hue} 60% 50%)` });
+}
+// Recursively render a type/field node into the collapsible tree.
+function buildTreeNode(container, labelHTML, typeName, sg, seen) {
+  const owners = ownersOfType(typeName);
+  if (!owners.size) {   // unregistered → scalar / leaf
+    const leaf = document.createElement("div"); leaf.className = "tree-leaf";
+    leaf.innerHTML = labelHTML + (typeName ? ` <span class="tree-scalar">${esc(typeName)}</span>` : "");
+    container.appendChild(leaf); return;
+  }
+  if (!owners.has(sg)) {   // owned elsewhere → federation reference stub, no recursion
+    const owner = [...owners][0], c = subColor(owner);
+    const leaf = document.createElement("div"); leaf.className = "tree-leaf fed"; leaf.style.borderLeftColor = c.border;
+    leaf.innerHTML = labelHTML + ` <span class="fed-chip" style="background:${c.bg};color:${c.border};border-color:${c.border}">⇄ ${esc(typeName)} · from ${esc(owner)}</span>`;
+    container.appendChild(leaf); return;
+  }
+  const rows = DB.Schema.filter(r => (r.TypeName || "").trim() === typeName);
+  const row = rows.find(r => subgraphOfEntity(r.EntityID) === sg) || rows[0];
+  const det = document.createElement("details"); det.className = "tree-node"; det.open = seen.size < 2;
+  const sum = document.createElement("summary");
+  sum.innerHTML = labelHTML + ` <span class="tree-type">${esc(typeName)}</span> <span class="tree-kind">${esc(row.Kind || "Type")}</span>`;
+  det.appendChild(sum);
+  if (seen.has(typeName)) { const l = document.createElement("div"); l.className = "tree-leaf"; l.innerHTML = '<span class="tree-kind">↩ recursive</span>'; det.appendChild(l); container.appendChild(det); return; }
+  const seen2 = new Set(seen); seen2.add(typeName);
+  if (row.Kind === "Enum") {
+    for (const v of defBodyLines(row.Definition)) { const l = document.createElement("div"); l.className = "tree-leaf"; l.innerHTML = `<span class="tree-enumval">${esc(v)}</span>`; det.appendChild(l); }
+  } else {
+    const flds = fieldDefs(row.Definition);
+    if (!flds.length) { const l = document.createElement("div"); l.className = "tree-leaf"; l.innerHTML = '<span class="tree-kind">(no fields)</span>'; det.appendChild(l); }
+    for (const f of flds) buildTreeNode(det, `<span class="tree-field">${esc(f.name)}</span><span class="tree-colon">:</span> <span class="tree-fieldtype">${esc(f.rawType)}</span> →`, f.base, sg, seen2);
+  }
+  container.appendChild(det);
+}
+function renderSummaryTree(sg) {
+  const host = document.getElementById("summaryTree"); host.innerHTML = "";
+  if (!sg) { host.innerHTML = '<div class="empty">No subgraph.</div>'; return; }
+  const ents = DB.Entities.filter(e => subgraphOfEntity(e.EntityID) === sg);
+  const entIds = new Set(ents.map(e => e.EntityID));
+  const ops = allOps().filter(o => entIds.has(o.EntityID));
+  const rows = DB.Schema.filter(r => entIds.has(r.EntityID));
+  const queries = ops.filter(o => o.OpType === "Query"), mutations = ops.filter(o => o.OpType === "Mutation");
+  const opGroup = (title, list) => {
+    if (!list.length) return;
+    const g = document.createElement("div"); g.className = "tree-group"; g.textContent = title; host.appendChild(g);
+    for (const o of list) {
+      const argList = parseArgs(o.Args);
+      const argsStr = argList.map(a => `${a.name}: ${a.type}`).join(", ");
+      const det = document.createElement("details"); det.className = "tree-node"; det.open = true;
+      const sum = document.createElement("summary");
+      sum.innerHTML = `<span class="tree-op">${esc(o.Name || o.OpID)}</span>(${esc(argsStr)})<span class="tree-colon">:</span> <span class="tree-fieldtype">${esc(o.ReturnType || "")}</span>`;
+      det.appendChild(sum);
+      // Arguments — expand Input/object types so nested input fields display
+      if (argList.length) {
+        const ag = document.createElement("div"); ag.className = "tree-subgroup"; ag.textContent = "Arguments"; det.appendChild(ag);
+        for (const a of argList)
+          buildTreeNode(det, `<span class="tree-field">${esc(a.name)}</span><span class="tree-colon">:</span> <span class="tree-fieldtype">${esc(a.type)}</span> →`, baseTypeName(a.type), sg, new Set());
+      }
+      // Return type
+      const rg = document.createElement("div"); rg.className = "tree-subgroup"; rg.textContent = "Returns"; det.appendChild(rg);
+      buildTreeNode(det, `<span class="tree-fieldtype">${esc(o.ReturnType || "")}</span> →`, baseTypeName(o.ReturnType), sg, new Set());
+      host.appendChild(det);
+    }
+  };
+  opGroup("Queries", queries); opGroup("Mutations", mutations);
+  // entity/key types not already surfaced as an operation return type
+  const keyTypes = rows.filter(r => isKeyRow(r)).map(r => (r.TypeName || "").trim()).filter(Boolean);
+  if (keyTypes.length) {
+    const g = document.createElement("div"); g.className = "tree-group"; g.textContent = "Entities (@key types)"; host.appendChild(g);
+    const done = new Set();
+    for (const t of keyTypes) { if (done.has(t)) continue; done.add(t); buildTreeNode(host, "", t, sg, new Set()); }
+  }
+  if (!host.children.length) host.innerHTML = '<div class="empty">This subgraph has no types or operations yet.</div>';
+}
+// Colour legend — one chip per subgraph/domain, shown at the top of the Summary section.
+function renderSummaryLegend() {
+  const legend = document.getElementById("summaryLegend"); if (!legend) return;
+  legend.innerHTML = allSubgraphs().map(s => `<span><span class="sg-dot" style="background:${subColor(s).dot}"></span>${esc(s)}</span>`).join("");
+}
+function renderSummaryTable() {
+  const host = document.getElementById("summaryTable"); host.innerHTML = "";
+  const subs = allSubgraphs();
+  const STATUSES = [["Approved", "st-approved"], ["Proposed", "st-proposed"], ["Draft", "st-draft"], ["Deprecated", "st-deprecated"]];
+  const statusChips = items => {
+    const counts = {}; for (const it of items) { const s = String(it.ApprovalStatus || "").trim() || "Draft"; counts[s] = (counts[s] || 0) + 1; }
+    return STATUSES.filter(([s]) => counts[s]).map(([s, cls]) => `<span class="st-chip ${cls}">${counts[s]} ${esc(s)}</span>`).join("") || '<span class="hint">—</span>';
+  };
+  const tot = { Key: 0, Type: 0, Input: 0, Interface: 0, Enum: 0, Scalar: 0, Q: 0, M: 0 };
+  const rowsHTML = subs.map(sg => {
+    const entIds = new Set(DB.Entities.filter(e => subgraphOfEntity(e.EntityID) === sg).map(e => e.EntityID));
+    const sch = DB.Schema.filter(r => entIds.has(r.EntityID));
+    const ops = allOps().filter(o => entIds.has(o.EntityID));
+    const q = ops.filter(o => o.OpType === "Query"), m = ops.filter(o => o.OpType === "Mutation");
+    const kc = k => sch.filter(r => (r.Kind || "Type") === k).length;
+    const c = subColor(sg);
+    const cells = { Key: kc("Key"), Type: kc("Type"), Input: kc("Input"), Interface: kc("Interface"), Enum: kc("Enum"), Scalar: kc("Scalar"), Q: q.length, M: m.length };
+    for (const k in tot) tot[k] += cells[k];
+    return `<tr><td><span class="sg-dot" style="background:${c.dot}"></span>${esc(sg)}</td>` +
+      `<td class="num">${cells.Key}</td><td class="num">${cells.Type}</td><td class="num">${cells.Input}</td><td class="num">${cells.Interface}</td><td class="num">${cells.Enum}</td><td class="num">${cells.Scalar}</td>` +
+      `<td class="num">${cells.Q}</td><td class="num">${cells.M}</td><td>${statusChips([...sch, ...ops])}</td></tr>`;
+  }).join("");
+  host.innerHTML = `<table class="sum-table"><thead><tr>
+      <th>Subgraph</th><th class="num">Keys</th><th class="num">Types</th><th class="num">Inputs</th><th class="num">Interfaces</th><th class="num">Enums</th><th class="num">Scalars</th><th class="num">Queries</th><th class="num">Mutations</th><th>Approval status</th>
+    </tr></thead><tbody>${rowsHTML || '<tr><td colspan="10" class="empty">No subgraphs yet.</td></tr>'}</tbody>
+    <tfoot><tr><td>Total (${subs.length} subgraphs)</td><td class="num">${tot.Key}</td><td class="num">${tot.Type}</td><td class="num">${tot.Input}</td><td class="num">${tot.Interface}</td><td class="num">${tot.Enum}</td><td class="num">${tot.Scalar}</td><td class="num">${tot.Q}</td><td class="num">${tot.M}</td><td>${statusChips([...DB.Schema, ...allOps()])}</td></tr></tfoot></table>`;
+}
+function renderSummary() {
+  const sel = document.getElementById("summarySel"); if (!sel) return;
+  const subs = allSubgraphs();
+  if (!subs.includes(selectedSummarySub)) selectedSummarySub = subs[0] || null;
+  sel.innerHTML = subs.map(s => `<option value="${esc(s)}"${s === selectedSummarySub ? " selected" : ""}>${esc(s)}</option>`).join("");
+  renderSummaryTree(selectedSummarySub);
+  renderSummaryLegend();
+  renderSummaryTable();
+}
+function renderOpDetail() {
+  const host = document.getElementById("opDetail");
+  const op = allOps().find(o => o.OpID === selectedOp);
+  if (!op) { host.innerHTML = '<div class="empty">Select an operation.</div>'; return; }
+  const ent = index("Entities")[op.EntityID];
+  const t = (op.OpType || "Query"); const tl = t.toLowerCase();
+  const scopes = String(op.AuthScopes||"").split(/[,\s]+/).map(s=>s.trim()).filter(Boolean);
+  const args = parseArgs(op.Args);
+  const sig = `${op.Name || "operation"}${args.length ? "(" + args.map(a=>`${a.name}: ${a.type||"String"}`).join(", ") + ")" : ""}: ${op.ReturnType || (ent && ent.Name) || "Boolean"}`;
+  const doc = buildOperationDoc(op, ent);
+  const sdl = buildEntitySDL(ent, op);
+  host.innerHTML = `
+    <div><span class="tag ${tl}">${esc(t)}</span></div>
+    <h2 style="margin:8px 0 2px;">${esc(op.Name || op.OpID)}</h2>
+    <div class="hint">${ent ? "Entity: " + esc(ent.Name || ent.EntityID) + " · " + esc(ent.BusinessApplication||"") : "unlinked"}</div>
+    ${op.Description ? `<p>${esc(op.Description)}</p>` : ""}
+    <div class="kv">Auth Scopes</div><div>${scopes.length ? scopes.map(s=>`<span class="tag scope">${esc(s)}</span>`).join(" ") : '<span class="hint">none</span>'}</div>
+    ${args.length ? `<div class="kv">Parameters</div><pre class="code">${highlightSDL(args.map(a=>`${a.name}: ${a.type||"String"}`).join("\n"))}</pre>` : ""}
+    <div class="kv">Signature</div><pre class="code">${highlightSDL(sig)}</pre>
+    <div class="code-head"><div class="kv" style="margin:0;">Sample operation document</div><button class="copy-btn" data-copy="doc">Copy</button></div>
+    <pre class="code" id="docCode">${highlightSDL(doc)}</pre>
+    <div class="code-head"><div class="kv" style="margin:0;">Entity SDL</div><button class="copy-btn" data-copy="sdl">Copy</button></div>
+    <pre class="code" id="sdlCode">${highlightSDL(sdl)}</pre>`;
+  host.querySelector('[data-copy="doc"]').onclick = () => navigator.clipboard && navigator.clipboard.writeText(doc);
+  host.querySelector('[data-copy="sdl"]').onclick = () => navigator.clipboard && navigator.clipboard.writeText(sdl);
+}
+
+/* ------------------------------ Seed ------------------------------------ */
+function seedData() {
+  // Retail sample supergraph: four subgraphs (BusinessApplication) — product, pnp, inventory, search.
+  // Mirrors samples/subgraph/*/subgraph.gql. ProductStoreContext (sku + storeId) is owned by pnp;
+  // inventory contributes inventoryCount to it, and search returns Product references by sku.
+  const db = emptyDB();
+  const src = sg => "samples/subgraph/" + sg + "/subgraph.gql";
+  // Entity links show each reference type: LeanIX fact sheet, Confluence page, ER model, source SDL.
+  const refs = (sg, page) => formatLinks([
+    { type: "LeanIX", value: "https://leanix.example.com/factsheet/Application/" + sg },
+    { type: "Confluence", value: "https://confluence.example.com/display/RETAIL/" + page },
+    { type: "ER", value: "https://er.example.com/models/retail/" + sg },
+    { type: "Other", value: src(sg) },
+  ]);
+  db.Entities = [
+    { EntityID: "ENT-001", Name: "Product", ExperienceDomain: "Retail Web", BusinessApplication: "product", BusinessCapability: "Product Information", Description: "Core, global product attributes that don't depend on location or store.", Links: refs("product", "Product+Subgraph") },
+    { EntityID: "ENT-002", Name: "ProductStoreContext", ExperienceDomain: "Retail Web", BusinessApplication: "pnp", BusinessCapability: "Pricing Management", Description: "A product at a specific physical store — store-scoped price (inventory contributes stock).", Links: refs("pnp", "Pricing+Subgraph") },
+    { EntityID: "ENT-003", Name: "Inventory", ExperienceDomain: "Retail Web", BusinessApplication: "inventory", BusinessCapability: "Inventory Management", Description: "Stock position of a SKU at a store.", Links: refs("inventory", "Inventory+Subgraph") },
+    { EntityID: "ENT-004", Name: "ProductSearch", ExperienceDomain: "Retail Web", BusinessApplication: "search", BusinessCapability: "Product Discovery", Description: "Full-text search, filtering and facets; returns Product references resolved by the router.", Links: refs("search", "Search+Subgraph") },
+    { EntityID: "ENT-005", ...FEDGQL_ENTITY },
+  ];
+  const sch = (SchemaID, EntityID, Kind, TypeName, Definition) => ({ SchemaID, EntityID, Kind, TypeName, Definition, Links: "" });
+  db.Schema = [
+    // product — owns Product
+    sch("SCH-ENT-001-001", "ENT-001", "Key", "Product", '@key(fields: "sku") {\n  sku: String!\n  title: String!\n  description: String\n  imageUrl: String\n  brand: String\n}'),
+    // pnp — owns ProductStoreContext + Price, extends Product with store-scoped pricing
+    sch("SCH-ENT-002-001", "ENT-002", "Key", "ProductStoreContext", '@key(fields: "sku storeId") {\n  sku: String!\n  storeId: ID!\n  price: Price!\n}'),
+    sch("SCH-ENT-002-002", "ENT-002", "Type", "Price", "{\n  amount: Money!\n  currency: String!\n}"),
+    sch("SCH-ENT-002-003", "ENT-002", "Extend", "Product", '@key(fields: "sku") {\n  sku: String! @external\n  storeContext(storeId: ID!): ProductStoreContext\n  allStoreContexts: [ProductStoreContext!]!\n}'),
+    // inventory — owns Inventory, contributes inventoryCount to ProductStoreContext
+    sch("SCH-ENT-002-004", "ENT-002", "Input", "UpdateStorePriceInput", "{\n  sku: String!\n  storeId: ID!\n  amount: Money!\n  currency: String!\n}"),
+    sch("SCH-ENT-003-001", "ENT-003", "Key", "Inventory", '@key(fields: "sku storeId") {\n  sku: String!\n  storeId: ID!\n  onHand: Int!\n  reserved: Int!\n  availableToSell: Int!\n}'),
+    sch("SCH-ENT-003-002", "ENT-003", "Input", "InventoryAdjustmentInput", "{\n  sku: String!\n  storeId: ID!\n  delta: Int!\n  reason: String\n}"),
+    sch("SCH-ENT-003-003", "ENT-003", "Extend", "ProductStoreContext", '@key(fields: "sku storeId") {\n  sku: String! @external\n  storeId: ID! @external\n  inventoryCount: Int!\n}'),
+    // search — response/facet types, filter input, Product reference stub
+    sch("SCH-ENT-004-001", "ENT-004", "Type", "SearchResponse", "{\n  hits: [Product!]!\n  totalCount: Int!\n  facets: [SearchFacet!]!\n}"),
+    sch("SCH-ENT-004-002", "ENT-004", "Type", "SearchFacet", "{\n  field: String!\n  options: [FacetOption!]!\n}"),
+    sch("SCH-ENT-004-003", "ENT-004", "Type", "FacetOption", "{\n  value: String!\n  count: Int!\n}"),
+    sch("SCH-ENT-004-004", "ENT-004", "Input", "ProductFilterInput", "{\n  brand: [String!]!\n  inStockAtStore: ID\n}"),
+    sch("SCH-ENT-004-005", "ENT-004", "Reference", "Product", '@key(fields: "sku", resolvable: false) {\n  sku: String!\n}'),
+    // Default scalars owned by the foundational FedGQL entity (ENT-005).
+    ...defaultScalarRows("ENT-005"),
+  ];
+  db.Queries = [
+    { QueryID: "QRY-ENT-001-001", EntityID: "ENT-001", Name: "product", Parameters: "sku: String!", ReturnType: "Product", AuthScopes: "catalog:read", Description: "Fetch a product by SKU.", Links: src("product") },
+    { QueryID: "QRY-ENT-001-002", EntityID: "ENT-001", Name: "products", Parameters: "skus: [String!]!", ReturnType: "[Product!]!", AuthScopes: "catalog:read", Description: "Batch-fetch products by SKU.", Links: src("product") },
+    { QueryID: "QRY-ENT-002-001", EntityID: "ENT-002", Name: "productStoreContext", Parameters: "sku: String!, storeId: ID!", ReturnType: "ProductStoreContext", AuthScopes: "price:read", Description: "Store-scoped price for a SKU.", Links: src("pnp") },
+    { QueryID: "QRY-ENT-003-001", EntityID: "ENT-003", Name: "inventory", Parameters: "sku: String!, storeId: ID!", ReturnType: "Inventory", AuthScopes: "inventory:read", Description: "Stock position of a SKU at a store.", Links: src("inventory") },
+    { QueryID: "QRY-ENT-004-001", EntityID: "ENT-004", Name: "searchProducts", Parameters: "query: String!, filters: ProductFilterInput, limit: Int, offset: Int", ReturnType: "SearchResponse!", AuthScopes: "search:read", Description: "Main entry point for search and catalogue exploration.", Links: src("search") },
+  ];
+  db.Mutations = [
+    { MutationID: "MUT-ENT-002-001", EntityID: "ENT-002", Name: "updateStorePrice", Parameters: "input: UpdateStorePriceInput!", ReturnType: "ProductStoreContext", AuthScopes: "price:write", Description: "Set the price of a SKU at a store.", Links: src("pnp") },
+    { MutationID: "MUT-ENT-003-001", EntityID: "ENT-003", Name: "adjustInventory", Parameters: "input: InventoryAdjustmentInput!", ReturnType: "Inventory", AuthScopes: "inventory:write", Description: "Apply a stock adjustment (delta) at a store.", Links: src("inventory") },
+  ];
+  // One row per scope × persona (a persona with no row has no access to that scope).
+  const scp = (ScopeID, EntityID, Scope, Persona, Permission, Description = "") => ({ ScopeID, EntityID, Scope, Persona, Permission, Description, Links: "" });
+  db.AuthScopes = [
+    scp("SCP-ENT-001-001", "ENT-001", "catalog:read", "Customer", "read product catalogue"),
+    scp("SCP-ENT-001-002", "ENT-001", "catalog:read", "B2BShopper", "read org catalogue"),
+    scp("SCP-ENT-002-001", "ENT-002", "price:read", "Customer", "read store shelf price"),
+    scp("SCP-ENT-002-002", "ENT-002", "price:read", "B2BShopper", "read own org contract price"),
+    scp("SCP-ENT-002-003", "ENT-002", "price:read", "B2BAdmin", "read all org contract prices"),
+    scp("SCP-ENT-002-004", "ENT-002", "price:write", "B2BAdmin", "set store price for own org", "Price changes are B2B-admin only."),
+    scp("SCP-ENT-003-001", "ENT-003", "inventory:read", "Customer", "read store availability"),
+    scp("SCP-ENT-003-002", "ENT-003", "inventory:read", "CustomerCare", "read availability on behalf of customer"),
+    scp("SCP-ENT-003-003", "ENT-003", "inventory:write", "B2BAdmin", "adjust stock for own org stores"),
+    scp("SCP-ENT-004-001", "ENT-004", "search:read", "Customer", "search the catalogue"),
+    scp("SCP-ENT-004-002", "ENT-004", "search:read", "B2BShopper", "search org catalogue"),
+  ];
+  return db;
+}
+
+/* ------------------------------ Wiring ---------------------------------- */
+document.getElementById("nav").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-view]"); if (!b) return;
+  document.querySelectorAll("#nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById("view-" + b.dataset.view).classList.add("active");
+  if (b.dataset.view === "graph") renderGraph();
+});
+document.getElementById("fileInput").addEventListener("change", (e) => { if (e.target.files[0]) importWorkbook(e.target.files[0]); e.target.value = ""; });
+document.getElementById("exportBtn").onclick = exportWorkbook;
+document.getElementById("templateBtn").onclick = downloadTemplate;
+document.getElementById("seedBtn").onclick = () => { if (SHEET_ORDER.some(s=>DB[s].length) && !confirm("Replace current data with the retail example (product · pnp · inventory · search)?")) return; DB = seedData(); save(); renderAll(); };
+document.getElementById("clearBtn").onclick = () => { if (!confirm("Clear all data?")) return; DB = emptyDB(); save(); renderAll(); };
+document.getElementById("groupSeg").addEventListener("click", (e) => { const b = e.target.closest("button[data-group]"); if (!b) return; groupBy = b.dataset.group; document.querySelectorAll("#groupSeg button").forEach(x=>x.classList.toggle("active", x===b)); renderGraph(); });
+document.getElementById("copyMermaid").onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById("mermaidSrc").textContent);
+document.getElementById("optypeTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-t]"); if (!b) return; opFilter = b.dataset.t; document.querySelectorAll("#optypeTabs button").forEach(x=>x.classList.toggle("active", x===b)); renderOpList(); });
+document.getElementById("opSearch").addEventListener("input", (e) => { opSearch = e.target.value; renderOpList(); });
+document.getElementById("subgraphSel").addEventListener("change", (e) => { selectedSubgraph = e.target.value; renderSubgraph(); });
+document.getElementById("copySubgraph").onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById("subgraphSDL").textContent);
+document.getElementById("summarySel").addEventListener("change", (e) => { selectedSummarySub = e.target.value; renderSummaryTree(selectedSummarySub); });
+document.getElementById("sumExpand").onclick = () => document.querySelectorAll("#summaryTree details").forEach(d => d.open = true);
+document.getElementById("sumCollapse").onclick = () => document.querySelectorAll("#summaryTree details").forEach(d => d.open = false);
+document.getElementById("spPull").onclick = openPull;
+document.getElementById("spPush").onclick = openPush;
+document.getElementById("spSettings").onclick = openSettings;
+document.getElementById("syncTarget").addEventListener("click", (e) => { const b = e.target.closest("button[data-t]"); if (b) setSyncTarget(b.dataset.t); });
+document.getElementById("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
+// Dismiss the column-filter popup on an outside click, Escape, or scroll/resize.
+document.addEventListener("mousedown", (e) => { const p = document.getElementById("filterPop"); if (p && !p.contains(e.target) && !e.target.closest(".filter-btn")) closeFilterPopup(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeFilterPopup(); });
+window.addEventListener("resize", closeFilterPopup);
+document.addEventListener("scroll", closeFilterPopup, true);
+// Standards help drawer dismissal
+document.getElementById("stdClose").onclick = closeStandardsDrawer;
+document.getElementById("stdBackdrop").onclick = closeStandardsDrawer;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeStandardsDrawer(); });
+
+load();
+renderAll();
+tryLoadStandards();
+
+// Receive subgraph rows copied from the FedGQL Migration Workbench (parent frame).
+// IDs (EntityID + the migration's SCH-/QRY-/MUT-<EntityID>-<seq> child ids) are kept as-is so
+// the registry matches the aligned GQLRegistry.xlsx; a row whose id already exists is updated
+// in place (upsert), otherwise appended. Local single-user tool: file:// frames report a "null"
+// origin, so we gate on the message type rather than event.origin.
+window.addEventListener("message", (e) => {
+  const d = e.data; if (!d || d.type !== "fedgql-merge" || !d.rows) return;
+  const upsert = (sheet, r) => {
+    const idK = SCHEMA[sheet].id, row = normalizeRow(sheet, r);
+    const i = DB[sheet].findIndex(x => x[idK] && x[idK] === row[idK]);
+    if (i >= 0) DB[sheet][i] = row; else DB[sheet].push(row);
+  };
+  for (const r of (d.rows.Entities || [])) upsert("Entities", r);
+  for (const sheet of ["Schema", "Queries", "Mutations"])
+    for (const r of (d.rows[sheet] || [])) upsert(sheet, r);
+  save(); renderAll();
+  try {
+    e.source && e.source.postMessage({ type: "fedgql-merged", counts: {
+      Entities: (d.rows.Entities || []).length, Schema: (d.rows.Schema || []).length,
+      Queries: (d.rows.Queries || []).length, Mutations: (d.rows.Mutations || []).length } }, "*");
+  } catch (_) {}
+});
+</script>
+</body>
+</html>

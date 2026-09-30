@@ -1,0 +1,71 @@
+# Current REST API of the pnp (pricing) service — migrates to subgraph.gql in this folder.
+openapi: 3.0.3
+info:
+  title: Store Pricing API (pnp)
+  version: 2.0.0
+  description: Store-scoped prices for SKUs.
+servers:
+  - url: https://pnp.retail.example.com/v2
+paths:
+  /prices/{sku}/stores/{storeId}:
+    parameters:
+      - { name: sku, in: path, required: true, schema: { type: string } }
+      - { name: storeId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: productStoreContext
+      summary: Store-scoped price for a SKU.
+      responses:
+        "200":
+          description: Store price
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StorePrice" }
+    put:
+      operationId: updateStorePrice
+      summary: Set the price of a SKU at a store.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateStorePriceInput" }
+      responses:
+        "200":
+          description: Updated store price
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StorePrice" }
+  /prices/{sku}/stores:
+    get:
+      operationId: allStoreContexts
+      summary: Prices for a SKU across all stores.
+      parameters:
+        - { name: sku, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Store prices
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StorePrice" }
+components:
+  schemas:
+    StorePrice:
+      type: object
+      required: [sku, storeId, price]
+      properties:
+        sku: { type: string }
+        storeId: { type: string }
+        price: { $ref: "#/components/schemas/Price" }
+    Price:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number }
+        currency: { type: string }
+    UpdateStorePriceInput:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number }
+        currency: { type: string }

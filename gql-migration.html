@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FedGQL Migration Workbench</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<script src="common.js"></script>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  :root{
+    --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --query: #0b7285; --mutation: #b45309; --sub: #15803d;
+    --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+  }
+  body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 14px; display: flex; flex-direction: column; height: 100vh; }
+  header{ background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .status b{ color: var(--ink); }
+  .status .miss{ color: var(--bad); }
+  nav{ background: var(--panel); border-bottom: 1px solid var(--line); display: flex; gap: 2px; padding: 0 12px; flex-wrap: wrap; }
+  main{ flex: 1; overflow: auto; padding: 16px; }
+  th{ background: #fafbfc; position: sticky; top: 0; font-weight: 600; }
+  .table-wrap{ overflow: auto; max-height: 62vh; border: 1px solid var(--line); border-radius: 8px; }
+  td input.cell, td textarea.cell, td select.cell{ width: 100%; box-sizing: border-box; padding: 3px 5px; border: 1px solid transparent; border-radius: 5px; font: inherit; background: transparent; }
+  td input.cell:hover, td textarea.cell:hover, td select.cell:hover{ border-color: var(--line); }
+  td input.cell:focus, td textarea.cell:focus, td select.cell:focus{ border-color: var(--accent, #4c8bf5); background: #fff; outline: none; }
+  td textarea.cell{ min-height: 40px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+  /* Standards validation: flagged cells + issues panel */
+  td.cell-invalid, td.cell-invalid input.cell, td.cell-invalid textarea.cell, td.cell-invalid select.cell{ outline: 2px solid #d33; outline-offset: -2px; border-radius: 3px; }
+  td.cell-warn, td.cell-warn input.cell, td.cell-warn textarea.cell, td.cell-warn select.cell{ outline: 2px solid #e0a800; outline-offset: -2px; border-radius: 3px; }
+  .stdpanel{ border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .stdpanel.ok{ border-color: #bfe3c6; background: #f2fbf4; }
+  .stdpanel.err{ border-color: #f0c9c9; background: #fdf3f3; }
+  .stdpanel.warn{ border-color: #f0d9a8; background: #fdf9ef; }
+  .stdpanel ul{ margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; max-height: 220px; overflow: auto; }
+  .stdpanel li{ margin: 3px 0; }
+  .stdpanel a{ color: var(--accent); }
+  .stdpanel .fix{ color: var(--muted); }
+  .sev{ display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; margin-right: 6px; }
+  .sev.error{ background: #fdeaea; color: #b91c1c; }
+  .sev.warning{ background: #fdf4e7; color: #b45309; }
+  .sev.info{ background: #eef2ff; color: #3730a3; }
+  details.stdref{ font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+  details.stdref summary{ cursor: pointer; color: var(--ink); }
+  tr.rowviol td{ padding: 5px 10px 8px; border-top: 0; }
+  tr.rowviol.warn td{ background: #fdf9ef; box-shadow: inset 3px 0 0 #e0a800; }
+  tr.rowviol.error td{ background: #fdf3f3; box-shadow: inset 3px 0 0 #d33; }
+  tr.rowviol .rowviol-in{ display: flex; flex-direction: column; gap: 3px; }
+  tr.rowviol .rvi{ font-size: 12px; line-height: 1.4; }
+  tr.rowviol .rvi .fix{ color: var(--muted); }
+  tr.rowviol a{ color: var(--accent); }
+  .tag{ display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); margin: 1px 2px; white-space: nowrap; }
+  .tag.on{ color: var(--ok);   border-color: var(--ok);   background: #eafaf0; }
+  .tag.bff{ color: var(--warn); border-color: var(--warn); background: #fdf4e7; }
+  .tag.off{ color: var(--bad);  border-color: var(--bad);  background: #fdeaea; }
+  .tag.plat{ color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .tag.tbc{ color: var(--muted); }
+  .tag.asg{ color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .kv{ color: var(--muted); font-size: 12px; margin: 10px 0 3px; text-transform: uppercase; letter-spacing: .03em; }
+  .addrow{ text-transform: none; letter-spacing: 0; font-size: 12px; cursor: pointer; border: 1px solid var(--line); background: #fff; color: var(--fg); border-radius: 6px; padding: 1px 8px; margin-left: 6px; }
+  .addrow:hover{ background: var(--accent, #2563eb); color: #fff; border-color: transparent; }
+  .rm-row{ cursor: pointer; border: 1px solid var(--line); background: #fff; color: #b91c1c; border-radius: 5px; padding: 0 5px; font-size: 11px; line-height: 1.4; margin-left: 4px; }
+  .rm-row:hover{ background: #b91c1c; color: #fff; border-color: transparent; }
+  .split{ display: grid; grid-template-columns: 320px 1fr; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; height: calc(100vh - 210px); min-height: 420px; }
+  .split .side{ border-right: 1px solid var(--line); background: #fbfbfd; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .split .side .filters{ padding: 8px; border-bottom: 1px solid var(--line); }
+  .split .side .filters input{ width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  .list{ overflow: auto; flex: 1; min-height: 0; }
+  .grp{ padding: 6px 10px 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); background: #f3f4f6; position: sticky; top: 0; }
+  .item{ padding: 6px 10px; cursor: pointer; border-left: 3px solid transparent; font-size: 13px; }
+  .item:hover{ background: #f1eefe; }
+  .item.active{ background: var(--accent-soft); border-left-color: var(--accent); }
+  .item .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .item small{ color: var(--muted); }
+  .item .badge{ color: var(--accent); font-size: 11px; }
+  .detail{ padding: 14px; overflow: auto; min-height: 0; background: #fff; }
+  /* Independent, visually distinct scroll panes: neutral-grey left, accent-purple right */
+  .list{ scrollbar-width: thin; scrollbar-color: #c7cdd4 #fbfbfd; }
+  .detail{ scrollbar-width: thin; scrollbar-color: #d3c6f2 #fff; }
+  .list::-webkit-scrollbar, .detail::-webkit-scrollbar{ width: 11px; }
+  .list::-webkit-scrollbar-thumb{ background: #c7cdd4; border-radius: 8px; border: 3px solid #fbfbfd; }
+  .list::-webkit-scrollbar-thumb:hover{ background: #a7b0ba; }
+  .detail::-webkit-scrollbar-thumb{ background: #d3c6f2; border-radius: 8px; border: 3px solid #fff; }
+  .detail::-webkit-scrollbar-thumb:hover{ background: var(--accent); }
+  .detail .table-wrap{ max-height: none; border: 1px solid var(--line); }
+  /* right pane is the single scroller */
+  .code-head{ display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 6px; flex-wrap: wrap; }
+  .grid2{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  /* Side-by-side code panes: wrap long lines (e.g. Kotlin/Apollo) instead of scrolling horizontally */
+  .grid2{ min-width: 0; }
+  /* Diff highlighting: changed names/types between REST source and FedGQL target */
+  .picker{ border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; min-width: 240px; }
+  .selrow{ display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
+  .selrow select, .selrow input, .selrow textarea{ min-width: 200px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  .selrow textarea{ min-width: 320px; min-height: 64px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .assign{ border: 1px solid var(--accent-soft); background: #faf9ff; border-radius: 8px; padding: 10px 12px; margin: 12px 0; }
+  .diff .only-a{ background: #fdeaea; }
+  .diff .only-b{ background: #eaf1fd; }
+  .diff .mismatch{ background: #fdf4e7; }
+  .diff .ok td{ background: #f6fef9; }
+  .counts .tag{ font-size: 12px; }
+  .flag-yes{ color: var(--ok); }
+  .flag-no{ color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="index.html" style="color:inherit;text-decoration:none" title="Workbench home">FedGQL Migration Workbench</a></h1>
+  <button onclick="exportSubgraph()" title="Export the selected subgraph's types/queries/mutations into GQLRegistry.xlsx" data-help="mig-export">Export subgraph</button>
+  <span class="spacer"></span>
+  <a class="btn help-link" href="help.html#migration" target="_blank" rel="noopener" title="How to migrate a subgraph">❓ Help</a>
+  <a class="btn help-link" href="demo.html#mig" target="_blank" rel="noopener" title="Slide walkthrough of the features">▶ Demo</a>
+  <span class="status" id="status">No data loaded.</span>
+</header>
+<nav>
+  <button data-view="load" class="active" data-help="mig-load">Load data</button>
+  <button data-view="monograph" data-help="mig-monograph">MonoGraph schema</button>
+  <button data-view="rest" data-help="mig-subgraphs">Subgraphs</button>
+  <button data-view="edit" data-help="mig-fedgql">FedGQL subgraph</button>
+  <button data-view="codemap" data-help="code-migration">Code migration</button>
+  <button data-view="registry" data-help="mig-registry">GQL Registry</button>
+</nav>
+<main>
+  <!-- Load ------------------------------------------------------------- -->
+  <section class="view active" id="view-load">
+    <div class="card">
+      <h2>Load the sources</h2>
+      <p class="desc">Everything runs in your browser — nothing is uploaded. The app also tries to
+        auto-load these files from the same folder / <span class="mono">../documents/</span> when served
+        over http(s); on <span class="mono">file://</span> pick them manually. Loaded data and your
+        migration mapping are cached in this browser.</p>
+      <div class="pickers">
+        <div class="picker">
+          <b>GQLRegistry.xlsx</b>
+          <span class="hint">target federated model — supplies the entities you migrate to</span>
+          <div class="st missing" id="st-reg">not loaded</div>
+          <button onclick="document.getElementById('f-reg').click()" data-help="mig-load">Choose file…</button>
+          <input type="file" id="f-reg" accept=".xlsx" />
+        </div>
+        <div class="picker">
+          <b>Subgraph migration (.xlsx)</b>
+          <span class="hint">optional — resume a work-in-progress <span class="mono">…-subgraph.xlsx</span> you exported earlier</span>
+          <div class="st missing" id="st-sgmig">not loaded</div>
+          <button onclick="document.getElementById('f-sgmig').click()" data-help="mig-resume">Choose file…</button>
+          <input type="file" id="f-sgmig" accept=".xlsx" />
+        </div>
+      </div>
+      <p style="margin-top:14px"><button class="danger" onclick="clearAll()" data-help="mig-clear">Clear cached data & mapping</button></p>
+    </div>
+
+    <div class="card">
+      <h2>Domain details</h2>
+      <p class="desc">Choose the <b>GQL Registry entity</b> this migration is for — its
+        <b>EntityID</b> and domain details become the target everything maps to. Then import the
+        OpenAPI/Swagger spec below: its types, queries and mutations are generated as
+        <span class="mono">SCH-/QRY-/MUT-&lt;EntityID&gt;-###</span> against that entity and can be
+        copied straight into the GQL Registry.</p>
+      <div id="domainDetails"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> above, then pick the entity to migrate.</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Import subgraph — OpenAPI / Swagger</h2>
+      <p class="desc">Upload one OpenAPI/Swagger spec (JSON or YAML) per platform/<b>subgraph</b>. Each
+        spec becomes a subgraph and <b>creates an entity</b> mapped to the GQL Registry entity chosen
+        above: its component schemas expand into GraphQL <b>Types</b>, its GET operations into
+        <b>Queries</b> and its writes into <b>Mutations</b>. Manage imported subgraphs on the
+        <b>Subgraphs</b> tab.</p>
+      <div class="selrow">
+        <button class="primary" onclick="document.getElementById('f-openapi').click()" data-help="mig-import">Import OpenAPI spec (JSON/YAML)…</button>
+        <input type="file" id="f-openapi" accept=".json,.yaml,.yml,.txt" />
+        <span class="hint" id="openapiState"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- MonoGraph schema -------------------------------------------------- -->
+  <section class="view" id="view-monograph">
+    <div class="card" style="margin-bottom:10px">
+      <div class="picker">
+        <b>MonoGraph schema (schema.graphqls)</b>
+        <span class="hint">MonoGraph source SDL — the monolith to migrate from</span>
+        <div class="st missing" id="st-monograph">not loaded</div>
+        <button onclick="document.getElementById('f-monograph').click()" data-help="mig-monograph">Choose file…</button>
+        <input type="file" id="f-monograph" accept=".graphqls,.graphql,.gql,.txt" />
+      </div>
+    </div>
+    <div class="card"><div class="split">
+      <div class="side">
+        <div class="filters"><input id="monographFilter" placeholder="Search types & methods…" oninput="rendermonographList()" /></div>
+        <div class="list" id="monographList"></div>
+      </div>
+      <div class="detail" id="monographDetail"><div class="empty">Load the MonoGraph schema, then pick a type or method.</div></div>
+    </div></div>
+  </section>
+
+  <!-- Subgraphs (OpenAPI -> FedGQL) ------------------------------------ -->
+  <section class="view" id="view-rest">
+    <div class="card">
+      <h2>Subgraphs — OpenAPI → Federated GraphQL</h2>
+      <p class="desc">Migration is targeted <b>per subgraph application</b>, so the subgraph for the
+        GQL Registry entity you chose on the <b>Load data</b> tab loads here automatically. Each spec's
+        component schemas expand into GraphQL <b>Types</b> (with <b>@key</b> entities), GET
+        operations into <b>Queries</b> and writes into <b>Mutations</b>. Review it here, then export /
+        copy it from the <b>FedGQL subgraph</b> tab.</p>
+    </div>
+    <div class="card"><div class="detail" id="restDetail"><div class="empty">Pick a GQL Registry entity to migrate on the <b>Load data</b> tab, then import its OpenAPI/Swagger spec.</div></div></div>
+  </section>
+
+  <!-- FedGQL subgraph (migration data + copy) ------------------------- -->
+  <section class="view" id="view-edit">
+    <div class="card" style="margin-bottom:10px">
+      <h2>FedGQL subgraph — in migration</h2>
+      <p class="desc"><b>Step 1</b> review &amp; <b>edit</b> the generated rows below (cells are editable —
+        your edits are saved and used by Export / Copy). New rows load as <span class="mono">Draft</span> ·
+        <b>Step 2</b> set a row's <b>Approval</b> to <span class="mono">Proposed</span> when it's ready ·
+        <b>Step 3</b> copy into the <b>GQL Registry</b> — <b>only Proposed rows are validated and copied</b>.
+        Below is the subgraph selected on the <b>Subgraphs</b> tab, shown as the exact registry rows it produces.</p>
+      <div class="selrow">
+        <button onclick="exportSubgraph()" data-help="mig-export">Export subgraph xls</button>
+        <button class="primary" onclick="copyToRegistry()" data-help="mig-copy">Copy to GQL Registry →</button>
+        <button onclick="clearRowOverrides()" title="Discard manual edits and regenerate rows from the spec" data-help="mig-reset">Reset edits</button>
+      </div>
+    </div>
+    <div class="card"><div id="curSg"><div class="empty">Import or select a subgraph on the <b>Subgraphs</b> tab to see it here.</div></div></div>
+  </section>
+
+  <!-- Code migration (standalone tool, embedded) ----------------------- -->
+  <section class="view" id="view-codemap">
+    <div class="card" style="margin-bottom:10px">
+      <h2>Code migration — REST → FedGQL</h2>
+      <p class="desc">The code-migration tool is now a standalone app that loads its own
+        <b>GQLRegistry.xlsx</b> and REST OpenAPI/Swagger spec and generates both <b>client</b> and
+        <b>server</b> code. It opens embedded below, or in its own tab:
+        <a href="subgraph-codemigration.html" target="_blank" rel="noopener" data-help="code-migration">open full page ↗</a></p>
+    </div>
+    <iframe src="subgraph-codemigration.html" title="Subgraph code migration" style="width:100%;height:calc(100vh - 200px);border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>
+  </section>
+
+  <!-- GQL Registry (embedded registry app) ----------------------------- -->
+  <section class="view" id="view-registry">
+    <div class="card" style="margin-bottom:10px">
+      <h2>GQL Registry — validation &amp; approval</h2>
+      <p class="desc">The full schema-registry app, embedded. Copied subgraph rows land here as
+        <span class="mono">Proposed</span> for the approval flow, with live schema-standards
+        validation. Rows persist in the registry's own storage; export from it when approved.</p>
+    </div>
+    <iframe id="regFrame" src="workbench.html"
+      style="width:100%; height:calc(100vh - 250px); min-height:420px; border:1px solid var(--line); border-radius:10px; background:#fff"></iframe>
+  </section>
+
+</main>
+<datalist id="dl-domains"></datalist>
+<datalist id="dl-entities"></datalist>
+<div class="toast" id="toast"></div>
+
+<script>
+const LS = "gqlmig-v2";
+function defaultMapping(){ return { customDomains: [], assign: {}, subgraphs: [], entityMeta: {}, focusEntity: null, migrationEntityId: "", overrides: {}, additions: {} }; }
+const state = { monographText: "", monograph: null, ops: [], summary: [], entities: [], schema: [], reg: {}, regHeaders: {} };
+let mapping = defaultMapping();
+let selmonograph = null, selRest = null;
+
+/* Canonical GQLRegistry.xlsx headers — the export template (used when a sheet
+   was empty / not loaded so pasted rows still line up column-for-column). */
+const CANON_HEADERS = {
+  Entities:  ["EntityID","Name","ExperienceDomain","BusinessApplication","BusinessCapability","Description","Contacts","ApprovalStatus","Comments","CurrentReference","Links"],
+  Schema:    ["SchemaID","EntityID","Kind","TypeName","Definition","Contacts","ApprovalStatus","Comments","CurrentReference","Links"],
+  Queries:   ["QueryID","EntityID","Name","Parameters","ReturnType","AuthScopes","Description","Contacts","ApprovalStatus","Comments","CurrentReference","Links"],
+  Mutations: ["MutationID","EntityID","Name","Parameters","ReturnType","AuthScopes","Description","Contacts","ApprovalStatus","Comments","CurrentReference","Links"],
+  AuthScopes:["ScopeID","EntityID","Scope","Persona","Permission","Description","Contacts","ApprovalStatus","Comments","CurrentReference","Links"],
+};
+
+/* ------------------------------ utils ---------------------------------- */
+// esc → common.js
+
+function count(s, ch){ let n=0; for(const c of s) if(c===ch) n++; return n; }
+// baseType, cap, uid, slug, val → common.js
+
+function q(s){ return JSON.stringify(s).replace(/"/g,'&quot;'); }
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1400); }
+// copyText → common.js
+
+// highlightSDL → common.js
+
+
+/* ------------------------- SDL parser (ported) -------------------------- */
+function splitBlocks(text){
+  const lines = text.split(/\r?\n/);
+  const defstart = /^(type|input|enum|interface|union|scalar)\s+(\w+)(.*)$/;
+  const out = []; let i=0, n=lines.length, pending=null, indoc=false, docbuf=[];
+  while(i<n){
+    const st = lines[i].trim();
+    if(indoc){ docbuf.push(st.replace(/"""/g,"").trim()); if(st.includes('"""')){ indoc=false; pending=docbuf.filter(Boolean).join(" ").trim(); } i++; continue; }
+    if(st.startsWith('"""')){ if((st.match(/"""/g)||[]).length>=2 && st.length>3){ pending=st.replace(/"""/g,"").trim(); } else { indoc=true; docbuf=[st.replace(/"""/g,"").trim()]; } i++; continue; }
+    if(st.startsWith("#")){ i++; continue; }
+    const m = st.match(defstart);
+    if(m){
+      const kind=m[1], name=m[2], rest=m[3];
+      if(kind==="scalar" || kind==="union"){ out.push({kind,name,header:rest,body:[],desc:pending,raw:lines[i]}); pending=null; i++; continue; }
+      let header=rest, j=i;
+      while(!header.includes("{") && j+1<n){ j++; header+=" "+lines[j].trim(); }
+      if(!header.includes("{")){ pending=null; i++; continue; }
+      let bal = count(header,"{")-count(header,"}"); const body=[]; let k=j+1;
+      while(k<n && bal>0){ const l=lines[k]; bal += count(l,"{")-count(l,"}"); if(bal>0) body.push(l); k++; }
+      out.push({kind,name,header,body,desc:pending,raw:lines.slice(i,k).join("\n")});
+      pending=null; i=k; continue;
+    }
+    pending=null; i++;
+  }
+  return out;
+}
+function parseFields(body){
+  let pending=null, indoc=false, docbuf=[]; const clean=[];
+  for(const raw of body){
+    const st = raw.trim();
+    if(indoc){ docbuf.push(st.replace(/"""/g,"").trim()); if(st.includes('"""')){ indoc=false; pending=docbuf.filter(Boolean).join(" ").trim(); } continue; }
+    if(st.startsWith('"""')){ if((st.match(/"""/g)||[]).length>=2 && st.length>3){ pending=st.replace(/"""/g,"").trim(); } else { indoc=true; docbuf=[st.replace(/"""/g,"").trim()]; } continue; }
+    if(st==="" || st.startsWith("#")) continue;
+    clean.push([st,pending]); pending=null;
+  }
+  const fields=[]; let i=0; const N=clean.length;
+  while(i<N){
+    let cur=clean[i][0]; const desc=clean[i][1]; let pdepth=count(cur,"(")-count(cur,")"); i++;
+    while(i<N && pdepth>0){ cur+=" "+clean[i][0]; pdepth+=count(clean[i][0],"(")-count(clean[i][0],")"); i++; }
+    while(i<N && clean[i][0].trimStart().startsWith("@")){ cur+=" "+clean[i][0]; i++; }
+    const m = cur.match(/^(\w+)\s*(\([\s\S]*?\))?\s*:\s*(.+)$/);
+    if(m){
+      const name=m[1]; let args=(m[2]||""); args = args ? args.slice(1,-1).trim().replace(/\s+/g," ") : "";
+      let rest=m[3].trim(); const ai=rest.indexOf("@");
+      const type=(ai>=0?rest.slice(0,ai):rest).trim();
+      fields.push({name, args, type, desc: desc||""});
+    }
+  }
+  return fields;
+}
+function fieldSig(f){ return `${f.name}${f.args?"("+f.args+")":""}: ${f.type}`; }
+function parseSDL(text){
+  const blocks = splitBlocks(text);
+  const types=[]; const roots={Query:[],Mutation:[],Subscription:[]};
+  for(const b of blocks){
+    if(b.kind==="type" && roots[b.name]){ roots[b.name] = parseFields(b.body); continue; }
+    const fields = (b.kind==="type"||b.kind==="input"||b.kind==="interface") ? parseFields(b.body) : [];
+    const keys=[]; for(const km of b.header.matchAll(/@key\s*\(\s*fields:\s*"([^"]+)"/g)) keys.push(...km[1].split(/\s+/));
+    types.push({kind:b.kind, name:b.name, keyFields:keys, fields, raw:b.raw, desc:b.desc||""});
+  }
+  return {types, roots};
+}
+// keyOf → common.js
+
+function asKeyEntity(t){
+  const body = t.fields.map(f=>`  ${f.name}: ${f.type}`).join("\n");
+  return `type ${t.name} @key(fields: "${keyOf(t.fields,t.keyFields)}") {\n${body}\n}`;
+}
+function monographTypeByName(n){ return state.monograph ? state.monograph.types.find(t=>t.name===n) : null; }
+function monographRootByName(root, n){ return state.monograph ? state.monograph.roots[root].find(f=>f.name===n) : null; }
+
+/* ---------------- OpenAPI → GraphQL subgraph (full expansion) ----------- */
+// gqlScalar, refName, derefSchema → common.js
+
+// Own-identity key only: a field named `id`, or `<typeName>Id` (not a foreign key). Returns key field name or "".
+// entityKey → common.js
+
+function jsonGqlType(v, k){
+  if(Array.isArray(v)) return "["+(v.length?jsonGqlType(v[0],k):"String")+"]";
+  if(v===null) return "String";
+  if(typeof v==="number") return Number.isInteger(v)?"Int":"Float";
+  if(typeof v==="boolean") return "Boolean";
+  if(typeof v==="object") return cap(k);
+  return "String";
+}
+function jsonToFields(obj){
+  if(Array.isArray(obj)) obj=obj[0]||{};
+  if(!obj || typeof obj!=="object") return [];
+  return Object.entries(obj).map(([k,v])=>({name:k, type:jsonGqlType(v,k)}));
+}
+// One OpenAPI spec → one subgraph {id,name,spec,ops,types}
+function parseOpenAPI(text, sgName){
+  let spec; text=String(text||"").trim();
+  try{ spec = text.startsWith("{") ? JSON.parse(text) : jsyaml.load(text); }
+  catch(e){ try{ spec = jsyaml.load(text); }catch(e2){ throw new Error("Could not parse spec as JSON or YAML"); } }
+  const comps = (spec.components && spec.components.schemas) || spec.definitions || {};
+  // component names referenced by a requestBody → GraphQL `input` types (not @key entities)
+  const inputNames=new Set();
+  for(const pathOps of Object.values(spec.paths||{})){
+    for(const op of Object.values(pathOps||{})){
+      const rb=op && op.requestBody && op.requestBody.content && op.requestBody.content["application/json"] && op.requestBody.content["application/json"].schema;
+      if(rb && rb.$ref) inputNames.add(refName(rb.$ref));
+    }
+  }
+  const types=[]; const byName={};
+  function addType(t){ if(!t.name) return null; if(byName[t.name]) return byName[t.name]; byName[t.name]=t; types.push(t); return t; }
+  // Resolve a schema to a GraphQL type string, registering inline objects/enums as named types.
+  function resolveType(sch, fallback){
+    if(!sch) return "String";
+    if(sch.$ref){ return refName(sch.$ref); }
+    if(Array.isArray(sch.enum)){ const nm=cap(fallback||"Enum"); addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String)}); return nm; }
+    if(sch.type==="array"){ return "["+resolveType(sch.items, fallback)+"]"; }
+    if(sch.type==="object" || sch.properties){
+      const nm=cap(fallback||"Object");
+      const fields=objFields(sch, nm);
+      const k=entityKey(nm, fields);
+      addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[]});
+      return nm;
+    }
+    return gqlScalar(sch.type);
+  }
+  function objFields(sch, ownerName){
+    const props=sch.properties||{}; const req=new Set(sch.required||[]);
+    return Object.entries(props).map(([k,v])=>{ let t=resolveType(v, ownerName+cap(k)); if(req.has(k)) t+="!"; return {name:k, type:t}; });
+  }
+  // 1) named component schemas → named GraphQL types
+  for(const [name, sch] of Object.entries(comps)){
+    const nm=cap(slug(name).replace(/ /g,"")) || name;
+    if(sch && Array.isArray(sch.enum)){ addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String)}); continue; }
+    const s=derefSchema(sch, comps);
+    if(s.type==="object" || s.properties){
+      const fields=objFields(s, nm);
+      if(inputNames.has(nm)) addType({name:nm, kind:"input", isEntity:false, key:"", fields, values:[]});
+      else { const k=entityKey(nm, fields); addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[]}); }
+    } else if(Array.isArray(s.enum)){
+      addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:s.enum.map(String)});
+    } else {
+      // scalar / array alias — wrap so it survives as a type row
+      addType({name:nm, kind:"type", isEntity:false, key:"", fields:[{name:"value", type:(resolveType(s, nm+"Value")||"String")}], values:[]});
+    }
+  }
+  // 2) operations
+  const ops=[]; const paths=spec.paths||{};
+  for(const [p, pathOps] of Object.entries(paths)){
+    const shared = (pathOps && pathOps.parameters) || [];
+    for(const [method, op] of Object.entries(pathOps||{})){
+      if(!["get","post","put","patch","delete"].includes(String(method).toLowerCase())) continue;
+      if(!op || typeof op!=="object") continue;
+      const opName = op.operationId || (method+cap(slug(p)).replace(/ /g,""));
+      const resp=(op.responses && (op.responses["200"]||op.responses["201"]||op.responses["2XX"]||op.responses.default))||{};
+      const rsch=(resp.content && resp.content["application/json"] && resp.content["application/json"].schema) || resp.schema || null;
+      const returns = rsch ? resolveType(rsch, opName+"Response") : "Boolean";
+      const args=[];
+      for(const pr of [...shared, ...(op.parameters||[])]){
+        if(!pr || pr.$ref) continue;
+        if(["path","query"].includes(pr.in) || pr.in==null){
+          const t=(pr.schema?resolveType(pr.schema, opName+cap(pr.name||"Arg")):gqlScalar(pr.type))||"String";
+          args.push({name:pr.name, type:t+(pr.required?"!":"")});
+        }
+      }
+      const rb = op.requestBody && op.requestBody.content && op.requestBody.content["application/json"] && op.requestBody.content["application/json"].schema;
+      if(rb){ const t=resolveType(rb, opName+"Input"); const it=byName[baseType(t)]; if(it && it.kind==="type"){ it.kind="input"; it.isEntity=false; it.key=""; } args.push({name:"input", type:t+(op.requestBody.required?"!":"")}); }
+      const bt=baseType(returns);
+      const entity = byName[bt] ? bt : "";
+      ops.push({ id:uid(), name:opName, method:String(method).toUpperCase(), path:p,
+        opKind: String(method).toLowerCase()==="get"?"query":"mutation",
+        args, returns, entity, notes: op.summary||op.description||"" });
+    }
+  }
+  return { id:uid(), name:sgName, spec:"", ops, types };
+}
+
+/* --------------- subgraph → federated SDL / registry rows --------------- */
+function typeKind(t){ if(t.ext) return t.ext.mode==="extend"?"Extend":"Reference"; return t.kind==="enum"?"Enum":(t.kind==="input"?"Input":(t.isEntity?"Key":"Type")); }
+function typeSDL(t){
+  if(t.kind==="enum") return `enum ${t.name} {\n${(t.values||[]).map(v=>"  "+v).join("\n")}\n}`;
+  const body=(t.fields||[]).map(f=>`  ${f.name}: ${f.type}`).join("\n");
+  if(t.kind==="input") return `input ${t.name} {\n${body}\n}`;
+  // borrowed entity from another subgraph: reference stub (resolvable:false) or field-contributing extend
+  if(t.ext){ const key=t.key||keyOf(t.fields);
+    return `${t.ext.mode==="extend"?"extend type":"type"} ${t.name} @key(fields: "${key}"${t.ext.mode==="reference"?", resolvable: false":""}) {\n${body}\n}`; }
+  if(t.isEntity) return `type ${t.name} @key(fields: "${t.key||keyOf(t.fields)}") {\n${body}\n}`;
+  return `type ${t.name} {\n${body}\n}`;
+}
+// registry Schema.Definition body (no leading `type Name`), matching GQLRegistry.xlsx
+function typeDefBody(t){
+  if(t.kind==="enum") return `{\n${(t.values||[]).map(v=>"  "+v).join("\n")}\n}`;
+  const body=(t.fields||[]).map(f=>`  ${f.name}: ${f.type}`).join("\n");
+  if(t.ext){ const key=t.key||keyOf(t.fields);
+    const prefix = `@key(fields: "${key}"${t.ext.mode==="reference"?", resolvable: false":""}) `;
+    return `${prefix}{\n${body}\n}`; }   // Kind column (Reference/Extend) distinguishes the two on reload
+  const prefix = t.isEntity ? `@key(fields: "${t.key||keyOf(t.fields)}") ` : "";
+  return `${prefix}{\n${body}\n}`;
+}
+function opSig(o){
+  const args=(o.args&&o.args.length) ? "("+o.args.map(a=>`${a.name}: ${a.type}`).join(", ")+")" : "";
+  return `${o.name}${args}: ${o.returns||"Boolean"}`;
+}
+function subgraphSDL(sg){
+  const parts=[];
+  const order=[sg.types.filter(t=>t.kind==="enum"&&!t.ext), sg.types.filter(t=>t.kind==="input"&&!t.ext),
+               sg.types.filter(t=>t.kind==="type"&&!t.isEntity&&!t.ext), sg.types.filter(t=>t.kind==="type"&&t.isEntity&&!t.ext),
+               sg.types.filter(t=>t.ext&&t.ext.mode==="reference"), sg.types.filter(t=>t.ext&&t.ext.mode==="extend")];
+  for(const grp of order) for(const t of grp) parts.push(typeSDL(t));
+  const q=sg.ops.filter(o=>o.opKind==="query"), m=sg.ops.filter(o=>o.opKind==="mutation");
+  if(q.length) parts.push(`type Query {\n${q.map(o=>"  "+opSig(o)).join("\n")}\n}`);
+  if(m.length) parts.push(`type Mutation {\n${m.map(o=>"  "+opSig(o)).join("\n")}\n}`);
+  return parts.join("\n\n");
+}
+/* --------- borrowed entities (federation @key reference / extend) -------- */
+function lowerCamel(s){ s=String(s||""); return s.charAt(0).toLowerCase()+s.slice(1); }
+// The type object for an entity owned (@key, not borrowed) by a subgraph other than sg.
+function findOwningEntity(sg, name){
+  for(const other of mapping.subgraphs){ if(other.id===sg.id) continue;
+    const t=(other.types||[]).find(t=>t.name===name && t.isEntity && !t.ext); if(t) return {type:t, sg:other}; }
+  return null;
+}
+// Entities owned by OTHER subgraphs → {name, ownerSg, key}. Candidates to borrow/extend.
+function otherSubgraphEntities(sg){
+  const out=[], seen=new Set();
+  for(const other of mapping.subgraphs){ if(other.id===sg.id) continue;
+    for(const t of (other.types||[])){ if(t.isEntity && !t.ext && !seen.has(t.name)){
+      seen.add(t.name); out.push({name:t.name, ownerSg:other.name, key:t.key||keyOf(t.fields)}); } } }
+  return out;
+}
+// External entity names referenced by sg's field/op types but not defined or already borrowed here.
+function externalTypeSuggestions(sg){
+  const defined=new Set((sg.types||[]).map(t=>t.name));
+  const referenced=new Set();
+  for(const t of (sg.types||[])){ if(t.ext) continue; for(const f of (t.fields||[])) referenced.add(baseType(f.type)); }
+  for(const o of (sg.ops||[])){ for(const a of (o.args||[])) referenced.add(baseType(a.type)); if(o.returns) referenced.add(baseType(o.returns)); }
+  return otherSubgraphEntities(sg).filter(e=>referenced.has(e.name) && !defined.has(e.name));
+}
+function addEntityBorrow(sgId, opts){
+  const sg=mapping.subgraphs.find(s=>s.id===sgId); if(!sg) return;
+  opts=opts||{};
+  const name=String(opts.name||"").trim(); if(!name){ alert("Entity name is required."); return; }
+  if((sg.types||[]).some(t=>t.name===name)){ alert(`"${name}" is already defined or borrowed in this subgraph.`); return; }
+  const mode=opts.mode==="extend"?"extend":"reference";
+  const owner=findOwningEntity(sg, name);
+  const key=String(opts.key||"").trim() || (owner?(owner.type.key||keyOf(owner.type.fields)):"id");
+  const keyNames=key.split(/\s+/).filter(Boolean);
+  const keyType=(k)=>{ const of=owner && (owner.type.fields||[]).find(f=>f.name===k); return of?of.type.replace(/\s*@\w+.*$/,"").trim():"ID!"; };
+  const fields=keyNames.map(k=>({ name:k, type: keyType(k)+(mode==="extend"?" @external":"") }));
+  if(mode==="extend"){
+    const fn=String(opts.fieldName||"").trim(), ft=String(opts.fieldType||"").trim();
+    if(fn && ft) fields.push({name:fn, type:ft});
+  }
+  (sg.types=sg.types||[]).push({ name, kind:"type", isEntity:true, key, fields, values:[], ext:{mode} });
+  persist(); afterLoad(); toast(`${mode==="extend"?"Extended":"Referenced"} ${name} from another subgraph`);
+}
+function removeEntityBorrow(sgId, name){
+  const sg=mapping.subgraphs.find(s=>s.id===sgId); if(!sg) return;
+  sg.types=(sg.types||[]).filter(t=>!(t.name===name && t.ext));
+  persist(); afterLoad(); toast(`Removed borrowed ${name}`);
+}
+
+/* ------------------------------ target --------------------------------- */
+const TYPE_KINDS = new Set(["type","input","interface","enum","union","scalar"]);
+function assignKeyForItem(it){ return it.kind==="root" ? it.root+":"+it.name : it.kind+":"+it.name; }
+function assignEntries(){
+  return Object.entries(mapping.assign).map(([key,v])=>({ key, kind:key.slice(0,key.indexOf(":")), name:key.slice(key.indexOf(":")+1), domain:v.domain||"", entity:v.entity||"" }));
+}
+function targetDomains(){
+  const s=new Set();
+  for(const e of state.entities) if(e.BusinessApplication) s.add(String(e.BusinessApplication));
+  for(const a of assignEntries()) if(a.domain) s.add(a.domain);
+  for(const sg of mapping.subgraphs) if(sg.name) s.add(sg.name);
+  for(const d of mapping.customDomains) if(d) s.add(d);
+  return [...s].sort();
+}
+function targetEntityNames(){
+  const s=new Set(state.entities.map(e=>String(e.Name)));
+  for(const a of assignEntries()) if(a.entity) s.add(a.entity);
+  for(const sg of mapping.subgraphs) for(const t of sg.types) if(t.name) s.add(t.name);
+  return [...s].sort();
+}
+
+/* ----------------------------- loading --------------------------------- */
+function persist(){ try{ localStorage.setItem(LS, JSON.stringify({monographText:state.monographText, entities:state.entities, schema:state.schema, reg:state.reg, regHeaders:state.regHeaders, mapping})); }catch(e){} }
+function migrateMapping(m){
+  m=Object.assign(defaultMapping(), m||{});
+  m.subgraphs=(m.subgraphs||[]).map(sg=>Object.assign({id:uid(),name:"subgraph",spec:"",ops:[],types:[]}, sg));
+  // back-compat: fold a legacy flat `rest` array into subgraphs grouped by domain
+  if(Array.isArray(m.rest) && m.rest.length){
+    const byDom={};
+    for(const r of m.rest){ const d=r.domain||"legacy"; (byDom[d]=byDom[d]||[]).push(r); }
+    for(const [d, arr] of Object.entries(byDom)){
+      const types=[]; const seen=new Set();
+      const ops=arr.map(r=>{ const tn=r.entity||cap(r.name||"Response");
+        if(r.fields && r.fields.length && !seen.has(tn)){ seen.add(tn); const k=entityKey(tn, r.fields); types.push({name:tn, kind:"type", isEntity:!!k, key:k, fields:r.fields, values:[]}); }
+        return {id:r.id||uid(), name:r.name, method:r.method||"GET", path:r.path||"", opKind:r.opKind||(r.method==="GET"?"query":"mutation"), args:r.args||[], returns:(r.fields&&r.fields.length)?tn:"Boolean", entity:r.entity||"", notes:r.notes||""}; });
+      m.subgraphs.push({id:uid(), name:d, spec:"(migrated)", ops, types});
+    }
+  }
+  delete m.rest;
+  return m;
+}
+function restore(){
+  const raw = localStorage.getItem(LS) || localStorage.getItem("gqlmig-v1"); if(!raw) return;
+  try{ const d=JSON.parse(raw);
+    state.entities=d.entities||[]; state.schema=d.schema||[];
+    state.reg=d.reg||{}; state.regHeaders=d.regHeaders||{};
+    if(d.mapping) mapping=migrateMapping(d.mapping);
+    if(d.monographText){ state.monographText=d.monographText; state.monograph=parseSDL(d.monographText); }
+  }catch(e){}
+}
+// sheetRows → common.js
+
+function loadRegWB(wb){
+  state.reg={}; state.regHeaders={};
+  for(const s of ["Entities","Schema","Queries","Mutations","AuthScopes"]){
+    if(!wb.Sheets[s]) continue;
+    state.reg[s]=sheetRows(wb,s);
+    state.regHeaders[s]=(XLSX.utils.sheet_to_json(wb.Sheets[s],{header:1})[0]||[]).map(String);
+  }
+  state.entities=state.reg.Entities||[]; state.schema=state.reg.Schema||[];
+}
+// Reverse of typeDefBody(): rebuild a subgraph type from an exported Schema.Definition body
+// (also tolerates a full "type Name … { }" definition). Kind is the sheet's Key/Type/Input/Enum.
+function parseSubgraphDef(kind, name, def){
+  def=String(def||"").trim(); const k=String(kind||"").toLowerCase();
+  const inner=(def.match(/\{([\s\S]*)\}/)||[,""])[1];
+  if(k==="enum"){
+    const values=inner.split(/\r?\n/).map(s=>s.replace(/,$/,"").trim()).filter(Boolean);
+    return { name, kind:"enum", isEntity:false, key:"", fields:[], values, raw:"" };
+  }
+  // borrowed entity from another subgraph: Kind Reference/Extend (or the raw def gives it away)
+  const extMode = k==="reference" ? "reference" : (k==="extend" ? "extend"
+                : (/^extend\s+type/.test(def) ? "extend" : (/resolvable:\s*false/.test(def) ? "reference" : "")));
+  const isEntity = k==="key" || !!extMode || /@key/.test(def);
+  const keyM = def.match(/@key\(fields:\s*"([^"]*)"\)/);
+  const fields=inner.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(line=>{
+    const m=line.match(/^([A-Za-z_]\w*)\s*:\s*(.+?),?$/); return m?{name:m[1], type:m[2].trim()}:null;
+  }).filter(Boolean);
+  const kind2 = k==="input" ? "input" : (k==="interface" ? "interface" : "type");
+  const t={ name, kind:kind2, isEntity, key:keyM?keyM[1]:(isEntity?keyOf(fields):""), fields, values:[], raw:"" };
+  if(extMode) t.ext={mode:extMode};
+  return t;
+}
+// Load a previously exported "…-subgraph.xlsx" (Entities/Schema/Queries/Mutations) back into a
+// subgraph so an in-progress migration can be resumed and re-exported.
+function loadSubgraphMigrationWB(wb, fileName){
+  const schema=sheetRows(wb,"Schema"), queries=sheetRows(wb,"Queries"), muts=sheetRows(wb,"Mutations"), ents=sheetRows(wb,"Entities");
+  if(!schema.length && !queries.length && !muts.length)
+    throw new Error("No Schema/Queries/Mutations rows found — is this a subgraph migration export?");
+
+  const types=schema.map(r=>parseSubgraphDef(r.Kind, r.TypeName, r.Definition)).filter(t=>t&&t.name);
+  const opFrom=(r,opKind)=>{
+    const ref=String(r.CurrentReference||"").trim(), mm=ref.match(/^(\S+)\s+(.*)$/);
+    return { id:uid(), name:r.Name, args:parseArgs(r.Parameters), returns:r.ReturnType||"",
+      opKind, method:mm?mm[1]:"", path:mm?(mm[2]||"").trim():"", entity:baseType(r.ReturnType||""), notes:"" };
+  };
+  const ops=queries.map(r=>opFrom(r,"query")).concat(muts.map(r=>opFrom(r,"mutation")));
+
+  // Subgraph name from the export filename ("offers-subgraph.xlsx" → "offers"), else an entity hint.
+  let name=String(fileName||"").replace(/\.xlsx$/i,"").replace(/-subgraph$/i,"").trim();
+  if(!name) name=(ents[0]&&(ents[0].BusinessApplication||ents[0].Name))||"subgraph";
+
+  // Merge into an existing subgraph of the same name, or add a new one.
+  let sg=mapping.subgraphs.find(s=>s.name===name);
+  if(sg){ sg.types=types; sg.ops=ops; sg.spec=fileName||sg.spec; }
+  else { sg={ id:uid(), name, spec:fileName||"(loaded from xls)", types, ops }; mapping.subgraphs.push(sg); }
+  selRest=sg.id;
+
+  // Restore per-entity domain metadata (EntityID + domain cols) so re-export reproduces the rows,
+  // and focus the migration on the primary entity (matching the registry entity when present).
+  let focusName="", focusEntId="";
+  for(const t of types.filter(t=>t.isEntity)){
+    const er=ents.find(e=>String(e.Name||"")===t.name); if(!er) continue;
+    const meta=(mapping.entityMeta[entityMetaKey(sg.id,t.name)]=mapping.entityMeta[entityMetaKey(sg.id,t.name)]||{});
+    for(const c of DOMAIN_COLS){ if(er[c.f]!=null && String(er[c.f])!=="") meta[c.f]=String(er[c.f]); }
+    if(!focusName){ focusName=t.name; focusEntId=String(er.EntityID||""); }
+  }
+  if(!focusName) focusName=ensureEntity(sg);                  // no entity row → promote/create one
+  mapping.focusEntity=entityMetaKey(sg.id, focusName);
+  if(focusEntId && (state.entities||[]).some(r=>String(r.EntityID||"")===focusEntId)) mapping.migrationEntityId=focusEntId;
+  return { sg, types:types.length, ops:ops.length, entity:focusName };
+}
+function loadmonographText(txt){ state.monographText=txt; state.monograph=parseSDL(txt); }
+
+function onFile(input, kind){
+  const file=input.files[0]; if(!file) return; const r=new FileReader();
+  if(kind==="monograph"){ r.onload=e=>{ loadmonographText(e.target.result); afterLoad(); }; r.readAsText(file); }
+  else if(kind==="sgmig"){
+    r.onload=e=>{ try{ const wb=XLSX.read(e.target.result,{type:"array"}); const res=loadSubgraphMigrationWB(wb, file.name); afterLoad();
+        toast(`Loaded subgraph "${res.sg.name}" — ${res.types} types, ${res.ops} ops`); }
+      catch(err){ alert(err.message||"Could not read this subgraph migration xls."); } };
+    r.readAsArrayBuffer(file); input.value="";
+  }
+  else { r.onload=e=>{ const wb=XLSX.read(e.target.result,{type:"array"}); loadRegWB(wb); afterLoad(); }; r.readAsArrayBuffer(file); }
+}
+async function tryAutoFetch(){
+  const jobs = [
+    ["reg", ["GQLRegistry.xlsx","../documents/GQLRegistry.xlsx"]],
+    ["monograph", ["subgraphs/monograph/schema.graphqls","subgraphs/monograph/schema.graphqls"]],
+  ];
+  let any=false;
+  for(const [kind, urls] of jobs){
+    if(kind==="reg" && state.entities.length) continue;
+    if(kind==="monograph" && state.monographText) continue;
+    for(const url of urls){
+      try{
+        const res=await fetch(url); if(!res.ok) continue;
+        if(kind==="monograph") loadmonographText(await res.text());
+        else { const wb=XLSX.read(await res.arrayBuffer(),{type:"array"}); loadRegWB(wb); }
+        any=true; break;
+      }catch(e){ /* file:// or missing — ignore */ }
+    }
+  }
+  if(any) afterLoad();
+}
+function clearAll(){ localStorage.removeItem(LS); localStorage.removeItem("gqlmig-v1"); state.monographText=""; state.monograph=null; state.entities=[]; state.schema=[]; state.reg={}; state.regHeaders={}; mapping=defaultMapping(); selmonograph=selRest=null; afterLoad(); }
+
+function afterLoad(){ persist(); renderStatus(); renderDatalists(); renderDomainDetails(); rendermonographList(); rendermonographDetail(); renderRestDetail(); renderCurrentSubgraph(); }
+function renderStatus(){
+  const opCount=mapping.subgraphs.reduce((n,sg)=>n+sg.ops.length,0);
+  const parts=[];
+  parts.push(state.entities.length ? `<b>${state.entities.length}</b> entities` : `<span class="miss">registry missing</span>`);
+  parts.push(state.monograph ? `<b>${state.monograph.types.length}</b> MonoGraph types` : `<span class="miss">MonoGraph missing</span>`);
+  parts.push(`<b>${mapping.subgraphs.length}</b> subgraphs · <b>${opCount}</b> ops · <b>${Object.keys(mapping.assign).length}</b> MonoGraph assigned`);
+  document.getElementById("status").innerHTML = parts.join(" · ");
+  const setSt=(id,ok,txt)=>{ const e=document.getElementById(id); if(!e)return; e.className="st "+(ok?"loaded":"missing"); e.textContent=txt; };
+  setSt("st-reg", state.entities.length, state.entities.length?`loaded — ${state.entities.length} entities`:"not loaded");
+  setSt("st-sgmig", mapping.subgraphs.length, mapping.subgraphs.length?`${mapping.subgraphs.length} subgraph(s) loaded`:"not loaded");
+  setSt("st-monograph", !!state.monograph, state.monograph?`loaded — ${state.monograph.types.length} types, ${state.monograph.roots.Query.length}Q/${state.monograph.roots.Mutation.length}M`:"not loaded");
+}
+function renderDatalists(){
+  document.getElementById("dl-domains").innerHTML = targetDomains().map(d=>`<option value="${esc(d)}">`).join("");
+  document.getElementById("dl-entities").innerHTML = targetEntityNames().map(n=>`<option value="${esc(n)}">`).join("");
+}
+
+/* ---------------------------- nav / tabs -------------------------------- */
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active"); document.getElementById("view-"+b.dataset.view).classList.add("active");
+});
+document.getElementById("f-reg").addEventListener("change", e=>onFile(e.target,"reg"));
+document.getElementById("f-sgmig").addEventListener("change", e=>onFile(e.target,"sgmig"));
+document.getElementById("f-monograph").addEventListener("change", e=>onFile(e.target,"monograph"));
+document.getElementById("f-openapi").addEventListener("change", e=>{ const f=e.target.files[0]; if(f) importOpenAPI(f); e.target.value=""; });
+
+/* ----------------------- migration-status tags ------------------------- */
+function statusTag(s){
+  const v=String(s||"").toLowerCase(); let cls="tbc";
+  if(v.includes("platform")) cls="plat";
+  else if(v.includes("on fed")) cls="on";
+  else if(v.includes("bff")) cls="bff";
+  else if(v.includes("not on")) cls="off";
+  return `<span class="tag ${cls}">${esc(s||"TBC")}</span>`;
+}
+
+/* ---------------------- Domain details (Load Data) --------------------- */
+// Pick the GQL Registry entity to migrate to; imported specs map their entity onto it.
+function entityMetaKey(sgId, typeName){ return sgId+"::"+typeName; }
+function keyEntities(){
+  const list=[];
+  for(const sg of mapping.subgraphs) for(const t of sg.types) if(t.isEntity) list.push({sg, t});
+  return list;
+}
+const DOMAIN_COLS=[
+  {h:"EntityID", f:"EntityID", mono:1},
+  {h:"Experience Domain", f:"ExperienceDomain"},
+  {h:"Business Application", f:"BusinessApplication"},
+  {h:"Business Capability", f:"BusinessCapability"},
+  {h:"Comments", f:"Comments"},
+  {h:"Current Reference", f:"CurrentReference"},
+  {h:"Links & References", f:"Links"},
+];
+// The GQLRegistry.xlsx Entities row currently chosen as the migration target.
+function migrationRegRow(){
+  const id=(mapping.migrationEntityId||"").trim(); if(!id) return null;
+  return (state.entities||[]).find(r=>String(r.EntityID||"")===id) || null;
+}
+// Push the chosen registry entity's EntityID + domain fields onto the focused source entity so its
+// generated SCH-/QRY-/MUT- rows carry that EntityID and its Entities row matches GQLRegistry.xlsx.
+function applyRegistryToFocus(){
+  const fk=mapping.focusEntity, r=migrationRegRow();
+  if(!fk || !r) return;
+  const m=(mapping.entityMeta[fk]=mapping.entityMeta[fk]||{});
+  for(const c of DOMAIN_COLS){ if(r[c.f]!=null && String(r[c.f])!=="") m[c.f]=String(r[c.f]); }
+}
+// Choose which GQL Registry entity this migration maps to.
+function setMigrationEntity(regId){
+  mapping.migrationEntityId=regId||"";
+  applyRegistryToFocus();
+  persist(); renderDomainDetails(); renderRestDetail(); renderCurrentSubgraph();}
+// Focus the migration on one imported entity; also selects its subgraph and applies the mapping.
+function setFocusEntity(key){
+  mapping.focusEntity=key||null;
+  if(key) selRest=key.slice(0, key.indexOf("::"));
+  applyRegistryToFocus();
+  persist(); renderDomainDetails(); renderRestDetail(); renderCurrentSubgraph();}
+function renderDomainDetails(){
+  const host=document.getElementById("domainDetails"); if(!host) return;
+  const regRows=state.entities||[];
+  if(!regRows.length){ host.innerHTML='<div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> above, then pick the entity to migrate.</div>'; return; }
+  const cur=(mapping.migrationEntityId||"").trim();
+  const opts=regRows.map(r=>{ const id=String(r.EntityID||"");
+    return `<option value="${esc(id)}"${id===cur?" selected":""}>${esc(id||"(no id)")} · ${esc(r.Name||"")}</option>`; }).join("");
+  let html=`<div class="selrow"><label for="migEntity"><b>GQL Registry entity</b></label>
+    <select id="migEntity" onchange="setMigrationEntity(this.value)">
+      <option value="">— pick the registry entity to migrate to —</option>${opts}</select></div>`;
+  const r=migrationRegRow();
+  if(!r){ host.innerHTML=html+'<div class="empty">Choose the GQL Registry entity this migration maps to, then import an OpenAPI/Swagger spec below.</div>'; return; }
+  const disp=[
+    ["EntityID", r.EntityID], ["Name", r.Name], ["Experience Domain", r.ExperienceDomain],
+    ["Business Application", r.BusinessApplication], ["Business Capability", r.BusinessCapability],
+    ["Approval", r.ApprovalStatus],
+    ["Comments", r.Comments], ["Current Reference", r.CurrentReference],
+    ["Links & References", linksHTML(r.Links), true],
+  ];
+  html += `<div class="table-wrap"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${
+    disp.map(([h,v,isHtml])=>`<tr><td class="mono">${esc(h)}</td><td>${v!=null&&String(v)!==""?(isHtml?v:esc(String(v))):'<span class="hint">—</span>'}</td></tr>`).join("")
+  }</tbody></table></div>`;
+  const mapped=keyEntities().filter(({sg,t})=>mapping.focusEntity===entityMetaKey(sg.id,t.name));
+  const eid=esc(String(r.EntityID||""));
+  html += mapped.length
+    ? `<p class="hint">Mapped source entity: <span class="mono">${esc(mapped[0].t.name)}</span> · ${esc(mapped[0].sg.name)} — generated rows use <span class="mono">${eid}</span> (SCH-/QRY-/MUT-&lt;EntityID&gt;-###).</p>`
+    : `<p class="hint">No source entity mapped yet — import an OpenAPI/Swagger spec below and its entity will map to <span class="mono">${eid}</span>.</p>`;
+  host.innerHTML=html;
+}
+
+/* ---------------------------- MonoGraph schema ------------------------- */
+function monographItems(){
+  if(!state.monograph) return [];
+  const items=[];
+  for(const k of ["Query","Mutation","Subscription"]) for(const f of state.monograph.roots[k]) items.push({group:k+" fields", kind:"root", root:k, name:f.name, f});
+  const byKind={type:"Types", input:"Inputs", enum:"Enums", interface:"Interfaces", union:"Unions", scalar:"Scalars"};
+  for(const kk of Object.keys(byKind)) for(const t of state.monograph.types.filter(t=>t.kind===kk)) items.push({group:byKind[kk], kind:t.kind, name:t.name, t});
+  return items;
+}
+function rendermonographList(){
+  const host=document.getElementById("monographList"); if(!host) return;
+  if(!state.monograph){ host.innerHTML='<div class="empty">Load the MonoGraph schema.</div>'; return; }
+  const query=(val("monographFilter")||"").toLowerCase();
+  const items=monographItems().filter(it=>it.name.toLowerCase().includes(query));
+  const order=["Query fields","Mutation fields","Subscription fields","Types","Inputs","Interfaces","Enums","Unions","Scalars"];
+  let html="";
+  for(const g of order){
+    const gi=items.filter(it=>it.group===g); if(!gi.length) continue;
+    html+=`<div class="grp">${g} · ${gi.length}</div>`;
+    html+=gi.map(it=>{ const key=it.group+"|"+it.name; const a=mapping.assign[assignKeyForItem(it)];
+      const badge=a?` <span class="badge">→ ${esc(a.domain)}${a.entity?"/"+esc(a.entity):""}</span>`:"";
+      return `<div class="item ${key===selmonograph?"active":""}" onclick="selectmonograph(${q(key)})"><span class="mono">${esc(it.name)}</span>${badge}</div>`;
+    }).join("");
+  }
+  host.innerHTML = html || '<div class="empty">No matches.</div>';
+}
+function selectmonograph(key){ selmonograph=key; rendermonographList(); rendermonographDetail(); }
+let copyBuf={};
+function assignBlock(it){
+  const key=assignKeyForItem(it); const a=mapping.assign[key]||{};
+  return `<div class="assign">
+    <div class="kv" style="margin-top:0">Assign to target domain / entity</div>
+    <div class="selrow" style="margin-bottom:0">
+      <label>Domain<input id="asgDom" list="dl-domains" value="${esc(a.domain||"")}" placeholder="e.g. Product"></label>
+      <label>Entity<input id="asgEnt" list="dl-entities" value="${esc(a.entity||it.name)}" placeholder="target entity name"></label>
+      <button class="primary" onclick="saveAssign()" data-help="mig-monograph">Save</button>
+      ${a.domain?`<button class="danger" onclick="clearAssign()">Unassign</button>`:""}
+    </div>
+    ${a.domain?`<div class="hint">Assigned to <b>${esc(a.domain)}</b>${a.entity?` · <b>${esc(a.entity)}</b>`:""}.</div>`:""}
+  </div>`;
+}
+function saveAssign(){
+  const it=monographItems().find(x=>(x.group+"|"+x.name)===selmonograph); if(!it) return;
+  const dom=val("asgDom").trim(); if(!dom){ alert("Pick a target domain."); return; }
+  mapping.assign[assignKeyForItem(it)]={domain:dom, entity:val("asgEnt").trim()};
+  persist(); renderStatus(); renderDatalists(); rendermonographList(); rendermonographDetail(); toast("Assigned");
+}
+function clearAssign(){
+  const it=monographItems().find(x=>(x.group+"|"+x.name)===selmonograph); if(!it) return;
+  delete mapping.assign[assignKeyForItem(it)];
+  persist(); renderStatus(); rendermonographList(); rendermonographDetail(); toast("Unassigned");
+}
+function rendermonographDetail(){
+  const host=document.getElementById("monographDetail"); if(!host) return;
+  if(!state.monograph){ host.innerHTML='<div class="empty">Load the MonoGraph schema.</div>'; return; }
+  const it=monographItems().find(x=>(x.group+"|"+x.name)===selmonograph);
+  if(!it){ host.innerHTML='<div class="empty">Pick a type or method.</div>'; return; }
+  copyBuf={};
+  if(it.kind==="root"){
+    const sig=fieldSig(it.f); copyBuf.sdl=sig;
+    host.innerHTML = `<h3 style="margin:0">${esc(it.name)} <small class="hint">· ${it.root} method</small></h3>
+      ${it.f.desc?`<p class="hint">${esc(it.f.desc)}</p>`:""}
+      ${assignBlock(it)}
+      <div class="code-head"><h3>Method signature</h3><button class="copy-btn" onclick="copyText(copyBuf.sdl)">Copy method</button></div>
+      <pre class="code">${highlightSDL(sig)}</pre>
+      <p class="hint">Return type <span class="mono">${esc(baseType(it.f.type))}</span> — find it under Types to copy its definition into your subgraph.</p>`;
+  } else {
+    const t=it.t; copyBuf.sdl=t.raw; copyBuf.key=asKeyEntity(t);
+    const canKey = t.kind==="type";
+    host.innerHTML = `<h3 style="margin:0">${esc(t.name)} <small class="hint">· ${t.kind}${t.fields.length?` · ${t.fields.length} fields`:""}</small></h3>
+      ${t.desc?`<p class="hint">${esc(t.desc)}</p>`:""}
+      ${assignBlock(it)}
+      <div class="code-head"><h3>Source SDL</h3>
+        <span><button class="copy-btn" onclick="copyText(copyBuf.sdl)">Copy SDL</button>
+        ${canKey?`<button class="copy-btn" onclick="copyText(copyBuf.key)">Copy as @key entity</button>`:""}</span></div>
+      <pre class="code">${highlightSDL(t.raw)}</pre>
+      ${canKey?`<div class="code-head"><h3>Federation stub</h3></div><pre class="code">${highlightSDL(asKeyEntity(t))}</pre>`:""}`;
+  }
+}
+
+/* ------------------------- Subgraphs (OpenAPI) ------------------------- */
+// Guarantee the subgraph exposes at least one @key entity (the migration target) and return its name.
+function ensureEntity(sg){
+  let ent=sg.types.find(t=>t.isEntity);
+  if(!ent){
+    ent=sg.types.find(t=>t.kind==="type");                  // an object type — never an enum/input
+    if(!ent){                                               // spec had no object schemas (ops only, or just enums)
+      const nm=cap((sg.name||"entity").replace(/[^A-Za-z0-9]/g,""))||"Entity";
+      ent={ name:nm, kind:"type", isEntity:true, key:"id", fields:[{name:"id", type:"ID!"}], values:[], raw:"" };
+      sg.types.unshift(ent);
+    } else {                                                // promote that object type into a @key entity
+      ent.isEntity=true;
+      if(!ent.key) ent.key=(ent.fields||[]).some(f=>f.name==="id") ? "id" : (((ent.fields||[])[0]||{}).name||"id");
+    }
+  }
+  return ent.name;
+}
+function importOpenAPI(file){
+  const r=new FileReader();
+  r.onload=e=>{ try{
+    const stem=(file.name||"spec").replace(/\.(json|ya?ml|txt)$/i,"");
+    let defName=stem;
+    try{ const j=(file.name||"").match(/\.ya?ml$/i)?jsyaml.load(e.target.result):JSON.parse(e.target.result); if(j&&j.info&&j.info.title) defName=slug(j.info.title).toLowerCase().replace(/ /g,"-"); }catch(_){}
+    let sgName=prompt("Subgraph / platform name for this spec:", defName); if(sgName===null) return; sgName=sgName.trim()||defName;
+    const sg=parseOpenAPI(e.target.result, sgName); sg.spec=file.name||"";
+    if(!sg.ops.length && !sg.types.length){ alert("No operations or component schemas found in that spec."); return; }
+    const existing=mapping.subgraphs.find(s=>s.name===sgName);
+    let target;
+    if(existing){ existing.types=sg.types; existing.ops=sg.ops; existing.spec=sg.spec; selRest=existing.id; target=existing; }
+    else { mapping.subgraphs.push(sg); selRest=sg.id; target=sg; }
+    const entName=ensureEntity(target);                      // guarantee an @key entity to migrate
+    mapping.focusEntity=target.id+"::"+entName;              // focus the migration on it
+    applyRegistryToFocus();                                  // map it onto the chosen GQL Registry entity
+    persist(); afterLoad();
+    document.getElementById("openapiState").textContent=`imported "${sgName}" — ${sg.types.length} types, ${sg.ops.length} ops`;
+    toast(`Imported subgraph ${sgName}`);
+  }catch(err){ alert(err.message||"Failed to parse OpenAPI spec."); } };
+  r.readAsText(file);
+}
+function renderRestDetail(){
+  const host=document.getElementById("restDetail"); if(!host) return;
+  // Migration is per subgraph application: auto-load the subgraph for the chosen migration entity.
+  const sg=migrationSubgraph();
+  if(!sg){ host.innerHTML='<div class="empty">Pick a GQL Registry entity to migrate on the <b>Load data</b> tab, then import its OpenAPI/Swagger spec.</div>'; return; }
+  selRest=sg.id;                                            // keep selRest aligned for save/edit/delete ops
+  copyBuf={ sdl: subgraphSDL(sg) };
+  const typeRows=sg.types.map(t=>`<tr><td class="mono">${esc(t.name)}</td><td>${esc(typeKind(t))}</td>
+      <td>${t.isEntity?`<span class="flag-yes">@key ${esc(t.key||"")}</span>`:""}</td>
+      <td>${t.kind==="enum"?(t.values.length+" values"):(t.fields.length+" fields")}</td></tr>`).join("")
+      || '<tr><td colspan="4" class="empty">no types</td></tr>';
+  const opRow=(o)=>`<tr><td class="mono">${esc(opSig(o))}</td><td class="mono">${esc(o.method)} ${esc(o.path||"")}</td><td>${esc(o.entity||"")}</td>
+      <td style="white-space:nowrap"><button class="copy-btn" onclick="toggleOpKind(${q(o.id)})">→ ${o.opKind==="query"?"mut":"qry"}</button>
+      <button class="copy-btn danger" onclick="deleteOp(${q(o.id)})">✕</button></td></tr>`;
+  const qRows=sg.ops.filter(o=>o.opKind==="query").map(opRow).join("")||'<tr><td colspan="4" class="empty">no queries</td></tr>';
+  const mRows=sg.ops.filter(o=>o.opKind==="mutation").map(opRow).join("")||'<tr><td colspan="4" class="empty">no mutations</td></tr>';
+  // ---- borrowed entities (federation @key reference / extend) ----
+  const borrowed=sg.types.filter(t=>t.ext);
+  const contribOf=(t)=>(t.fields||[]).filter(f=>!/@external/.test(f.type)).map(f=>`${f.name}: ${f.type}`).join(", ")||"—";
+  const extRows=borrowed.map(t=>`<tr><td class="mono">${esc(t.name)}</td>
+      <td><span class="flag-yes">${t.ext.mode==="extend"?"extend":"reference"}</span></td>
+      <td class="mono">@key ${esc(t.key||"")}</td>
+      <td class="mono">${t.ext.mode==="extend"?esc(contribOf(t)):'<span class="hint">stub — field reference only</span>'}</td>
+      <td><button class="copy-btn danger" onclick="removeEntityBorrow(${q(sg.id)},${q(t.name)})">✕</button></td></tr>`).join("")
+      || '<tr><td colspan="5" class="empty">no borrowed entities — add one below to reference or extend a type owned by another subgraph</td></tr>';
+  const sugg=externalTypeSuggestions(sg);
+  const suggHtml=sugg.length ? `<div class="kv">Suggested references <small class="hint">· entities you reference that are owned by another subgraph</small></div>
+    <div class="selrow" style="flex-wrap:wrap;gap:6px">${sugg.map(s=>`<button class="copy-btn" onclick="addEntityBorrow(${q(sg.id)},{name:${q(s.name)},mode:'reference',key:${q(s.key)}})">＋ ${esc(s.name)} <small class="hint">(${esc(s.ownerSg)})</small></button>`).join("")}</div>` : "";
+  const focusTN=focusFor(sg)||"";                            // this subgraph's owned entity → default contributed field
+  const defFieldName=focusTN?lowerCamel(focusTN):"", defFieldType=focusTN||"";
+  const borrowOpts=otherSubgraphEntities(sg).map(e=>`<option value="${esc(e.name)}">`).join("");
+  host.innerHTML = `<h3 style="margin:0">${esc(sg.name)} <small class="hint">· subgraph${sg.spec?" · "+esc(sg.spec):""}</small></h3>
+    <div class="selrow" style="margin-top:8px">
+      <label>Subgraph name<input id="sgName" value="${esc(sg.name)}"></label>
+      <button class="primary" onclick="saveSubgraph()" data-help="mig-subgraphs">Rename</button>
+      <button class="danger" onclick="deleteSubgraph()">Delete subgraph</button>
+    </div>
+    <div class="kv">Types (${sg.types.length})</div>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Kind</th><th>Key</th><th>Members</th></tr></thead><tbody>${typeRows}</tbody></table></div>
+    <div class="kv">Entity extensions (from other subgraphs) <small class="hint">· borrow a type via @key — <b>reference</b> (stub) or <b>extend</b> (contribute a field)</small></div>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Mode</th><th>@key</th><th>Contributed field</th><th></th></tr></thead><tbody>${extRows}</tbody></table></div>
+    ${suggHtml}
+    <div class="selrow" style="flex-wrap:wrap;gap:8px;margin-top:8px">
+      <label>Entity<input id="exName" list="dl-borrow" placeholder="Product" style="width:150px"></label>
+      <datalist id="dl-borrow">${borrowOpts}</datalist>
+      <label>Mode<select id="exMode" onchange="document.getElementById('exContribWrap').style.display=this.value==='extend'?'':'none'">
+        <option value="reference">reference (stub)</option><option value="extend">extend (add field)</option></select></label>
+      <label>@key fields<input id="exKey" placeholder="id" style="width:150px"></label>
+      <span id="exContribWrap" style="display:none">
+        <label>Field name<input id="exFieldName" value="${esc(defFieldName)}" placeholder="availableToSell" style="width:150px"></label>
+        <label>Field type<input id="exFieldType" value="${esc(defFieldType)}" placeholder="ProductAvailableToSell" style="width:170px"></label>
+      </span>
+      <button class="primary" onclick="addEntityBorrow(selRest,{name:val('exName'),mode:val('exMode'),key:val('exKey'),fieldName:val('exFieldName'),fieldType:val('exFieldType')})" data-help="mig-borrow">＋ Borrow / extend entity</button>
+    </div>
+    <div class="kv">Queries (${sg.ops.filter(o=>o.opKind==="query").length})</div>
+    <div class="table-wrap"><table><thead><tr><th>Signature</th><th>REST</th><th>Entity</th><th></th></tr></thead><tbody>${qRows}</tbody></table></div>
+    <div class="kv">Mutations (${sg.ops.filter(o=>o.opKind==="mutation").length})</div>
+    <div class="table-wrap"><table><thead><tr><th>Signature</th><th>REST</th><th>Entity</th><th></th></tr></thead><tbody>${mRows}</tbody></table></div>
+    <div class="code-head"><h3>Generated federated subgraph SDL</h3><button class="copy-btn" onclick="copyText(copyBuf.sdl)">Copy SDL</button></div>
+    <pre class="code">${subgraphSDL(sg)?highlightSDL(subgraphSDL(sg)):'<span class="c"># nothing generated yet</span>'}</pre>`;
+}
+function saveSubgraph(){ const sg=mapping.subgraphs.find(x=>x.id===selRest); if(!sg) return; const nm=val("sgName").trim(); if(nm) sg.name=nm; persist(); afterLoad(); toast("Saved"); }
+function deleteSubgraph(){ mapping.subgraphs=mapping.subgraphs.filter(x=>x.id!==selRest); selRest=null; persist(); afterLoad(); toast("Deleted"); }
+function toggleOpKind(id){ const sg=mapping.subgraphs.find(x=>x.id===selRest); if(!sg) return; const o=sg.ops.find(o=>o.id===id); if(o){ o.opKind=o.opKind==="query"?"mutation":"query"; persist(); renderRestDetail(); renderCurrentSubgraph(); } }
+function deleteOp(id){ const sg=mapping.subgraphs.find(x=>x.id===selRest); if(!sg) return; sg.ops=sg.ops.filter(o=>o.id!==id); persist(); renderRestDetail(); renderCurrentSubgraph(); toast("Op removed"); }
+
+/* ---------------------------- Excel write-back ------------------------- */
+function maxNum(rows, idKey, prefix){ let mx=0; const re=new RegExp("^"+prefix+"-0*(\\d+)"); for(const r of (rows||[])){ const m=String(r[idKey]||"").match(re); if(m) mx=Math.max(mx,+m[1]); } return mx; }
+function pad3(n){ return String(n).padStart(3,"0"); }
+// Build registry-shaped rows ({Entities,Schema,Queries,Mutations}) for one subgraph.
+// The entity is ENT-### (user-set or minted); its children embed that id as
+// SCH-/QRY-/MUT-<EntityID>-<seq> and FK back to it. When a focus entity is set every
+// row is owned by that one entity; the xls export seeds the ENT counter from any loaded registry.
+// The single entity this migration focuses on (type name) if it lives in `sg`, else null.
+function focusFor(sg){
+  const fk=mapping.focusEntity||""; if(!fk) return null;
+  const i=fk.indexOf("::"); const sid=fk.slice(0,i), tn=fk.slice(i+2);
+  return sid===sg.id ? tn : null;
+}
+// The subgraph being migrated: the one owning the selected migration entity (falls back to the
+// subgraph selected on the Subgraphs tab). Drives Export / Copy so they follow the chosen ENT.
+function migrationSubgraph(){
+  const fk=mapping.focusEntity||"";
+  if(fk){ const sid=fk.slice(0, fk.indexOf("::")); const sg=mapping.subgraphs.find(s=>s.id===sid); if(sg) return sg; }
+  return mapping.subgraphs.find(x=>x.id===selRest) || null;
+}
+// Type names to keep when scoped to a focus entity: the focus entity itself plus every
+// supporting type/enum/input in the subgraph. Other @key entities are excluded — each of
+// those migrates on its own. This keeps all the schema types the entity's subgraph needs.
+function relatedTypeNames(sg, focusTN){
+  const keep=new Set();
+  for(const t of sg.types){
+    if(t.name===focusTN) keep.add(t.name);                  // the focus entity
+    else if(!t.isEntity) keep.add(t.name);                  // types, enums, inputs — the supporting schema
+    else if(t.ext) keep.add(t.name);                        // borrowed entities (reference/extend) travel with it
+  }
+  return keep;
+}
+// Manual edits to generated rows on the FedGQL subgraph tab. Keyed by sheet → row id → field,
+// so they survive re-renders and flow into Copy / Export. The id column of each sheet is the key.
+const OV_ID={ Entities:"EntityID", Schema:"SchemaID", Queries:"QueryID", Mutations:"MutationID" };
+function setRowOverride(sheet, id, field, value){
+  if(!id) return;
+  const o=(mapping.overrides=mapping.overrides||{});
+  (o[sheet]=o[sheet]||{}); (o[sheet][id]=o[sheet][id]||{});
+  o[sheet][id][field]=value;
+  persist();
+  revalidateRow(sheet, id);                                 // onchange = blur, so re-run standards for this row + refresh banner
+}
+// Links & References editor in the subgraph tables: a LINK_TYPES dropdown + target per line,
+// saved back as "Type: target" lines through the same per-row override as the other cells.
+function linkLineHTML(l){
+  const opts=LINK_TYPES.map(t=>`<option${t===(l&&l.type)?" selected":""}>${esc(t)}</option>`).join("");
+  return `<div class="lk-line"><select class="cell" onchange="commitLinksCell(this)">${opts}</select><input class="cell mono" value="${esc((l&&l.value)||"")}" placeholder="https://…" onchange="commitLinksCell(this)"><button class="rm-row" title="Remove link" onclick="const td=this.closest('td'); this.parentNode.remove(); commitLinksCell(td)">✕</button></div>`;
+}
+function addLinkLine(btn){ btn.insertAdjacentHTML("beforebegin", linkLineHTML({type:LINK_TYPES[0], value:""})); btn.previousElementSibling.querySelector("input").focus(); }
+function commitLinksCell(el){
+  const td=el.closest("td");
+  const v=formatLinks([...td.querySelectorAll(".lk-line")].map(l=>({ type:l.querySelector("select").value, value:l.querySelector("input").value.trim() })));
+  setRowOverride(td.dataset.sheet, td.dataset.id, "Links", v);
+}
+function applyRowOverrides(out){
+  const o=mapping.overrides||{};
+  for(const sheet of Object.keys(OV_ID)){
+    const map=o[sheet]; if(!map) continue;
+    for(const row of out[sheet]){ const e=map[row[OV_ID[sheet]]]; if(e) Object.assign(row, e); }
+  }
+}
+function clearRowOverrides(){
+  if(!Object.keys(mapping.overrides||{}).length){ toast("No edits to reset."); return; }
+  if(!confirm("Discard all manual edits to the generated rows and regenerate from the spec?")) return;
+  mapping.overrides={}; persist(); renderCurrentSubgraph(); toast("Edits reset.");
+}
+// User-added rows, scoped per subgraph → sheet. Appended in buildSubgraphRows before overrides so
+// they flow into validation / Copy / Export exactly like generated rows, and their cell edits still
+// persist through the overrides layer (keyed by the row's generated id).
+const ADD_PREFIX={ Schema:"SCH", Queries:"QRY", Mutations:"MUT" };
+function addSubgraphRow(sheet){
+  const sg=migrationSubgraph();
+  if(!sg){ alert("Pick a GQL Registry entity to migrate on the Load data tab first."); return; }
+  const built=buildSubgraphRows(sg);                        // resolve the focus entity id from generated rows
+  const entId=(built.Schema.find(r=>r.EntityID)||{}).EntityID || (built.Queries.find(r=>r.EntityID)||{}).EntityID
+    || (built.Mutations.find(r=>r.EntityID)||{}).EntityID || (built.Entities[0]||{}).EntityID
+    || (mapping.migrationEntityId||"").trim() || "ENT-000";
+  const id=`${ADD_PREFIX[sheet]}-${entId}-M${Math.random().toString(36).slice(2,6)}`;
+  const add=(mapping.additions=mapping.additions||{});
+  const bucket=(add[sg.id]=add[sg.id]||{});
+  const list=(bucket[sheet]=bucket[sheet]||[]);
+  let row;
+  if(sheet==="Schema") row={ SchemaID:id, EntityID:entId, Kind:"Type", TypeName:"", Definition:"", ApprovalStatus:"Draft", CurrentReference:"", Links:"" };
+  else row={ [ADD_PREFIX[sheet]==="QRY"?"QueryID":"MutationID"]:id, EntityID:entId, Name:"", Parameters:"", ReturnType:"", Description:"", ApprovalStatus:"Draft", CurrentReference:"", Links:"" };
+  list.push(row);
+  persist(); renderCurrentSubgraph();
+  toast(`Row added — edit its cells (Draft · ${entId})`);
+}
+function removeAddedRow(sheet, id){
+  const sg=migrationSubgraph(); if(!sg) return;
+  const list=((mapping.additions||{})[sg.id]||{})[sheet]||[];
+  const i=list.findIndex(r=>String(r[OV_ID[sheet]])===String(id));
+  if(i<0) return;
+  list.splice(i,1);
+  if(mapping.overrides && mapping.overrides[sheet]) delete mapping.overrides[sheet][id];
+  persist(); renderCurrentSubgraph();
+}
+function buildSubgraphRows(sg, seed){
+  seed = seed || {};
+  let eN=seed.ENT||0;
+  const out={ Entities:[], Schema:[], Queries:[], Mutations:[] };
+  const entByName=new Map(), schemaTypes=new Set(), qExist=new Set(), mExist=new Set();
+  const src="subgraph:"+sg.name;
+  const focusTN=focusFor(sg);                              // scope to one entity when set
+  const keepType=focusTN ? relatedTypeNames(sg, focusTN) : null;
+  // Entity id everything hangs off when focused (matches the entity row's own id).
+  let focusEntId="";
+  if(focusTN){ const fm=(mapping.entityMeta||{})[sg.id+"::"+focusTN]||{}; focusEntId=(fm.EntityID||"").trim() || ("ENT-"+pad3((seed.ENT||0)+1)); }
+  // Child ids embed their owning entity: SCH-/QRY-/MUT-<EntityID>-<seq>, seq per (prefix, owner).
+  const seqBy={};
+  const cid=(prefix,owner)=>{ owner=owner||"ENT-000"; const k=prefix+":"+owner; seqBy[k]=(seqBy[k]||0)+1; return prefix+"-"+owner+"-"+pad3(seqBy[k]); };
+  for(const t of sg.types){
+    if(schemaTypes.has(t.name)) continue;
+    if(keepType && !keepType.has(t.name)) continue;
+    let entId="";
+    if(t.isEntity && !t.ext){                               // borrowed entities are owned elsewhere — no Entities row
+      const meta=(mapping.entityMeta||{})[sg.id+"::"+t.name]||{};
+      entId=(meta.EntityID||"").trim() || ("ENT-"+pad3(++eN));
+      out.Entities.push({ EntityID:entId, Name:t.name,
+        ExperienceDomain:meta.ExperienceDomain||"", BusinessApplication:(meta.BusinessApplication||"").trim()||sg.name,
+        BusinessCapability:meta.BusinessCapability||"",
+        Comments:meta.Comments||"", CurrentReference:meta.CurrentReference||"", Links:(meta.Links||"").trim()||src,
+        ApprovalStatus:"Draft" });
+      entByName.set(t.name, entId);
+    }
+    const owner = focusTN ? focusEntId : entId;            // focus → all types owned by the entity
+    out.Schema.push({ SchemaID:cid("SCH", owner), EntityID:owner, Kind:typeKind(t), TypeName:t.name, Definition:typeDefBody(t), ApprovalStatus:"Draft", Links:src });
+    schemaTypes.add(t.name);
+  }
+  for(const o of sg.ops){
+    // Focus mode: every operation in the subgraph is a query/mutation of the focus entity, whatever
+    // it returns (wrappers, response envelopes, arrays…). Non-focus: attribute by return-type entity.
+    const eid = focusTN ? focusEntId : (entByName.get(baseType(o.entity||o.returns))||"");
+    const args=(o.args||[]).map(a=>`${a.name}: ${a.type}`).join(", ");
+    const note=`from ${sg.name} ${o.method} ${o.path||""}`.trim()+(o.notes?` — ${o.notes}`:"");
+    const link=src+(o.path?(" "+o.path):"");
+    const restRef=`${o.method||""} ${o.path||""}`.trim();     // source REST endpoint, e.g. "GET /offers"
+    if(o.opKind==="query"){ if(qExist.has(o.name)) continue; out.Queries.push({ QueryID:cid("QRY", eid), EntityID:eid, Name:o.name, Parameters:args, ReturnType:o.returns||"", Description:note, ApprovalStatus:"Draft", CurrentReference:restRef, Links:link }); qExist.add(o.name); }
+    else { if(mExist.has(o.name)) continue; out.Mutations.push({ MutationID:cid("MUT", eid), EntityID:eid, Name:o.name, Parameters:args, ReturnType:o.returns||"", Description:note, ApprovalStatus:"Draft", CurrentReference:restRef, Links:link }); mExist.add(o.name); }
+  }
+  // User-added rows for this subgraph (Add type / query / mutation) — appended after generation.
+  const adds=(mapping.additions||{})[sg.id]||{};
+  for(const sheet of ["Schema","Queries","Mutations"]) for(const r of adds[sheet]||[]) out[sheet].push(Object.assign({}, r));
+  applyRowOverrides(out);                                    // fold in any manual edits from the FedGQL subgraph tab
+  return out;
+}
+function exportSubgraph(){
+  const sg=migrationSubgraph();
+  if(!sg){ alert("Pick the GQL Registry entity to migrate on the Load data tab first."); return; }
+  if(!sg.types.length && !sg.ops.length){ alert("This subgraph has no types or operations to export yet."); return; }
+  const vcheck=validateSubgraphRows(buildSubgraphRows(sg));
+  if(vcheck.errors.length){
+    alert("This subgraph does not meet the FedGQL schema standards.\n\n"+vcheck.errors.length+" error"+(vcheck.errors.length>1?"s":"")+" must be fixed on the FedGQL subgraph tab before exporting:\n\n"+summarizeViolations(vcheck.errors)+"\n\nSee the highlighted cells and the issues panel on the FedGQL subgraph tab.");
+    document.querySelector('nav button[data-view="edit"]').click();
+    return;
+  }
+  if(vcheck.warnings.length && !confirm(vcheck.warnings.length+" FedGQL standards warning"+(vcheck.warnings.length>1?"s":"")+" (export is allowed, but review these):\n\n"+summarizeViolations(vcheck.warnings)+"\n\nExport anyway?")) { document.querySelector('nav button[data-view="edit"]').click(); return; }
+  if(!confirm("Make sure EntityIDs (ENT-XXX) in this migration match GQLRegistry.xlsx before continuing.\n\nProceed?")) return;
+
+  // Seed ID counters from any loaded registry so new rows continue cleanly.
+  const reg = state.reg || {};
+  const out = buildSubgraphRows(sg, { ENT:maxNum(reg.Entities,"EntityID","ENT"), SCH:maxNum(reg.Schema,"SchemaID","SCH"),
+    QRY:maxNum(reg.Queries,"QueryID","QRY"), MUT:maxNum(reg.Mutations,"MutationID","MUT") });
+
+  const wb=XLSX.utils.book_new();
+  for(const s of ["Entities","Schema","Queries","Mutations"]){
+    const headers=(state.regHeaders[s] && state.regHeaders[s].length) ? state.regHeaders[s] : (CANON_HEADERS[s] || Object.keys(out[s][0]||{}));
+    const aoa=[headers, ...out[s].map(row=>headers.map(h=>row[h]!=null?row[h]:""))];
+    const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!cols"]=headers.map(h=>({wch:Math.max(12,String(h).length+2)}));
+    XLSX.utils.book_append_sheet(wb, ws, s);
+  }
+  const fname=String(sg.name||"subgraph").replace(/[^a-zA-Z0-9_-]+/g,"-")+"-subgraph.xlsx";
+  XLSX.writeFile(wb, fname); toast("Exported "+fname);
+}
+
+/* ------------- FedGQL schema standards & validation (ported from workbench.html) -------------
+   Enforces the "GQL Federation — Schema Standards and Patterns" doc so rows are validated
+   here BEFORE they are copied / exported to the GQL Registry. Kept in sync with workbench.html. */
+// FedGQL standards engine (DEFAULT_STANDARDS, VALIDATED_SHEETS, validateRow, worstSeverity, …) → common.js
+// Validate a whole buildSubgraphRows() result. Returns per-row map + severity-bucketed lists.
+function validateSubgraphRows(rows){
+  const all=[], byRow={};
+  for(const sheet of VALIDATED_SHEETS){
+    byRow[sheet]={};
+    for(const row of (rows[sheet]||[])){
+      const v=validateRow(sheet,row); if(!v.length) continue;
+      const id=row[OV_ID[sheet]]; byRow[sheet][id]=v;
+      for(const x of v) all.push(Object.assign({ sheet, rowId:id }, x));
+    }
+  }
+  return { all, byRow,
+    errors:all.filter(v=>v.severity==="error"),
+    warnings:all.filter(v=>v.severity==="warning"),
+    infos:all.filter(v=>v.severity==="info") };
+}
+// Compact text summary for confirm()/alert() gates.
+function summarizeViolations(list, max){
+  max=max||10; const shown=list.slice(0,max)
+    .map(v=>`• [${v.ruleId}] ${v.sheet}${v.subject?" "+v.subject.trim():""} — ${v.message}`).join("\n");
+  return shown + (list.length>max ? `\n… and ${list.length-max} more` : "");
+}
+// Summary line (class + head text) for the standards banner at the top of the FedGQL subgraph tab.
+function stdSummaryParts(v){
+  const cls = v.errors.length ? "err" : (v.warnings.length||v.infos.length) ? "warn" : "ok";
+  const head = v.errors.length
+    ? `<b style="color:#b91c1c">✖ ${v.errors.length} error${v.errors.length>1?"s":""} must be fixed before copying to the GQL Registry</b> <span class="hint">— see the flagged rows below</span>`
+    : (v.warnings.length||v.infos.length)
+      ? `<b style="color:#b45309">⚠ ${v.warnings.length} warning${v.warnings.length===1?"":"s"} · ${v.infos.length} suggestion${v.infos.length===1?"":"s"}</b> <span class="hint">— shown under the affected rows; copy is allowed after confirming</span>`
+      : `<b style="color:#15803d">✓ All rows pass the FedGQL schema standards</b>`;
+  return { cls, head };
+}
+// Top banner (live-updated by updateStdSummary) + the reference list of enforced standards.
+function standardsPanelHTML(v){
+  const { cls, head } = stdSummaryParts(v);
+  const rules=(STANDARDS.rules||[]).filter(r=>r.enabled!==false);
+  const ref=`<details class="stdref"><summary>FedGQL standards enforced (${rules.length} rules — from ${esc((STANDARDS.meta||{}).title||"schema standards")})</summary>
+    <ul>${rules.map(r=>`<li><span class="sev ${esc(r.severity)}">${esc(r.severity)}</span><b>${esc(r.title)}</b> — ${esc(r.message)}</li>`).join("")}</ul></details>`;
+  return `<div id="stdSummary" class="stdpanel ${cls}">${head}</div>${ref}`;
+}
+// Re-point the top banner class/text after a live revalidation.
+function updateStdSummary(v){
+  const el=document.getElementById("stdSummary"); if(!el) return;
+  const { cls, head } = stdSummaryParts(v);
+  el.className="stdpanel "+cls; el.innerHTML=head;
+}
+// Worst severity per column for a row's violations.
+function violByCol(viols){ const m={}; for(const v of viols){ const r=SEVERITY_RANK[v.severity]||0; if(!m[v.col]||r>(SEVERITY_RANK[m[v.col]]||0)) m[v.col]=v.severity; } return m; }
+// Inline assertion block rendered directly under an offending row.
+function rowViolInner(viols){
+  const order=[...viols].sort((a,b)=>(SEVERITY_RANK[b.severity]||0)-(SEVERITY_RANK[a.severity]||0));
+  return `<div class="rowviol-in">`+order.map(v=>
+    `<div class="rvi"><span class="sev ${esc(v.severity)}">${esc(v.severity)}</span>${v.subject?`<span class="mono">${esc(v.subject.trim())}</span> `:""}${esc(v.message)} <span class="fix">— ${esc(v.fix||"")}</span>${v.doc?` <a href="${esc(v.doc)}" target="_blank" rel="noopener">doc↗</a>`:""}</div>`
+  ).join("")+`</div>`;
+}
+// After an edit, re-run the standards for just the changed row and repaint its cells + inline block.
+function revalidateRow(sheet, id){
+  const sg=migrationSubgraph(); if(!sg) return;
+  const rows=buildSubgraphRows(sg);
+  updateStdSummary(validateSubgraphRows(rows));                 // keep the top banner counts live
+  const row=(rows[sheet]||[]).find(r=>r[OV_ID[sheet]]===id);
+  applyRowValidation(sheet, id, row?validateRow(sheet,row):[]);
+}
+function applyRowValidation(sheet, id, viols){
+  const dataRow=document.getElementById("row-"+sheet+"-"+id); if(!dataRow) return;
+  const byCol=violByCol(viols);
+  for(const td of dataRow.querySelectorAll("td")){
+    const k=td.getAttribute("data-k"); if(!k) continue;
+    td.classList.remove("cell-invalid","cell-warn"); td.removeAttribute("title");
+    const sev=byCol[k]; if(!sev) continue;
+    td.classList.add(sev==="error"?"cell-invalid":"cell-warn");
+    td.title=viols.filter(v=>v.col===k).map(v=>"["+v.severity+"] "+v.message).join(" — ");
+  }
+  let vr=document.getElementById("viol-"+sheet+"-"+id);
+  if(viols.length){
+    if(!vr){ vr=document.createElement("tr"); vr.id="viol-"+sheet+"-"+id; dataRow.parentNode.insertBefore(vr, dataRow.nextSibling); }
+    vr.className="rowviol "+(worstSeverity(viols)==="error"?"error":"warn");
+    const cols=parseInt(dataRow.getAttribute("data-cols"),10)||1;
+    vr.innerHTML=`<td colspan="${cols}">${rowViolInner(viols)}</td>`;
+  } else if(vr){ vr.remove(); }
+}
+
+/* --------------------- FedGQL subgraph + copy to registry ------------- */
+function renderCurrentSubgraph(){
+  const host=document.getElementById("curSg"); if(!host) return;
+  const sg=migrationSubgraph();                             // same source of truth as Code migration
+  if(!sg){ host.innerHTML='<div class="empty">Pick a GQL Registry entity to migrate on the <b>Load data</b> tab, then import its OpenAPI/Swagger spec.</div>'; return; }
+  const rows=buildSubgraphRows(sg);
+  const val=validateSubgraphRows(rows);                    // FedGQL schema-standards check
+  const sgAdds=(mapping.additions||{})[sg.id]||{};         // user-added rows get a remove control on their id cell
+  const addedIds={ Schema:new Set((sgAdds.Schema||[]).map(r=>String(r.SchemaID))),
+    Queries:new Set((sgAdds.Queries||[]).map(r=>String(r.QueryID))),
+    Mutations:new Set((sgAdds.Mutations||[]).map(r=>String(r.MutationID))) };
+  const focusTN=focusFor(sg);
+  const focusNote = focusTN ? ` · focused on <span class="mono">${esc(focusTN)}</span>` : ` · <span class="hint">pick a migration entity on Load data to focus</span>`;
+  const APPROVALS=["Draft","Proposed","Approved","Deprecated"];
+  // Highlight class for a cell: worst severity of the violations on this row that target column c.k.
+  const cellFlag=(sheet,id,k)=>{
+    const vs=(val.byRow[sheet]||{})[id]; if(!vs) return "";
+    const hit=vs.filter(v=>v.col===k); if(!hit.length) return "";
+    const w=worstSeverity(hit); return w==="error"?" cell-invalid":" cell-warn";
+  };
+  const cellTitle=(sheet,id,k)=>{
+    const vs=(val.byRow[sheet]||{})[id]; if(!vs) return "";
+    const hit=vs.filter(v=>v.col===k); if(!hit.length) return "";
+    return ` title="${esc(hit.map(v=>"["+v.severity+"] "+v.message).join(" — "))}"`;
+  };
+  // Editable cell: read-only for id/FK columns, <input>/<textarea>/<select> for edit columns.
+  const cell=(sheet,r,c)=>{
+    const id=r[OV_ID[sheet]], v=r[c.k]!=null?r[c.k]:"";
+    const flag=cellFlag(sheet,id,c.k), tip=cellTitle(sheet,id,c.k), dk=`data-k="${esc(c.k)}"`;
+    if(!c.edit && !c.sel){
+      const rm=(c.k===OV_ID[sheet] && addedIds[sheet] && addedIds[sheet].has(String(id)))
+        ? ` <button class="rm-row" title="Remove this added row" onclick="removeAddedRow(${q(sheet)},${q(id)})">✕</button>` : "";
+      return `<td ${dk} class="${c.mono?"mono":""}${flag}"${tip}>${esc(v)}${rm}</td>`;
+    }
+    if(c.links) return `<td ${dk} data-sheet="${esc(sheet)}" data-id="${esc(id)}" class="${flag.trim()}"${tip}>${parseLinks(v).map(linkLineHTML).join("")}<button class="addrow" onclick="addLinkLine(this)">＋ link</button></td>`;
+    const oc=`onchange="setRowOverride(${q(sheet)},${q(id)},${q(c.k)},this.value)"`;
+    if(c.sel){ const opts=(c.sel.includes(v)?c.sel:[v,...c.sel]).map(o=>`<option${o===v?" selected":""}>${esc(o)}</option>`).join(""); return `<td ${dk} class="${flag.trim()}"${tip}><select class="cell" ${oc}>${opts}</select></td>`; }
+    if(c.ta) return `<td ${dk} class="${flag.trim()}"${tip}><textarea class="cell" rows="2" ${oc}>${esc(v)}</textarea></td>`;
+    return `<td ${dk} class="${flag.trim()}"${tip}><input class="cell${c.mono?" mono":""}" value="${esc(v)}" ${oc}></td>`;
+  };
+  // A data row followed, when it has violations, by an inline assertion row spanning the table.
+  const bodyRow=(sheet,cols,r)=>{
+    const id=r[OV_ID[sheet]], viols=(val.byRow[sheet]||{})[id]||[];
+    const main=`<tr id="row-${esc(sheet)}-${esc(id)}" data-cols="${cols.length}">${cols.map(c=>cell(sheet,r,c)).join("")}</tr>`;
+    const vr=viols.length?`<tr id="viol-${esc(sheet)}-${esc(id)}" class="rowviol ${worstSeverity(viols)==="error"?"error":"warn"}"><td colspan="${cols.length}">${rowViolInner(viols)}</td></tr>`:"";
+    return main+vr;
+  };
+  const tbl=(sheet,cols,data,empty)=>`<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${esc(c.h)}</th>`).join("")}</tr></thead>
+    <tbody>${data.length?data.map(r=>bodyRow(sheet,cols,r)).join(""):`<tr><td colspan="${cols.length}" class="empty">${empty}</td></tr>`}</tbody></table></div>`;
+  host.innerHTML = `<h3 style="margin:0 0 2px">${esc(sg.name)} <small class="hint">· FedGQL subgraph${focusNote} · <span class="hint">cells are editable</span></small></h3>
+    ${standardsPanelHTML(val)}
+    <div class="kv">Entities (${rows.Entities.length})</div>
+    ${tbl("Entities",[{h:"EntityID",k:"EntityID",mono:1},{h:"Name",k:"Name",mono:1},{h:"Experience Domain",k:"ExperienceDomain",edit:1},{h:"Business Application",k:"BusinessApplication",edit:1},{h:"Business Capability",k:"BusinessCapability",edit:1},{h:"Comments",k:"Comments",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Entities, "no @key entities")}
+    <div class="kv">Schema — types / enums / inputs (${rows.Schema.length}) <button class="addrow" onclick="addSubgraphRow('Schema')" data-help="mig-add-rows">＋ Add type</button></div>
+    ${tbl("Schema",[{h:"SchemaID",k:"SchemaID",mono:1},{h:"Kind",k:"Kind",sel:["Key","Type","Input","Enum","Interface","Union","Scalar","Reference","Extend"]},{h:"Type name",k:"TypeName",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Definition",k:"Definition",mono:1,edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Schema, "no types")}
+    <div class="kv">Queries (${rows.Queries.length}) <button class="addrow" onclick="addSubgraphRow('Queries')" data-help="mig-add-rows">＋ Add query</button></div>
+    ${tbl("Queries",[{h:"QueryID",k:"QueryID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"REST API",k:"CurrentReference",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Queries, "no queries")}
+    <div class="kv">Mutations (${rows.Mutations.length}) <button class="addrow" onclick="addSubgraphRow('Mutations')" data-help="mig-add-rows">＋ Add mutation</button></div>
+    ${tbl("Mutations",[{h:"MutationID",k:"MutationID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"REST API",k:"CurrentReference",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Mutations, "no mutations")}
+    <div class="kv">AuthScopes (0)</div>
+    <div class="empty">Subgraphs don't define auth scopes — add these in the <b>GQL Registry</b> after copying.</div>`;
+}
+// Keep only rows the user has marked "Proposed" (each sheet), pulling in the owning Entities row of
+// any proposed child so the copied set stays structurally complete.
+function proposedRows(rows){
+  const isProp=r=>String(r.ApprovalStatus||"").trim().toLowerCase()==="proposed";
+  const out={ Entities:(rows.Entities||[]).filter(isProp), Schema:(rows.Schema||[]).filter(isProp),
+    Queries:(rows.Queries||[]).filter(isProp), Mutations:(rows.Mutations||[]).filter(isProp) };
+  const have=new Set(out.Entities.map(r=>String(r.EntityID||"")));
+  const need=new Set();
+  for(const s of ["Schema","Queries","Mutations"]) for(const r of out[s]) if(r.EntityID) need.add(String(r.EntityID));
+  for(const e of (rows.Entities||[])){ const id=String(e.EntityID||""); if(need.has(id) && !have.has(id)){ out.Entities.push(e); have.add(id); } }
+  return out;
+}
+function copyToRegistry(){
+  const sg=migrationSubgraph();
+  if(!sg){ alert("Pick the GQL Registry entity to migrate on the Load data tab first."); return; }
+  const built=buildSubgraphRows(sg);
+  if(!(built.Entities.length+built.Schema.length+built.Queries.length+built.Mutations.length)){ alert("This subgraph has no rows to copy yet."); return; }
+  // Only Proposed rows are validated and copied — set a row's Approval to "Proposed" on this tab first.
+  const rows=proposedRows(built);
+  const total=rows.Entities.length+rows.Schema.length+rows.Queries.length+rows.Mutations.length;
+  const proposedChildren=rows.Schema.length+rows.Queries.length+rows.Mutations.length;
+  if(!proposedChildren){ alert('Nothing is marked "Proposed" yet.\n\nSet a row\'s Approval to "Proposed" on the FedGQL subgraph tab — only Proposed rows are validated and copied to the GQL Registry. New rows load as "Draft".'); document.querySelector('nav button[data-view="edit"]').click(); return; }
+  const v=validateSubgraphRows(rows);
+  if(v.errors.length){
+    alert("The Proposed rows do not meet the FedGQL schema standards.\n\n"+v.errors.length+" error"+(v.errors.length>1?"s":"")+" must be fixed on the FedGQL subgraph tab before copying:\n\n"+summarizeViolations(v.errors)+"\n\nSee the highlighted cells and the issues panel on the FedGQL subgraph tab.");
+    document.querySelector('nav button[data-view="edit"]').click();
+    return;
+  }
+  if(v.warnings.length && !confirm(v.warnings.length+" FedGQL standards warning"+(v.warnings.length>1?"s":"")+" (copy is allowed, but review these):\n\n"+summarizeViolations(v.warnings)+"\n\nCopy to the GQL Registry anyway?")) { document.querySelector('nav button[data-view="edit"]').click(); return; }
+  if(!confirm("Make sure EntityIDs (ENT-XXX) in this migration match GQLRegistry.xlsx before continuing.\n\nProceed?")) return;
+  const frame=document.getElementById("regFrame");
+  if(!frame || !frame.contentWindow){ alert("GQL Registry isn't loaded yet — open the GQL Registry tab and retry."); return; }
+  frame.contentWindow.postMessage({ type:"fedgql-merge", rows }, "*");
+  toast("Copied "+total+" rows to GQL Registry");
+  document.querySelector('nav button[data-view="registry"]').click();
+}
+// Ack from the embedded registry with exact merged counts.
+window.addEventListener("message", e=>{
+  const d=e.data; if(!d || d.type!=="fedgql-merged") return;
+  const c=d.counts||{}; toast(`Registry merged: ${c.Entities||0} entities · ${c.Schema||0} types · ${c.Queries||0} queries · ${c.Mutations||0} mutations`);
+});
+
+/* -------------------- Code migration -----------------------------------
+   The code-migration tool now lives in standalone subgraph-codemigration.html
+   (embedded as an iframe on the Code migration tab). Its generators were moved
+   there; nothing in this file references them anymore. --------------------- */
+/* removed: sampleForType/gqlSelection/codeMapOps/opPayloads/CODE_LANGS/javaMap/
+   restRefOf/parseGqlParams/setCodeRest/setCodeGql/parseDefBody/latestTypes/
+   markDiffs/renderCodeMap */
+/* ------------------------------ boot ----------------------------------- */
+restore(); afterLoad(); tryAutoFetch();
+</script>
+</body>
+</html>

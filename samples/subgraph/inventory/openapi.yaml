@@ -1,0 +1,56 @@
+# Current REST API of the inventory service — migrates to subgraph.gql in this folder.
+openapi: 3.0.3
+info:
+  title: Store Inventory API
+  version: 1.3.0
+  description: Stock positions per SKU per store.
+servers:
+  - url: https://inventory.retail.example.com/v1
+paths:
+  /inventory/{sku}/stores/{storeId}:
+    get:
+      operationId: inventory
+      summary: Stock position of a SKU at a store.
+      parameters:
+        - { name: sku, in: path, required: true, schema: { type: string } }
+        - { name: storeId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Inventory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Inventory" }
+  /inventory/adjustments:
+    post:
+      operationId: adjustInventory
+      summary: Apply a stock adjustment (delta) at a store.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryAdjustmentInput" }
+      responses:
+        "200":
+          description: Updated inventory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Inventory" }
+components:
+  schemas:
+    Inventory:
+      type: object
+      required: [sku, storeId, onHand, reserved, availableToSell]
+      properties:
+        sku: { type: string }
+        storeId: { type: string }
+        onHand: { type: integer }
+        reserved: { type: integer }
+        availableToSell: { type: integer }
+    InventoryAdjustmentInput:
+      type: object
+      required: [sku, storeId, delta]
+      properties:
+        sku: { type: string }
+        storeId: { type: string }
+        delta: { type: integer }
+        reason: { type: string }

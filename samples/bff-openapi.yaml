@@ -1,0 +1,178 @@
+# Sample monolithic BFF (backend-for-frontend) REST API — the composite endpoints to migrate.
+# Each endpoint today fans out to several services by hand; after migration it becomes ONE
+# federated query/mutation across the product, pnp, inventory and search subgraphs.
+# Load it on subgraph-codemigration.html as the "REST spec", switch Mode → "BFF composite",
+# and map each endpoint to the FedGQL operations it composes:
+#   GET  /bff/search                          → searchProducts (+ Product / storeContext hydration)
+#   GET  /bff/product-detail/{sku}            → product + Product.storeContext (+ inventoryCount)
+#   GET  /bff/product-detail/{sku}/stores     → product + Product.allStoreContexts
+#   PUT  /bff/admin/prices/{sku}/stores/{id}  → updateStorePrice
+#   POST /bff/admin/inventory/adjustments     → adjustInventory
+openapi: 3.0.3
+info:
+  title: Retail Web BFF (monolithic)
+  version: 2.0.0
+  description: Web storefront BFF that aggregates the search, product, pricing and inventory services.
+servers:
+  - url: https://bff.retail.example.com
+paths:
+  /bff/search:
+    get:
+      operationId: searchAndCheckStorePrices
+      summary: Search results page — hits hydrated with title/brand (product) and store price + stock (pnp, inventory).
+      parameters:
+        - { name: query, in: query, required: true, schema: { type: string } }
+        - { name: storeId, in: query, required: true, schema: { type: string } }
+        - { name: brand, in: query, required: false, schema: { type: array, items: { type: string } } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 20 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, default: 0 } }
+      responses:
+        "200":
+          description: Search page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchPage" }
+  /bff/product-detail/{sku}:
+    get:
+      operationId: getProductDetail
+      summary: Product detail page — product attributes + price and stock at the selected store.
+      parameters:
+        - { name: sku, in: path, required: true, schema: { type: string } }
+        - { name: storeId, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Product detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductDetail" }
+  /bff/product-detail/{sku}/stores:
+    get:
+      operationId: getProductStoreComparison
+      summary: Compare price and stock for a product across all stores.
+      parameters:
+        - { name: sku, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Product with per-store price and stock
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductStoreComparison" }
+  /bff/admin/prices/{sku}/stores/{storeId}:
+    put:
+      operationId: setStorePrice
+      summary: Admin — set the price of a SKU at a store.
+      parameters:
+        - { name: sku, in: path, required: true, schema: { type: string } }
+        - { name: storeId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetStorePriceRequest" }
+      responses:
+        "200":
+          description: Updated store price
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoreOffer" }
+  /bff/admin/inventory/adjustments:
+    post:
+      operationId: postInventoryAdjustment
+      summary: Admin — apply a stock adjustment at a store.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryAdjustmentRequest" }
+      responses:
+        "200":
+          description: Updated stock position
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockPosition" }
+components:
+  schemas:
+    SearchPage:
+      type: object
+      required: [totalCount, hits]
+      properties:
+        totalCount: { type: integer }
+        hits:
+          type: array
+          items: { $ref: "#/components/schemas/SearchHit" }
+        facets:
+          type: array
+          items: { $ref: "#/components/schemas/Facet" }
+    SearchHit:
+      type: object
+      required: [sku]
+      properties:
+        sku: { type: string }
+        title: { type: string }
+        brand: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        inventoryCount: { type: integer }
+    Facet:
+      type: object
+      properties:
+        field: { type: string }
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              value: { type: string }
+              count: { type: integer }
+    ProductDetail:
+      type: object
+      required: [sku, title]
+      properties:
+        sku: { type: string }
+        title: { type: string }
+        description: { type: string }
+        imageUrl: { type: string, format: uri }
+        brand: { type: string }
+        storeOffer: { $ref: "#/components/schemas/StoreOffer" }
+    ProductStoreComparison:
+      type: object
+      required: [sku]
+      properties:
+        sku: { type: string }
+        title: { type: string }
+        stores:
+          type: array
+          items: { $ref: "#/components/schemas/StoreOffer" }
+    StoreOffer:
+      type: object
+      required: [storeId]
+      properties:
+        storeId: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        inventoryCount: { type: integer }
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number }
+        currency: { type: string }
+    SetStorePriceRequest:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number }
+        currency: { type: string }
+    InventoryAdjustmentRequest:
+      type: object
+      required: [sku, storeId, delta]
+      properties:
+        sku: { type: string }
+        storeId: { type: string }
+        delta: { type: integer }
+        reason: { type: string }
+    StockPosition:
+      type: object
+      properties:
+        sku: { type: string }
+        storeId: { type: string }
+        onHand: { type: integer }
+        availableToSell: { type: integer }

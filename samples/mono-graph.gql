@@ -1,0 +1,93 @@
+# Sample MonoGraph (monolithic "monograph") schema — the source SDL to migrate FROM.
+# Load it on gql-migration.html → MonoGraph schema tab. Everything lives in one graph today;
+# the target splits it into the product, pnp, inventory and search subgraphs
+# (see samples/subgraph/*/subgraph.gql and the "Load example" registry).
+
+scalar Money
+
+"""Merchandising product master data plus store-scoped price and stock (to be split)."""
+type Product {
+  sku: String!
+  title: String!
+  description: String
+  imageUrl: String
+  brand: String
+  storeContext(storeId: ID!): ProductStoreContext
+  allStoreContexts: [ProductStoreContext!]!
+}
+
+"""A product at a specific physical store — price and stock resolved in one place today."""
+type ProductStoreContext {
+  sku: String!
+  storeId: ID!
+  price: Price!
+  inventoryCount: Int!
+}
+
+type Price {
+  amount: Money!
+  currency: String!
+}
+
+type Inventory {
+  sku: String!
+  storeId: ID!
+  onHand: Int!
+  reserved: Int!
+  availableToSell: Int!
+}
+
+type SearchResponse {
+  hits: [Product!]!
+  totalCount: Int!
+  facets: [SearchFacet!]!
+}
+
+type SearchFacet {
+  field: String!
+  options: [FacetOption!]!
+}
+
+type FacetOption {
+  value: String!
+  count: Int!
+}
+
+input ProductFilterInput {
+  brand: [String!]!
+  inStockAtStore: ID
+}
+
+input UpdateStorePriceInput {
+  sku: String!
+  storeId: ID!
+  amount: Money!
+  currency: String!
+}
+
+input InventoryAdjustmentInput {
+  sku: String!
+  storeId: ID!
+  delta: Int!
+  reason: String
+}
+
+type Query {
+  """Fetch a product by SKU."""
+  product(sku: String!): Product
+  """Batch-fetch products by SKU."""
+  products(skus: [String!]!): [Product!]!
+  """Store-scoped price and stock for a SKU."""
+  productStoreContext(sku: String!, storeId: ID!): ProductStoreContext
+  """Stock position of a SKU at a store."""
+  inventory(sku: String!, storeId: ID!): Inventory
+  """Full-text product search."""
+  searchProducts(query: String!, filters: ProductFilterInput, limit: Int, offset: Int): SearchResponse!
+}
+
+type Mutation {
+  """Set the price of a SKU at a store."""
+  updateStorePrice(input: UpdateStorePriceInput!): ProductStoreContext
+  """Apply a stock adjustment (delta) at a store."""
+  adjustInventory(input: InventoryAdjustmentInput!): Inventory
+}

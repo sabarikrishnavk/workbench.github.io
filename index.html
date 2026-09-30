@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FedGQL Migration Workbench</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  :root{
+    --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+  }
+  body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55; }
+  header{ background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  header a.btn{ text-decoration: none; }
+  a.btn.primary{ background: var(--accent); color: #fff; border-color: var(--accent); }
+  a.btn.primary:hover{ filter: brightness(1.08); }
+  main{ max-width: 1120px; margin: 0 auto; padding: 0 16px 60px; }
+  .hero{ padding: 48px 0 28px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center; }
+  .hero h2{ font-size: 36px; line-height: 1.15; margin: 0 0 12px; }
+  .hero p{ font-size: 17px; color: var(--muted); margin: 0 0 18px; }
+  .hero .ctas{ display: flex; gap: 10px; flex-wrap: wrap; }
+  .hero .ctas a{ text-decoration: none; padding: 9px 16px; font-size: 15px; }
+  .kicker{ font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+  .flow{ display: grid; gap: 8px; }
+  .flow div{ background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+  .flow div b{ display: block; }
+  .flow .arrow{ border: none; background: none; text-align: center; padding: 0; color: var(--muted); }
+  .flow .hi{ border-color: var(--accent); background: var(--accent-soft); }
+  h2.sec{ font-size: 22px; margin: 36px 0 12px; }
+  .tools{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .tool{ background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 6px; }
+  .tool .ico{ font-size: 28px; }
+  .tool h3{ margin: 0; font-size: 18px; }
+  .tool p{ margin: 0; color: var(--muted); font-size: 14px; flex: 1; }
+  .tool ul{ margin: 4px 0 8px; padding-left: 18px; font-size: 13.5px; }
+  .tool .acts{ display: flex; gap: 8px; flex-wrap: wrap; }
+  .tool .acts a{ text-decoration: none; }
+  ol.steps{ counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
+  ol.steps li{ counter-increment: s; position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 10px 48px; font-size: 14.5px; }
+  ol.steps li::before{ content: counter(s); position: absolute; left: 12px; top: 10px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; font-size: 12.5px; display: flex; align-items: center; justify-content: center; }
+  ol.steps a{ color: var(--accent); }
+  .demo{ background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .demo iframe{ display: block; width: 100%; aspect-ratio: 16 / 10; border: 0; background: #0f1222; }
+  .demo .bar{ display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 14px; flex-wrap: wrap; }
+  .demo .bar a{ text-decoration: none; }
+  .grid2{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .panel{ background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .panel h3{ margin: 0 0 6px; font-size: 16px; }
+  .panel ul{ margin: 0; padding-left: 18px; font-size: 14px; }
+  code{ background: #f1f3f5; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  footer{ color: var(--muted); font-size: 13px; text-align: center; padding: 24px 0 0; }
+  @media (max-width: 860px){
+    .hero, .tools, .grid2, ol.steps{ grid-template-columns: 1fr; }
+    .hero{ padding-top: 28px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>FedGQL Migration Workbench</h1>
+  <span class="spacer"></span>
+  <a class="btn" href="workbench.html">Registry workbench</a>
+  <a class="btn" href="gql-migration.html">GQL migration</a>
+  <a class="btn" href="subgraph-codemigration.html">Code migration</a>
+  <a class="btn" href="help.html">❓ Help</a>
+  <a class="btn primary" href="demo.html">▶ Presentation</a>
+</header>
+
+<main>
+  <section class="hero">
+    <div>
+      <div class="kicker">MonoGraph + BFF REST → federated GraphQL</div>
+      <h2>Plan, generate and govern the move to a federated supergraph</h2>
+      <p>Three browser-only tools share one Excel registry, <code>GQLRegistry.xlsx</code>. Model the target
+        subgraphs, generate them from the OpenAPI specs of the services you have today, get them approved,
+        and generate the client and server code. No build, no server, and nothing is uploaded.</p>
+      <div class="ctas">
+        <a class="btn primary" href="workbench.html">Open the registry workbench</a>
+        <a class="btn" href="help.html#quick-start">Step-by-step guide</a>
+        <a class="btn" href="demo.html">▶ Watch the presentation</a>
+      </div>
+    </div>
+    <div class="flow" aria-label="How the tools fit together">
+      <div><b>MonoGraph SDL · subgraph OpenAPI · BFF OpenAPI</b><span class="hint">what exists today</span></div>
+      <div class="arrow">↓ GQL migration</div>
+      <div class="hi"><b>GQLRegistry.xlsx</b><span class="hint">entities · schema · queries · mutations · auth scopes</span></div>
+      <div class="arrow">↓ Registry workbench (validate · approve · SharePoint / Google Drive)</div>
+      <div><b>Federated subgraphs + migrated client and server code</b><span class="hint">Code migration</span></div>
+    </div>
+  </section>
+
+  <h2 class="sec">The tools</h2>
+  <div class="tools">
+    <div class="tool">
+      <div class="ico">📘</div><h3>Registry workbench</h3>
+      <p>The registry as an editable grid, checked against the schema standards as you edit.</p>
+      <ul><li>Entities, Schema, Queries, Mutations, AuthScopes</li><li>Federated graph, explorer, subgraph SDL, summary</li><li>Excel export with dropdowns · SharePoint / Google Drive sync</li></ul>
+      <div class="acts"><a class="btn primary" href="workbench.html">Open</a><a class="btn" href="help.html#workbench">Help</a><a class="btn" href="demo.html#wb">Slides</a></div>
+    </div>
+    <div class="tool">
+      <div class="ico">🔀</div><h3>GQL migration</h3>
+      <p>Generate an entity's FedGQL subgraph rows from its service's OpenAPI spec and the MonoGraph.</p>
+      <ul><li>Import OpenAPI and browse the MonoGraph</li><li>Edit the rows, then Draft → Proposed</li><li>Copy into the registry or export the subgraph</li></ul>
+      <div class="acts"><a class="btn primary" href="gql-migration.html">Open</a><a class="btn" href="help.html#migration">Help</a><a class="btn" href="demo.html#mig">Slides</a></div>
+    </div>
+    <div class="tool">
+      <div class="ico">🧩</div><h3>Code migration</h3>
+      <p>Move callers from REST and BFF endpoints to FedGQL operations.</p>
+      <ul><li>Single op: client or server code</li><li>BFF composite: federated query + sequence trace</li><li>Mappings saved in a BffMappings sheet</li></ul>
+      <div class="acts"><a class="btn primary" href="subgraph-codemigration.html">Open</a><a class="btn" href="help.html#code-migration">Help</a><a class="btn" href="demo.html#code">Slides</a></div>
+    </div>
+  </div>
+
+  <h2 class="sec">Start here</h2>
+  <ol class="steps">
+    <li>Open the <a href="workbench.html">registry workbench</a>. Click <b>Load .xlsx</b> for your registry, or <b>Load example</b> to explore.</li>
+    <li>Add the target <b>entities</b>, with domain, business application (subgraph) and LeanIX / Confluence / ER links.</li>
+    <li>In <a href="gql-migration.html">GQL migration</a>, pick the entity and <b>import its service's OpenAPI spec</b>.</li>
+    <li>Edit the generated rows, set them to <b>Proposed</b>, and <b>copy them to the GQL Registry</b>.</li>
+    <li>Review and <b>approve</b> in the registry, then export or <b>Save &amp; push</b> to SharePoint or Google Drive.</li>
+    <li>In <a href="subgraph-codemigration.html">Code migration</a>, generate the <b>REST/BFF → FedGQL code</b>.</li>
+  </ol>
+  <p class="hint" style="margin-top:8px">Every button in the tools has a <span class="help-ico" style="display:inline-flex">?</span> icon that opens its section in <a href="help.html">Help</a>.</p>
+
+  <h2 class="sec">Presentation</h2>
+  <div class="demo">
+    <iframe src="demo.html" title="Workbench presentation" loading="lazy"></iframe>
+    <div class="bar"><span>A 15-slide walkthrough of each tool's features. Click the slide or use ← → to move through it.</span><span class="spacer" style="flex:1"></span><a class="btn primary" href="demo.html">Open full screen ▶</a></div>
+  </div>
+
+  <h2 class="sec">Samples &amp; reference</h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Retail sample (<code>samples/</code>)</h3>
+      <ul>
+        <li>Four subgraphs: <b>product</b>, <b>pnp</b>, <b>inventory</b>, <b>search</b>. Each folder has the target <code>subgraph.gql</code> and the service's <code>openapi.yaml</code>.</li>
+        <li><code>mono-graph.gql</code>: the monolith to migrate from.</li>
+        <li><code>bff-openapi.yaml</code>: composite BFF endpoints to migrate.</li>
+        <li><code>GQLRegistry-sample.xlsx</code>: the matching registry.</li>
+      </ul>
+      <p style="margin:10px 0 0"><a href="help.html#try-samples">How to walk through the samples →</a></p>
+    </div>
+    <div class="panel">
+      <h3>Reference</h3>
+      <ul>
+        <li><a href="help.html">Help</a>: every button, tab and workflow.</li>
+        <li><a href="help.html#row-ids">Row IDs</a>, <a href="help.html#links">Links &amp; References</a> and <a href="help.html#wb-standards">schema standards</a>.</li>
+        <li><code>standards.json</code>: the editable schema-standards rules.</li>
+        <li><code>README.md</code>: the workbook column reference.</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>Runs entirely in your browser. Data is cached in local storage; the Excel workbook is the copy you share.</footer>
+</main>
+</body>
+</html>

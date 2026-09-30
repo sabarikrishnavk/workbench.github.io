@@ -1,0 +1,59 @@
+# Current REST API of the search service — migrates to subgraph.gql in this folder.
+# Hits carry only the SKU; callers hydrate product details, price and stock themselves today
+# (after migration the router does that via the Product @key).
+openapi: 3.0.3
+info:
+  title: Product Search API
+  version: 3.2.0
+  description: Full-text search, filtering and facets over the product index.
+servers:
+  - url: https://search.retail.example.com/v3
+paths:
+  /search:
+    get:
+      operationId: searchProducts
+      summary: Main entry point for search and catalogue exploration.
+      parameters:
+        - { name: query, in: query, required: true, schema: { type: string } }
+        - { name: brand, in: query, required: false, schema: { type: array, items: { type: string } } }
+        - { name: inStockAtStore, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 20 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, default: 0 } }
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResponse" }
+components:
+  schemas:
+    SearchResponse:
+      type: object
+      required: [hits, totalCount, facets]
+      properties:
+        hits:
+          type: array
+          items: { $ref: "#/components/schemas/ProductHit" }
+        totalCount: { type: integer }
+        facets:
+          type: array
+          items: { $ref: "#/components/schemas/SearchFacet" }
+    ProductHit:
+      type: object
+      required: [sku]
+      properties:
+        sku: { type: string }
+    SearchFacet:
+      type: object
+      required: [field, options]
+      properties:
+        field: { type: string }
+        options:
+          type: array
+          items: { $ref: "#/components/schemas/FacetOption" }
+    FacetOption:
+      type: object
+      required: [value, count]
+      properties:
+        value: { type: string }
+        count: { type: integer }

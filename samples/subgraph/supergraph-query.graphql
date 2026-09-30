@@ -1,0 +1,26 @@
+# One request across the supergraph: full-text search (search), global catalogue details
+# (product) and price + stock at the selected store (pnp + inventory).
+#
+# Router execution plan:
+#   1. search    — searchProducts runs against the search engine, returns Product refs (skus).
+#   2. parallel  — product resolves title/brand for those skus; pnp resolves
+#                  storeContext(storeId) → price; inventory adds inventoryCount to each
+#                  ProductStoreContext (sku + storeId).
+#   3. assemble  — the router merges the fragments into one JSON response.
+query SearchAndCheckStorePrices {
+  searchProducts(query: "running shoes", filters: { brand: [], inStockAtStore: "store-melbourne-01" }) {
+    totalCount
+    hits {
+      sku
+      title                                        # product
+      brand                                        # product
+      storeContext(storeId: "store-melbourne-01") { # pnp
+        price {
+          amount
+          currency
+        }
+        inventoryCount                             # inventory
+      }
+    }
+  }
+}

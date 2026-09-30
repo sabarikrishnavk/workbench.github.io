@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Subgraph Code Migration — REST → FedGQL</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="common.js"></script>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  :root{
+    --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --query: #0b7285; --mutation: #b45309; --sub: #15803d;
+    --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+  }
+  body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 14px; display: flex; flex-direction: column; min-height: 100vh; }
+  header{ background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  header .status{ font-size: 12px; color: var(--muted); }
+  header .status b{ color: var(--ink); }
+  header .status .miss{ color: var(--bad); }
+  main{ flex: 1; padding: 16px; }
+  th{ background: #fafbfc; font-weight: 600; }
+  .table-wrap{ overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .kv{ color: var(--muted); font-size: 12px; margin: 10px 0 3px; text-transform: uppercase; letter-spacing: .03em; }
+  .picker{ border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; min-width: 260px; }
+  .selrow{ display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-bottom: 4px; }
+  .selrow select{ min-width: 200px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  .code-head{ display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 6px; flex-wrap: wrap; }
+  .grid2{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; min-width: 0; }
+  /* mode toggle */
+  .seg{ display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button{ border: 0; background: var(--panel); padding: 6px 14px; font: inherit; cursor: pointer; color: var(--muted); }
+  .seg button + button{ border-left: 1px solid var(--line); }
+  .seg button.active{ background: var(--accent); color: #fff; }
+  /* op-set editor */
+  .addrow{ border: 1px dashed var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; }
+  .addrow:hover{ background: var(--accent); color: #fff; }
+  .rm-row{ border: 0; background: transparent; color: var(--bad); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 6px; }
+  .rm-row:hover{ color: #fff; background: var(--bad); border-radius: 4px; }
+  td input.cell, td select.cell{ width: 100%; box-sizing: border-box; padding: 4px 6px; border: 1px solid transparent; border-radius: 5px; font: inherit; background: transparent; }
+  td input.cell:hover, td select.cell:hover{ border-color: var(--line); }
+  td input.cell:focus, td select.cell:focus{ border-color: var(--accent); outline: none; background: #fff; }
+  .badge{ display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
+  .badge.query{ background: #e6f3f5; color: var(--query); }
+  .badge.mutation{ background: #fdf0e0; color: var(--mutation); }
+  .op-picker{ position: relative; display: inline-block; }
+  .op-menu{ position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 320px; max-height: 340px; overflow: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 6px; }
+  .op-menu .grp{ font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); padding: 6px 8px 2px; }
+  .op-menu button.opt{ display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 5px 8px; border-radius: 5px; font: inherit; cursor: pointer; }
+  .op-menu button.opt:hover{ background: var(--accent-soft); }
+  .stdref{ border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: #fff; }
+  .stdref>summary{ cursor: pointer; list-style: none; }
+  .stdref>summary::-webkit-details-marker{ display: none; }
+  .stdref>summary::before{ content: "▸"; color: var(--muted); margin-right: 6px; }
+  .stdref[open]>summary::before{ content: "▾"; }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="index.html" target="_top" style="color:inherit;text-decoration:none" title="Workbench home">GQL -FedGQL/SubGraph Code Migration</a></h1>
+  <span class="hint">REST → FedGQL · client &amp; server code</span>
+  <span class="spacer"></span>
+  <a class="btn help-link" href="help.html#code-migration" target="_blank" rel="noopener" title="How to generate migration code">❓ Help</a>
+  <a class="btn help-link" href="demo.html#code" target="_blank" rel="noopener" title="Slide walkthrough of the features">▶ Demo</a>
+  <span class="status" id="status">load a registry and a REST spec to begin</span>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Inputs</h2>
+    <p class="desc">Load the <b>FedGQL schema</b> (from <span class="mono">GQLRegistry.xlsx</span> — its
+      Schema / Queries / Mutations sheets) and the <b>existing REST API</b> (OpenAPI/Swagger). Then map a
+      REST operation to a GraphQL operation and generate <b>client</b> or <b>server</b> code.</p>
+    <div class="pickers">
+      <div class="picker">
+        <b>GQLRegistry.xlsx</b>
+        <label class="btn" for="f-reg" style="margin-top:6px;display:inline-block" data-help="code-inputs">Choose .xlsx…</label>
+        <input type="file" id="f-reg" accept=".xlsx" />
+        <div class="st missing" id="st-reg">not loaded</div>
+      </div>
+      <div class="picker">
+        <b>REST spec (OpenAPI / Swagger)</b>
+        <label class="btn" for="f-rest" style="margin-top:6px;display:inline-block" data-help="code-inputs">Choose .yaml/.json…</label>
+        <input type="file" id="f-rest" accept=".yaml,.yml,.json" />
+        <div class="st missing" id="st-rest">not loaded</div>
+      </div>
+    </div>
+    <div class="selrow" style="margin-top:10px;align-items:center">
+      <label><b data-help="code-modes">Mode</b>
+        <div class="seg" id="modeSeg">
+          <button data-mode="single" class="active" onclick="setMode('single')">Single op</button>
+          <button data-mode="bff" onclick="setMode('bff')">BFF composite</button>
+        </div></label>
+      <span class="spacer"></span>
+      <button class="btn" id="btnExport" onclick="exportRegistryWithBff()" title="Export the loaded registry with a BffMappings sheet" data-help="code-export">Export registry + BFF mappings (.xlsx)</button>
+    </div>
+    <p class="hint" style="margin:6px 0 0"><b>Single op</b>: map one REST operation to one FedGQL op.
+      <b>BFF composite</b>: map one BFF REST endpoint to a set of FedGQL queries &amp; mutations from
+      different subgraphs, and generate the composed document + server/client code.</p>
+  </div>
+
+  <div class="card" id="domainCard">
+    <h2>Subgraph / domain</h2>
+    <p class="desc">Pick the <b>GQL Registry entity</b> (subgraph) to migrate — the GraphQL operations
+      below are scoped to that entity, and its domain details are shown for context.</p>
+    <div id="domainDetails"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> above, then pick a subgraph.</div></div>
+  </div>
+
+  <div class="card" id="selCard">
+    <div class="selrow">
+      <label for="selRest"><b data-help="code-single">REST API operation</b>
+        <select id="selRest" onchange="setSelRest(this.value)"></select></label>
+      <label for="selGql"><b>GraphQL operation</b>
+        <select id="selGql" onchange="setSelGql(this.value)"></select></label>
+      <label for="codeOut"><b>Output</b>
+        <select id="codeOut" onchange="setOut(this.value)">
+          <option>Client</option>
+          <option>Server</option>
+        </select></label>
+      <label for="codeLang"><b>Language</b>
+        <select id="codeLang" onchange="setLang(this.value)"></select></label>
+    </div>
+    <p class="hint" style="margin:0">Server code exposes the REST controller as a GraphQL resolver
+      (Java = Spring for GraphQL, .NET = Hot Chocolate, Node.js = Apollo Server).</p>
+  </div>
+
+  <div class="card" id="codeCard"><div id="codeMap"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> and a REST spec above to generate code.</div></div></div>
+
+  <div class="card" id="bffCard" style="display:none">
+    <h2>BFF composite → FedGQL set</h2>
+    <p class="desc">Pick the <b>BFF REST endpoint</b> to migrate, then add the FedGQL queries &amp;
+      mutations (from any subgraph) it composes. The composed document, server/client code and per-op
+      field mappings are generated below and saved to a <span class="mono">BffMappings</span> sheet on export.</p>
+    <div class="selrow">
+      <label for="bffSel"><b data-help="code-bff">BFF REST endpoint</b>
+        <select id="bffSel" onchange="setBffRef(this.value)"></select></label>
+      <label for="bffName"><b>Composite operation name</b>
+        <input id="bffName" class="cell" style="min-width:200px;border:1px solid var(--line)" oninput="setBffName(this.value)" onchange="render()" /></label>
+    </div>
+    <div id="bffEditor"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> and a REST spec above.</div></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ------------------------------ utils (ported from gql-migration.html) ---- */
+function toast(msg){ const t=document.getElementById("toast"); if(!t) return; t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1400); }
+// JSON string safe to embed inside a single-quoted HTML attribute (onclick).
+function attrJson(s){ return JSON.stringify(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/'/g,"&#39;"); }
+// Wrap whole-word occurrences of changed identifiers with a diff marker (used on esc'd code / SDL).
+function markDiffs(s, tokens){
+  if(!tokens || !tokens.size) return s;
+  for(const t of [...tokens].filter(x=>x&&/^[A-Za-z_]\w*$/.test(x)).sort((a,b)=>b.length-a.length)){
+    s=s.replace(new RegExp("\\b"+t.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","g"), '<mark class="diff">'+t+'</mark>');
+  }
+  return s;
+}
+function restRefOf(op){ return `${op.method||""} ${op.path||""}`.trim(); }
+function parseGqlParams(str){
+  return String(str||"").split(",").map(s=>s.trim()).filter(Boolean).map(s=>{
+    const i=s.indexOf(":"); return i<0 ? {name:s, type:"String"} : {name:s.slice(0,i).trim(), type:s.slice(i+1).trim()||"String"};
+  });
+}
+// Parse a registry Schema.Definition body ('@key(fields:"id") {\n id: ID! ...}') back into a type object.
+function parseDefBody(kind, name, def){
+  def=String(def||""); const k=String(kind||"");
+  const km=def.match(/@key\(fields:\s*"([^"]*)"\)/); const key=km?km[1]:"";
+  // borrowed entity from another subgraph: Reference (stub) or Extend (field contribution)
+  const extMode = k==="Reference" ? "reference" : (k==="Extend" ? "extend"
+                : (/^extend\s+type/.test(def.trim()) ? "extend" : (/resolvable:\s*false/.test(def) ? "reference" : "")));
+  const isEntity = k==="Key" || !!extMode || /@key/.test(def);
+  const inner=(def.match(/\{([\s\S]*)\}/)||[,""])[1];
+  const lines=inner.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).filter(s=>!s.startsWith("#"));
+  if(kind==="Enum") return { name, kind:"enum", isEntity:false, key:"", fields:[], values:lines };
+  const fields=lines.map(l=>{ const i=l.indexOf(":"); return i<0?null:{ name:l.slice(0,i).trim(), type:l.slice(i+1).trim() }; }).filter(Boolean);
+  const t={ name, kind:(kind==="Input"?"input":"type"), isEntity, key:key||(isEntity?keyOf(fields):""), fields, values:[] };
+  if(extMode){ t.ext=extMode; if(extMode==="reference") t.external=true; }
+  return t;
+}
+
+/* ---------------- OpenAPI → REST ops / types (ported) ------------------- */
+function parseOpenAPI(text, sgName){
+  let spec; text=String(text||"").trim();
+  try{ spec = text.startsWith("{") ? JSON.parse(text) : jsyaml.load(text); }
+  catch(e){ try{ spec = jsyaml.load(text); }catch(e2){ throw new Error("Could not parse spec as JSON or YAML"); } }
+  const comps = (spec.components && spec.components.schemas) || spec.definitions || {};
+  const inputNames=new Set();
+  for(const pathOps of Object.values(spec.paths||{})){
+    for(const op of Object.values(pathOps||{})){
+      const rb=op && op.requestBody && op.requestBody.content && op.requestBody.content["application/json"] && op.requestBody.content["application/json"].schema;
+      if(rb && rb.$ref) inputNames.add(refName(rb.$ref));
+    }
+  }
+  const types=[]; const byName={};
+  function addType(t){ if(!t.name) return null; if(byName[t.name]) return byName[t.name]; byName[t.name]=t; types.push(t); return t; }
+  function resolveType(sch, fallback){
+    if(!sch) return "String";
+    if(sch.$ref){ return refName(sch.$ref); }
+    if(Array.isArray(sch.enum)){ const nm=cap(fallback||"Enum"); addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String)}); return nm; }
+    if(sch.type==="array"){ return "["+resolveType(sch.items, fallback)+"]"; }
+    if(sch.type==="object" || sch.properties){
+      const nm=cap(fallback||"Object");
+      const fields=objFields(sch, nm);
+      const k=entityKey(nm, fields);
+      addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[]});
+      return nm;
+    }
+    return gqlScalar(sch.type);
+  }
+  function objFields(sch, ownerName){
+    const props=sch.properties||{}; const req=new Set(sch.required||[]);
+    return Object.entries(props).map(([k,v])=>{ let t=resolveType(v, ownerName+cap(k)); if(req.has(k)) t+="!"; return {name:k, type:t}; });
+  }
+  for(const [name, sch] of Object.entries(comps)){
+    const nm=cap(slug(name).replace(/ /g,"")) || name;
+    if(sch && Array.isArray(sch.enum)){ addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String)}); continue; }
+    const s=derefSchema(sch, comps);
+    if(s.type==="object" || s.properties){
+      const fields=objFields(s, nm);
+      if(inputNames.has(nm)) addType({name:nm, kind:"input", isEntity:false, key:"", fields, values:[]});
+      else { const k=entityKey(nm, fields); addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[]}); }
+    } else if(Array.isArray(s.enum)){
+      addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:s.enum.map(String)});
+    } else {
+      addType({name:nm, kind:"type", isEntity:false, key:"", fields:[{name:"value", type:(resolveType(s, nm+"Value")||"String")}], values:[]});
+    }
+  }
+  const ops=[]; const paths=spec.paths||{};
+  for(const [p, pathOps] of Object.entries(paths)){
+    const shared = (pathOps && pathOps.parameters) || [];
+    for(const [method, op] of Object.entries(pathOps||{})){
+      if(!["get","post","put","patch","delete"].includes(String(method).toLowerCase())) continue;
+      if(!op || typeof op!=="object") continue;
+      const opName = op.operationId || (method+cap(slug(p)).replace(/ /g,""));
+      const resp=(op.responses && (op.responses["200"]||op.responses["201"]||op.responses["2XX"]||op.responses.default))||{};
+      const rsch=(resp.content && resp.content["application/json"] && resp.content["application/json"].schema) || resp.schema || null;
+      const returns = rsch ? resolveType(rsch, opName+"Response") : "Boolean";
+      const args=[];
+      for(const pr of [...shared, ...(op.parameters||[])]){
+        if(!pr || pr.$ref) continue;
+        if(["path","query"].includes(pr.in) || pr.in==null){
+          const t=(pr.schema?resolveType(pr.schema, opName+cap(pr.name||"Arg")):gqlScalar(pr.type))||"String";
+          args.push({name:pr.name, type:t+(pr.required?"!":"")});
+        }
+      }
+      const rb = op.requestBody && op.requestBody.content && op.requestBody.content["application/json"] && op.requestBody.content["application/json"].schema;
+      if(rb){ const t=resolveType(rb, opName+"Input"); const it=byName[baseType(t)]; if(it && it.kind==="type"){ it.kind="input"; it.isEntity=false; it.key=""; } args.push({name:"input", type:t+(op.requestBody.required?"!":"")}); }
+      const bt=baseType(returns);
+      const entity = byName[bt] ? bt : "";
+      ops.push({ id:uid(), name:opName, method:String(method).toUpperCase(), path:p,
+        opKind: String(method).toLowerCase()==="get"?"query":"mutation",
+        args, returns, entity, notes: op.summary||op.description||"" });
+    }
+  }
+  return { id:uid(), name:sgName, spec:"", ops, types };
+}
+
+/* ---------------- sample payloads / client generators (ported) ---------- */
+function sampleForType(type, sg, depth){
+  depth=depth||0; const isList=/^\s*\[/.test(String(type||""));
+  const bt=baseType(type), named=(sg.types||[]).find(t=>t.name===bt);
+  let one;
+  if(named && named.kind==="enum"){ one=(named.values||[])[0]||"VALUE"; }
+  else if(named && depth<2){ one={}; for(const f of (named.fields||[])) one[f.name]=sampleForType(f.type, sg, depth+1); }
+  else { const b=bt.toLowerCase();
+    if(b==="int"||b==="integer"||b==="long") one=42;
+    else if(b==="float"||b==="double"||b==="number"||b==="bigdecimal") one=42.5;
+    else if(b==="boolean"||b==="bool") one=true;
+    else if(b==="id") one="id-123";
+    else one="sample"; }
+  return isList ? [one] : one;
+}
+function gqlSelection(t, sg, indent, depth){
+  indent=indent||"  "; depth=depth||0;
+  const lines=[];
+  for(const f of ((t&&t.fields)||[])){
+    const bt=baseType(f.type), named=(sg.types||[]).find(x=>x.name===bt);
+    if(named && named.kind!=="enum" && depth<1){
+      lines.push(indent+f.name+" {"); lines.push(gqlSelection(named, sg, indent+"  ", depth+1)); lines.push(indent+"}");
+    } else lines.push(indent+f.name);
+  }
+  return lines.join("\n");
+}
+function opPayloads(op, sg, ent){
+  const varDefs=(op.args||[]).map(a=>`$${a.name}: ${a.type}`).join(", ");
+  const fieldArgs=(op.args||[]).map(a=>`${a.name}: $${a.name}`).join(", ");
+  const variables={}; for(const a of (op.args||[])){ variables[a.name]=sampleForType(a.type, sg, 1); }
+  const sel=gqlSelection(ent, sg, "    ");
+  const kw=op.opKind==="mutation"?"mutation":"query";
+  const opTitle=cap(op.name);
+  const gqlDoc=`${kw} ${opTitle}${varDefs?`(${varDefs})`:""} {\n  ${op.name}${fieldArgs?`(${fieldArgs})`:""} {\n${sel}\n  }\n}`;
+  const dataObj={}; dataObj[op.name]= /^\s*\[/.test(String(op.returns||"")) ? [sampleForType(ent.name, sg, 1)] : sampleForType(ent.name, sg, 1);
+  const restBody=op.opKind==="mutation" ? sampleForType(ent.name, sg, 1) : null;
+  return { varDefs, fieldArgs, variables, gqlDoc, gqlResponse:{ data:dataObj }, restResponse:sampleForType(ent.name, sg, 1), restBody };
+}
+function javaMap(obj){ const e=Object.entries(obj); if(!e.length) return "Map.of()"; return "Map.of("+e.map(([k,v])=>`"${k}", ${typeof v==="string"?`"${v}"`:v}`).join(", ")+")"; }
+const CODE_LANGS={
+  "JavaScript": (op,p,ctx)=>({
+    rest:`// Current — REST (${op.method} ${op.path})\nconst res = await fetch(\`\${BASE}${(op.path||"").replace(/\{(\w+)\}/g,(m,k)=>"${"+k+"}")}\`${op.opKind==="mutation"?`, {\n  method: "${op.method}",\n  headers: { "Content-Type": "application/json" },\n  body: JSON.stringify(payload)\n}`:""});\nconst ${ctx.varName} = await res.json();`,
+    gql:`// Target — FedGQL\nconst query = \`\n${p.gqlDoc}\`;\nconst res = await fetch(GRAPHQL_URL, {\n  method: "POST",\n  headers: { "Content-Type": "application/json" },\n  body: JSON.stringify({ query, variables: ${JSON.stringify(p.variables)} })\n});\nconst { data } = await res.json();\nconst ${ctx.varName} = data.${op.name};`
+  }),
+  "Java": (op,p,ctx)=>({
+    rest:`// Current — REST (${op.method} ${op.path})\nHttpRequest req = HttpRequest.newBuilder()\n    .uri(URI.create(BASE + "${op.path}"))\n    ${op.opKind==="mutation"?`.header("Content-Type","application/json")\n    .${op.method}(BodyPublishers.ofString(mapper.writeValueAsString(payload)))`:".GET()"}\n    .build();\nHttpResponse<String> res = client.send(req, BodyHandlers.ofString());\n${cap(ctx.entity)} ${ctx.varName} = mapper.readValue(res.body(), ${cap(ctx.entity)}.class);`,
+    gql:`// Target — FedGQL\nString query = "${p.gqlDoc.replace(/\n/g,"\\n").replace(/"/g,'\\"')}";\nMap<String,Object> body = Map.of("query", query, "variables", ${javaMap(p.variables)});\nHttpRequest req = HttpRequest.newBuilder()\n    .uri(URI.create(GRAPHQL_URL))\n    .header("Content-Type","application/json")\n    .POST(BodyPublishers.ofString(mapper.writeValueAsString(body)))\n    .build();\nHttpResponse<String> res = client.send(req, BodyHandlers.ofString());\n// res.body(): { "data": { "${op.name}": { ... } } }`
+  }),
+  "Android (Kotlin)": (op,p,ctx)=>({
+    rest:`// Current — REST (Retrofit)\ninterface ${cap(ctx.entity)}Api {\n  @${cap(op.method.toLowerCase())}("${(op.path||"").replace(/^\//,"")}")\n  suspend fun ${op.name}(${(op.args||[]).map(a=>`@Path("${a.name}") ${a.name}: String`).join(", ")}): ${cap(ctx.entity)}\n}\nval ${ctx.varName} = api.${op.name}(${(op.args||[]).map(a=>`"${p.variables[a.name]}"`).join(", ")})`,
+    gql:`// Target — FedGQL (Apollo Kotlin)\nval response = apolloClient.${op.opKind==="mutation"?"mutation":"query"}(\n  ${cap(op.name)}${op.opKind==="mutation"?"Mutation":"Query"}(${(op.args||[]).map(a=>`${a.name} = "${p.variables[a.name]}"`).join(", ")})\n).execute()\nval ${ctx.varName} = response.data?.${op.name}`
+  }),
+  "iOS (Swift)": (op,p,ctx)=>({
+    rest:`// Current — REST (URLSession)\nlet url = URL(string: "\\(base)${op.path}")!\nvar request = URLRequest(url: url)\nrequest.httpMethod = "${op.method}"\n${op.opKind==="mutation"?`request.setValue("application/json", forHTTPHeaderField: "Content-Type")\nrequest.httpBody = try JSONEncoder().encode(payload)\n`:""}let (data, _) = try await URLSession.shared.data(for: request)\nlet ${ctx.varName} = try JSONDecoder().decode(${cap(ctx.entity)}.self, from: data)`,
+    gql:`// Target — FedGQL (Apollo iOS)\napollo.${op.opKind==="mutation"?"perform(mutation:":"fetch(query:"} ${cap(op.name)}${op.opKind==="mutation"?"Mutation":"Query"}(${(op.args||[]).map(a=>`${a.name}: "${p.variables[a.name]}"`).join(", ")})) { result in\n  guard let ${ctx.varName} = try? result.get().data?.${op.name} else { return }\n  // use ${ctx.varName}\n}`
+  }),
+};
+
+/* ---------------- server generators: REST controller → GraphQL ----------- */
+function pathParams(path){ return [...String(path||"").matchAll(/\{(\w+)\}/g)].map(m=>m[1]); }
+function sdlForType(t){
+  if(!t) return "";
+  if(t.kind==="enum") return `enum ${t.name} {\n${(t.values||[]).map(v=>"  "+v).join("\n")}\n}`;
+  const body=(t.fields||[]).map(f=>`  ${f.name}: ${f.type}`).join("\n");
+  if(t.kind==="input") return `input ${t.name} {\n${body}\n}`;
+  if(t.isEntity) return `type ${t.name} @key(fields: "${t.key||keyOf(t.fields)}") {\n${body}\n}`;
+  return `type ${t.name} {\n${body}\n}`;
+}
+function opFieldSDL(op){ const a=(op.args||[]).map(x=>`${x.name}: ${x.type}`).join(", "); return `${op.name}${a?`(${a})`:""}: ${op.returns}`; }
+function serverSchema(op, retEnt){
+  const root = op.opKind==="mutation" ? "type Mutation" : "type Query";
+  const typeBlock = retEnt && (retEnt.fields||[]).length ? "\n\n"+sdlForType(retEnt) : "";
+  return `${root} {\n  ${opFieldSDL(op)}\n}${typeBlock}`;
+}
+function javaType(t){ const b=baseType(t), isList=/^\s*\[/.test(String(t)); const m={ID:"String",String:"String",Int:"Integer",Long:"Long",Float:"Double",Boolean:"Boolean"}; const jt=m[b]||cap(b); return isList?`List<${jt}>`:jt; }
+function csType(t){ const b=baseType(t), isList=/^\s*\[/.test(String(t)); const m={ID:"string",String:"string",Int:"int",Long:"long",Float:"double",Boolean:"bool"}; const ct=m[b]||cap(b); return isList?`List<${ct}>`:ct; }
+const SERVER_LANGS={
+  "Java (Spring for GraphQL)": (op,p,ctx,rest)=>{
+    const Ret=cap(ctx.entity), pp=pathParams(rest.path), wm={GET:"get",POST:"post",PUT:"put",PATCH:"patch",DELETE:"delete"}[rest.method]||"get";
+    const mapping=op.opKind==="mutation"?"@MutationMapping":"@QueryMapping";
+    const args=(op.args||[]).map(a=>`@Argument ${javaType(a.type)} ${a.name}`).join(", ");
+    const uriArgs=pp.length?`, ${pp.join(", ")}`:"";
+    const bodyArg=(op.args||[]).find(a=>!pp.includes(a.name));
+    const body = op.opKind==="mutation"
+      ? `    return rest.${wm}()\n        .uri("${rest.path}"${uriArgs})\n        .bodyValue(${bodyArg?bodyArg.name:"request"})\n        .retrieve()\n        .bodyToMono(${Ret}.class)\n        .block();`
+      : `    return rest.get()\n        .uri("${rest.path}"${uriArgs})\n        .retrieve()\n        .bodyToMono(${Ret}.class)\n        .block();`;
+    const code = `// FedGQL server — Spring for GraphQL controller fronting REST ${rest.method} ${rest.path}\n@Controller\npublic class ${Ret}Controller {\n  private final WebClient rest = WebClient.create(System.getenv("REST_BASE_URL"));\n\n  ${mapping}\n  public ${Ret} ${op.name}(${args}) {\n${body}\n  }\n}`;
+    return { schemaTitle:"GraphQL schema (SDL)", schema:serverSchema(op, ctx.retEnt), codeTitle:"Spring for GraphQL @Controller", code };
+  },
+  ".NET (Hot Chocolate)": (op,p,ctx,rest)=>{
+    const Ret=cap(ctx.entity), cls=op.opKind==="mutation"?"Mutation":"Query", pp=pathParams(rest.path);
+    const csArgs=(op.args||[]).map(a=>`${csType(a.type)} ${a.name}`).join(", ");
+    const uri="$\""+String(rest.path)+"\"";
+    const bodyArg=(op.args||[]).find(a=>!pp.includes(a.name));
+    const body = op.opKind==="mutation"
+      ? `        var res = await client.PostAsJsonAsync(${uri}, ${bodyArg?bodyArg.name:"request"});\n        res.EnsureSuccessStatusCode();\n        return await res.Content.ReadFromJsonAsync<${Ret}>();`
+      : `        return await client.GetFromJsonAsync<${Ret}>(${uri});`;
+    const sep=csArgs?csArgs+", ":"";
+    const code = `// FedGQL server — Hot Chocolate resolver fronting REST ${rest.method} ${rest.path}\npublic class ${cls} {\n    [GraphQLName("${op.name}")]\n    public async Task<${Ret}> ${cap(op.name)}(${sep}[Service] IHttpClientFactory httpFactory) {\n        var client = httpFactory.CreateClient("rest");\n${body}\n    }\n}`;
+    return { schemaTitle:"GraphQL schema (SDL)", schema:serverSchema(op, ctx.retEnt), codeTitle:"Hot Chocolate resolver", code };
+  },
+  "Node.js (Apollo Server)": (op,p,ctx,rest)=>{
+    const root=op.opKind==="mutation"?"Mutation":"Query", pp=pathParams(rest.path);
+    const destructure=(op.args||[]).map(a=>a.name).join(", ");
+    const url="`${process.env.REST_BASE_URL}"+String(rest.path).replace(/\{(\w+)\}/g,"${$1}")+"`";
+    const bodyArg=(op.args||[]).find(a=>!pp.includes(a.name));
+    const fetchCall = op.opKind==="mutation"
+      ? `      const res = await fetch(${url}, {\n        method: "${rest.method}",\n        headers: { "Content-Type": "application/json" },\n        body: JSON.stringify(${bodyArg?bodyArg.name:"input"})\n      });`
+      : `      const res = await fetch(${url});`;
+    const code = `// FedGQL server — Apollo Server resolver fronting REST ${rest.method} ${rest.path}\nexport const resolvers = {\n  ${root}: {\n    ${op.name}: async (_parent, {${destructure?" "+destructure+" ":""}}, _ctx) => {\n${fetchCall}\n      if (!res.ok) throw new Error(\`REST ${rest.method} ${rest.path} -> \${res.status}\`);\n      return res.json();\n    }\n  }\n};`;
+    return { schemaTitle:"GraphQL schema (typeDefs)", schema:serverSchema(op, ctx.retEnt), codeTitle:"Apollo Server resolver", code };
+  },
+};
+
+/* ------------------------------ model / state --------------------------- */
+const M = { reg:{}, entities:[], regTypes:[], gqlOps:[], restOps:[], restTypes:[], sgName:"", restName:"", wb:null, bff:{} };
+let selRest="", selGql="", selEntity="", outKind="Client", lang="JavaScript";
+let mode="single", bffRef="", openMenu=null;
+const BFF_LS="cm-bff-v1";
+const CLIENT_LANG_NAMES=["JavaScript","Java","Android (Kotlin)","iOS (Swift)"];
+const SERVER_LANG_NAMES=["Java (Spring for GraphQL)",".NET (Hot Chocolate)","Node.js (Apollo Server)"];
+function langNames(){ return outKind==="Server"?SERVER_LANG_NAMES:CLIENT_LANG_NAMES; }
+
+function loadRegWB(wb){
+  M.reg={}; M.wb=wb;
+  for(const s of ["Entities","Schema","Queries","Mutations","AuthScopes"]) if(wb.Sheets[s]) M.reg[s]=sheetRows(wb,s);
+  buildGqlModel();
+  if(wb.Sheets["BffMappings"]) hydrateBff(sheetRows(wb,"BffMappings"));
+}
+function buildGqlModel(){
+  const schema=M.reg.Schema||[], queries=M.reg.Queries||[], muts=M.reg.Mutations||[];
+  M.entities = M.reg.Entities||[];
+  M.regTypes = schema.map(r=>parseDefBody(r.Kind, r.TypeName, r.Definition)).filter(t=>t&&t.name);
+  M.gqlOps = queries.map(r=>({id:r.QueryID||("q:"+r.Name), EntityID:String(r.EntityID||""), kind:"query", Name:r.Name, Parameters:r.Parameters, ReturnType:r.ReturnType, CurrentReference:r.CurrentReference}))
+    .concat(muts.map(r=>({id:r.MutationID||("m:"+r.Name), EntityID:String(r.EntityID||""), kind:"mutation", Name:r.Name, Parameters:r.Parameters, ReturnType:r.ReturnType, CurrentReference:r.CurrentReference})));
+}
+// GraphQL ops scoped to the selected subgraph/entity (all when none picked).
+function scopedGqlOps(){ return selEntity ? M.gqlOps.filter(o=>o.EntityID===selEntity) : M.gqlOps; }
+// The chosen registry Entities row.
+function entityRow(){ return selEntity ? (M.entities||[]).find(r=>String(r.EntityID||"")===selEntity) : null; }
+function onReg(input){
+  const f=input.files[0]; if(!f) return; M.sgName=f.name.replace(/\.xlsx$/i,"");
+  const r=new FileReader(); r.onload=e=>{ try{ loadRegWB(XLSX.read(e.target.result,{type:"array"})); }catch(err){ toast("Could not read registry"); } renderStatus(); render(); };
+  r.readAsArrayBuffer(f); input.value="";
+}
+function onRest(input){
+  const f=input.files[0]; if(!f) return; M.restName=f.name;
+  const r=new FileReader(); r.onload=e=>{ try{ const sg=parseOpenAPI(e.target.result, f.name); M.restOps=sg.ops; M.restTypes=sg.types; }catch(err){ toast(err.message||"Could not parse spec"); } renderStatus(); render(); };
+  r.readAsText(f); input.value="";
+}
+async function tryAutoFetch(){
+  for(const url of ["GQLRegistry.xlsx","../documents/GQLRegistry.xlsx"]){
+    try{ const res=await fetch(url); if(!res.ok) continue; loadRegWB(XLSX.read(await res.arrayBuffer(),{type:"array"})); M.sgName="GQLRegistry"; break; }
+    catch(e){ /* file:// or missing */ }
+  }
+  renderStatus(); render();
+}
+
+/* ------------------------------ selects / render ------------------------ */
+function populateLangSelect(){
+  const s=document.getElementById("codeLang"); if(!s) return;
+  if(!langNames().includes(lang)) lang=langNames()[0];
+  s.innerHTML=langNames().map(n=>`<option${n===lang?" selected":""}>${esc(n)}</option>`).join("");
+}
+function setOut(v){ outKind=v; lang=langNames()[0]; populateLangSelect(); render(); }
+function setLang(v){ lang=v; render(); }
+function setSelRest(v){ selRest=v; render(); }
+function setSelGql(v){ selGql=v; render(); }
+function setEntity(v){ selEntity=v||""; selGql=""; render(); }
+// Subgraph picker + domain-details table (mirrors gql-migration.html "Domain details").
+function renderDomain(){
+  const host=document.getElementById("domainDetails"); if(!host) return;
+  const ents=M.entities||[];
+  if(!M.regTypes.length){ host.innerHTML='<div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> above, then pick a subgraph.</div>'; return; }
+  const count=id=>M.gqlOps.filter(o=>o.EntityID===String(id)).length;
+  const opts=ents.map(r=>{ const id=String(r.EntityID||"");
+    return `<option value="${esc(id)}"${id===selEntity?" selected":""}>${esc(id||"(no id)")} · ${esc(r.Name||"")} — ${count(id)} ops</option>`; }).join("");
+  let html=`<div class="selrow"><label for="selEntity"><b>GQL Registry entity (subgraph)</b>
+    <select id="selEntity" onchange="setEntity(this.value)">
+      <option value="">— all subgraphs (${M.gqlOps.length} ops) —</option>${opts}</select></label></div>`;
+  const r=entityRow();
+  if(!r){ host.innerHTML=html+'<p class="hint" style="margin:6px 0 0">Showing operations across all subgraphs. Pick one to scope the code migration to a single entity.</p>'; return; }
+  const disp=[
+    ["EntityID", r.EntityID], ["Name", r.Name], ["Experience Domain", r.ExperienceDomain],
+    ["Business Application", r.BusinessApplication], ["Business Capability", r.BusinessCapability],
+    ["Approval", r.ApprovalStatus],
+    ["Comments", r.Comments], ["Current Reference", r.CurrentReference],
+    ["Links & References", linksHTML(r.Links), true],
+  ];
+  html += `<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${
+    disp.map(([h,v,isHtml])=>`<tr><td class="mono">${esc(h)}</td><td>${v!=null&&String(v)!==""?(isHtml?v:esc(String(v))):'<span class="hint">—</span>'}</td></tr>`).join("")
+  }</tbody></table></div>`;
+  host.innerHTML=html;
+}
+function renderStatus(){
+  const setSt=(id,ok,txt)=>{ const e=document.getElementById(id); if(!e)return; e.className="st "+(ok?"loaded":"missing"); e.textContent=txt; };
+  setSt("st-reg", M.regTypes.length, M.regTypes.length?`loaded — ${M.regTypes.length} types · ${M.gqlOps.length} ops`:"not loaded");
+  setSt("st-rest", M.restOps.length, M.restOps.length?`loaded — ${M.restOps.length} REST ops`:"not loaded");
+  const st=document.getElementById("status");
+  if(st) st.innerHTML = (M.regTypes.length||M.restOps.length)
+    ? `<b>${M.regTypes.length}</b> FedGQL types · <b>${M.gqlOps.length}</b> GraphQL ops · <b>${M.restOps.length}</b> REST ops`
+    : "load a registry and a REST spec to begin";
+}
+// Build the code-gen op from a GraphQL registry row + a REST endpoint, plus the REST→FedGQL diff.
+// Shared by Single-op render() and each BFF op's mapping table.
+function buildOpCtx(gqlSel, restSel, sgReg){
+  const gqlOp={ name:gqlSel.Name, opKind:gqlSel.kind, method:restSel.method, path:restSel.path,
+    args:parseGqlParams(gqlSel.Parameters), returns:gqlSel.ReturnType||restSel.returns||"Boolean" };
+  const retEnt=M.regTypes.find(t=>t.name===baseType(gqlOp.returns)) || { name:baseType(gqlOp.returns)||"Result", kind:"type", isEntity:false, key:"", fields:[], values:[] };
+  const origRet=M.restTypes.find(t=>t.name===baseType(restSel.returns)) || retEnt;
+  const varName=retEnt.name.charAt(0).toLowerCase()+retEnt.name.slice(1);
+  const p=opPayloads(gqlOp, sgReg, retEnt);
+  const restReqLine=restRefOf(restSel);
+  const matched=(gqlSel.CurrentReference||"")===restReqLine;
+
+  const of=origRet.fields||[], nf=retEnt.fields||[], nField=Math.max(of.length, nf.length);
+  const ra=restSel.args||[], ga=gqlOp.args||[], nParam=Math.max(ra.length, ga.length);
+  const diffTokens=new Set(), changes=[];
+  if(restSel.name && restSel.name!==gqlOp.name){ changes.push({label:"Operation", from:restSel.name, to:gqlOp.name}); diffTokens.add(gqlOp.name); }
+  if(baseType(restSel.returns) && baseType(restSel.returns)!==baseType(gqlOp.returns)){ changes.push({label:"Return type", from:restSel.returns, to:gqlOp.returns}); diffTokens.add(baseType(gqlOp.returns)); }
+  for(let i=0;i<nParam;i++){ const a=ra[i], b=ga[i];
+    if(a&&b&&(a.name!==b.name||baseType(a.type)!==baseType(b.type))){ changes.push({label:"Argument", from:`${a.name}: ${a.type}`, to:`${b.name}: ${b.type}`}); if(a.name!==b.name) diffTokens.add(b.name); if(baseType(a.type)!==baseType(b.type)) diffTokens.add(baseType(b.type)); }
+    else if(b&&!a){ changes.push({label:"Argument", from:"—", to:`${b.name}: ${b.type}`}); diffTokens.add(b.name); } }
+  const fieldRows=[];
+  for(let i=0;i<nField;i++){
+    const o=of[i], n=nf[i];
+    const nameCh=o&&n&&o.name!==n.name, typeCh=o&&n&&baseType(o.type)!==baseType(n.type);
+    if(nameCh) diffTokens.add(n.name); if(typeCh) diffTokens.add(baseType(n.type));
+    let tag='<span class="hint">—</span>', rowcls="";
+    if(o&&n&&(nameCh||typeCh)){ tag=`<span class="chg">${[nameCh?"renamed":"",typeCh?"retyped":""].filter(Boolean).join(" · ")}</span>`; rowcls=" class=\"rowchg\""; }
+    else if(n&&!o){ tag='<span class="chg">added</span>'; rowcls=" class=\"rowchg\""; }
+    else if(o&&!n){ tag='<span class="chg">removed</span>'; rowcls=" class=\"rowchg\""; }
+    const restCell=o?`${o.name}: ${o.type}`:"—";
+    const gqlCellRaw=n?`${n.name}: ${n.type}`:"—";
+    const gqlCell=(nameCh||typeCh)&&n ? markDiffs(esc(gqlCellRaw), new Set([n.name, baseType(n.type)])) : esc(gqlCellRaw);
+    fieldRows.push(`<tr${rowcls}><td class="mono">${esc(restCell)}</td><td class="mono">${gqlCell}</td><td>${tag}</td></tr>`);
+  }
+  const fieldRowsHtml=fieldRows.join("") || `<tr><td colspan="3" class="empty">no fields</td></tr>`;
+  const changesHtml = changes.length
+    ? `<ul class="chglist">${changes.map(ch=>`<li><b>${esc(ch.label)}:</b> <span class="mono">${esc(ch.from)}</span> → <span class="mono">${markDiffs(esc(ch.to), diffTokens)}</span></li>`).join("")}</ul>`
+    : `<p class="hint" style="margin:2px 0 10px">No name/type changes between the REST source and the FedGQL target.</p>`;
+  const mapNote = matched
+    ? '<span class="hint">(matched by REST reference)</span>'
+    : `<span class="hint" style="color:#b45309">(manual cross-map — this GraphQL op's REST reference is ${esc(gqlSel.CurrentReference||"—")})</span>`;
+  return { gqlOp, retEnt, origRet, varName, p, restReqLine, matched, diffTokens, changes, fieldRows, changesHtml, fieldRowsHtml, mapNote };
+}
+
+function render(){
+  populateLangSelect();
+  applyMode();
+  if(mode==="bff"){ renderBff(); return; }
+  renderDomain();
+  const host=document.getElementById("codeMap");
+  const selR=document.getElementById("selRest"), selG=document.getElementById("selGql");
+  const clearSel=()=>{ if(selR) selR.innerHTML=""; if(selG) selG.innerHTML=""; };
+  const gqlOps=scopedGqlOps(), restOps=M.restOps;
+  if(!gqlOps.length || !restOps.length){
+    clearSel();
+    const scopedEmpty = M.gqlOps.length && selEntity && !gqlOps.length;
+    host.innerHTML=`<div class="empty">${
+      scopedEmpty ? "This subgraph has no GraphQL operations — pick another subgraph above, or choose <b>all subgraphs</b>."
+      : (gqlOps.length ? "Load a <b>REST spec</b> (OpenAPI/Swagger)."
+      : (restOps.length ? "Load <b>GQLRegistry.xlsx</b> (needs Queries/Mutations rows)."
+      : "Load <span class=\"mono\">GQLRegistry.xlsx</span> and a REST spec above to generate code."))}</div>`;
+    return;
+  }
+  const sgReg={ name:M.sgName||"registry", types:M.regTypes };
+
+  // Resolve selections; default to a natural REST↔GQL pairing (matched by REST reference).
+  let gqlSel=gqlOps.find(r=>r.id===selGql);
+  let restSel=restOps.find(o=>o.id===selRest);
+  if(!gqlSel && !restSel){ gqlSel=gqlOps[0]; restSel=restOps.find(o=>restRefOf(o)===(gqlSel.CurrentReference||""))||restOps[0]; }
+  else if(gqlSel && !restSel){ restSel=restOps.find(o=>restRefOf(o)===(gqlSel.CurrentReference||""))||restOps[0]; }
+  else if(!gqlSel && restSel){ const rr=restRefOf(restSel); gqlSel=gqlOps.find(r=>(r.CurrentReference||"")===rr)||gqlOps[0]; }
+  selRest=restSel.id; selGql=gqlSel.id;
+
+  if(selR) selR.innerHTML=restOps.map(o=>`<option value="${esc(o.id)}"${o.id===selRest?" selected":""}>${esc(restRefOf(o))} — ${esc(o.name)}</option>`).join("");
+  if(selG) selG.innerHTML=gqlOps.map(r=>`<option value="${esc(r.id)}"${r.id===selGql?" selected":""}>${esc(r.kind)} ${esc(r.Name)}</option>`).join("");
+
+  // Build the code-gen op + REST→FedGQL diff (shared with BFF per-op mapping).
+  const cx=buildOpCtx(gqlSel, restSel, sgReg);
+  const { gqlOp, retEnt, varName, p, restReqLine, diffTokens, changesHtml, fieldRowsHtml, mapNote }=cx;
+
+  // Generated code section (client or server).
+  let codeSection;
+  if(outKind==="Server"){
+    const gen=SERVER_LANGS[lang]||SERVER_LANGS["Java (Spring for GraphQL)"];
+    const s=gen(gqlOp, p, {entity:retEnt.name, varName, retEnt}, restSel);
+    codeSection = `<div class="code-head"><h3>${esc(lang)} server — expose <span class="mono">${esc(restReqLine)}</span> as GraphQL <span class="mono">${esc(gqlOp.opKind)} ${esc(gqlOp.name)}</span></h3></div>
+      <div class="grid2">
+        <div><div class="code-head"><h3>${esc(s.schemaTitle)}</h3></div><pre class="code">${highlightSDL(s.schema)}</pre></div>
+        <div><div class="code-head"><h3>${esc(s.codeTitle)}</h3><button class="copy-btn" onclick='copyText(${attrJson(s.code)})'>Copy</button></div><pre class="code">${esc(s.code)}</pre></div>
+      </div>`;
+  } else {
+    const gen=CODE_LANGS[lang]||CODE_LANGS.JavaScript;
+    const c=gen(gqlOp, p, {entity:retEnt.name, varName});
+    codeSection = `<div class="code-head"><h3>${esc(lang)} client — ${esc(gqlOp.name)} <span class="hint">(changed names/types highlighted on the FedGQL side)</span></h3></div>
+      <div class="grid2">
+        <div><pre class="code">${esc(c.rest)}</pre></div>
+        <div><pre class="code">${markDiffs(esc(c.gql), diffTokens)}</pre></div>
+      </div>`;
+  }
+
+  const sgLabel = selEntity ? esc(selEntity)+((entityRow()&&entityRow().Name)?" · "+esc(entityRow().Name):"") : "all subgraphs";
+  host.innerHTML = `<h3 style="margin:0 0 2px">${esc(retEnt.name)} <small class="hint">· ${sgLabel} · ${esc(M.sgName||"registry")} · ${esc(outKind)} · ${esc(lang)}</small></h3>
+    <div class="kv">Mapping — <span class="mono">${esc(restReqLine)}</span> → <span class="mono">${esc(gqlOp.opKind)} ${esc(gqlOp.name)}</span> ${mapNote}</div>
+    <div class="kv">Changes — REST → FedGQL</div>
+    ${changesHtml}
+    <div class="kv">Field mapping — REST JSON → GraphQL <span class="hint">(changed names/types highlighted)</span></div>
+    <div class="table-wrap"><table><thead><tr><th>REST field : type</th><th>FedGQL field : type</th><th>Change</th></tr></thead><tbody>${fieldRowsHtml}</tbody></table></div>
+    <div class="kv">${gqlOp.opKind==="mutation"?"Mutation":"Query"} · <span class="mono">${esc(gqlOp.name)}</span></div>
+    <div class="grid2">
+      <div>
+        <div class="code-head"><h3>REST — current</h3></div>
+        <pre class="code"><span class="c"># ${esc(restReqLine)}</span>${gqlOp.opKind==="mutation"?`\n<span class="c"># request body</span>\n${esc(JSON.stringify(p.restBody,null,2))}\n<span class="c"># response</span>`:""}\n${esc(JSON.stringify(p.restResponse,null,2))}</pre>
+      </div>
+      <div>
+        <div class="code-head"><h3>FedGQL — target</h3><button class="copy-btn" onclick='copyText(${attrJson(p.gqlDoc)})'>Copy query</button></div>
+        <pre class="code">${markDiffs(highlightSDL(p.gqlDoc), diffTokens)}</pre>
+        <div class="code-head"><h3>Response</h3></div>
+        <pre class="code">${markDiffs(esc(JSON.stringify(p.gqlResponse,null,2)), diffTokens)}</pre>
+      </div>
+    </div>
+    ${codeSection}`;
+}
+
+/* ========================= BFF composite editor ========================= */
+function setMode(v){ mode=v; openMenu=false; render(); }
+function applyMode(){
+  const bffOn = mode==="bff";
+  for(const id of ["domainCard","selCard","codeCard"]){ const e=document.getElementById(id); if(e) e.style.display=bffOn?"none":""; }
+  const b=document.getElementById("bffCard"); if(b) b.style.display=bffOn?"":"none";
+  document.querySelectorAll("#modeSeg button").forEach(x=>x.classList.toggle("active", x.dataset.mode===mode));
+}
+/* --- persistence: localStorage cache + BffMappings sheet round-trip --- */
+function saveBff(){ try{ localStorage.setItem(BFF_LS, JSON.stringify(M.bff)); }catch(e){} }
+function loadBff(){ try{ const s=localStorage.getItem(BFF_LS); if(s) M.bff=JSON.parse(s)||{}; }catch(e){ M.bff={}; } }
+function hydrateBff(rows){  // rows from the BffMappings sheet -> M.bff (registry wins)
+  const bff={};
+  for(const r of rows||[]){
+    const ref=r.BffRef; if(!ref) continue;
+    const m=bff[ref]||(bff[ref]={ name:r.BffName||"", ops:[], owner:"" });
+    if(!m.name && r.BffName) m.name=r.BffName;
+    const opId=String(r.GqlOpId||"");
+    m.ops.push({ alias:r.Alias||r.GqlOp||"", kind:(r.GqlKind||"query"), name:r.GqlOp||"",
+      opId, entityId:String(r.EntityID||""), args:r.Args||"", notes:r.Notes||"" });
+    if(String(r.Owner||"").trim()) m.owner=opId;              // owning op for federation composition
+  }
+  if(Object.keys(bff).length){ M.bff=bff; saveBff(); }
+}
+function bffRowsAoA(){
+  const header=["BffRef","BffName","Alias","GqlKind","GqlOp","GqlOpId","EntityID","Args","Order","Notes","Owner"];
+  const rows=[header];
+  for(const [ref,m] of Object.entries(M.bff||{}))
+    (m.ops||[]).forEach((o,i)=>rows.push([ref, m.name||"", o.alias||"", o.kind||"", o.name||"", o.opId||"", o.entityId||"", o.args||"", i+1, o.notes||"", (m.owner&&String(m.owner)===String(o.opId))?"owner":""]));
+  return rows;
+}
+function exportRegistryWithBff(){
+  if(!M.wb){ toast("Load GQLRegistry.xlsx first"); return; }
+  const wb=M.wb, ws=XLSX.utils.aoa_to_sheet(bffRowsAoA());
+  const fname=String(M.sgName||"GQLRegistry").replace(/[^a-zA-Z0-9_-]+/g,"-")+".xlsx";
+  XLSX.writeFile(wb, fname); toast("Exported "+fname);
+}
+/* --- current mapping + editing --- */
+function defaultBffName(){ const op=M.restOps.find(o=>restRefOf(o)===bffRef); return op?(cap(slug(op.name).replace(/ /g,""))||"Bff"):"Bff"; }
+function curBff(){ if(!bffRef) return null; return M.bff[bffRef] || (M.bff[bffRef]={ name:defaultBffName(), ops:[] }); }
+function setBffRef(v){ bffRef=v; openMenu=false; render(); }
+function setBffName(v){ const m=curBff(); if(m){ m.name=v; saveBff(); } }
+function setBffField(idx, field, val){ const m=curBff(); if(m&&m.ops[idx]){ m.ops[idx][field]=val; saveBff(); } }
+function toggleOpMenu(){ openMenu=!openMenu; render(); }
+function setBffOwner(opId){ const m=curBff(); if(m){ m.owner=String(opId||""); saveBff(); render(); } }
+// The owning op for federation: the explicit choice when it still points at a query op in the set,
+// else the first query-kind op (the entry that resolves the base @key entity).
+function bffOwnerOp(m){
+  if(!m||!m.ops.length) return null;
+  const q=m.ops.filter(o=>o.kind==="query"); if(!q.length) return null;
+  return q.find(o=>String(o.opId)===String(m.owner||"")) || q[0];
+}
+function addBffOp(opId){
+  const m=curBff(), o=M.gqlOps.find(g=>String(g.id)===String(opId)); if(!m||!o) return;
+  m.ops.push({ alias:o.Name, kind:o.kind, name:o.Name, opId:String(o.id), entityId:String(o.EntityID||""), args:o.Parameters||"", notes:"" });
+  if(!m.owner && o.kind==="query") m.owner=String(o.id);      // default owner = first query added
+  openMenu=false; saveBff(); render();
+}
+function removeBffOp(idx){ const m=curBff(); if(m){ const rm=m.ops[idx]; m.ops.splice(idx,1); if(rm&&String(m.owner)===String(rm.opId)) m.owner=""; saveBff(); render(); } }
+
+/* --- compose the aliased query / mutation documents --- */
+function bffOpModel(o, sgReg){
+  const reg=M.gqlOps.find(g=>String(g.id)===String(o.opId));
+  const args=parseGqlParams(o.args!=null&&o.args!==""?o.args:(reg?reg.Parameters:""));
+  const returns=reg?reg.ReturnType:"";
+  const retEnt=M.regTypes.find(t=>t.name===baseType(returns));
+  const prefix=String(o.alias||o.name||"op").replace(/[^A-Za-z0-9_]/g,"_");
+  const varDefs=args.map(a=>`$${prefix}_${a.name}: ${a.type}`);
+  const fieldArgs=args.map(a=>`${a.name}: $${prefix}_${a.name}`).join(", ");
+  const sel=retEnt&&(retEnt.fields||[]).length ? gqlSelection(retEnt, sgReg, "      ") : "";
+  const head=`    ${o.alias||o.name}: ${o.name}${fieldArgs?`(${fieldArgs})`:""}`;
+  const field=sel ? `${head} {\n${sel}\n    }` : head;
+  return { alias:o.alias||o.name, name:o.name, kind:o.kind, entityId:o.entityId, args, returns, retEnt, prefix, varDefs, fieldArgs, field };
+}
+function bffComposeDoc(bff, sgReg){
+  const models=(bff.ops||[]).map(o=>bffOpModel(o, sgReg));
+  const build=(kind, kw)=>{
+    const list=models.filter(m=>m.kind===kind); if(!list.length) return null;
+    const vars=[...new Set([].concat(...list.map(m=>m.varDefs)))];
+    const doc=`${kw} ${bff.name||"Bff"}${vars.length?`(${vars.join(", ")})`:""} {\n${list.map(m=>m.field).join("\n")}\n}`;
+    return { doc, vars, ops:list };
+  };
+  return { query:build("query","query"), mutation:build("mutation","mutation"), models };
+}
+function bffVarsSample(comp, sgReg){
+  const v={};
+  for(const part of [comp.query, comp.mutation]) if(part) for(const m of part.ops) for(const a of m.args) v[`${m.prefix}_${a.name}`]=sampleForType(a.type, sgReg, 1);
+  return v;
+}
+function bffAliases(comp){ return [].concat(comp.query?comp.query.ops:[], comp.mutation?comp.mutation.ops:[]).map(o=>o.alias); }
+const jStr=s=>String(s).replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\n/g,"\\n");   // Java/C# string literal
+const tStr=s=>String(s).replace(/\\/g,"\\\\").replace(/`/g,"\\`").replace(/\$\{/g,"\\${"); // JS template literal
+
+/* --- GraphQL-federation composition: one subgraph owns the @key entity, the others extend it ---
+   The router resolves the base entity from the owning op, then fans out to each extending subgraph
+   via _entities/reference-resolvers keyed by @key, and merges the contributed fields. The client
+   query is therefore ONE nested selection (not flat siblings) — the router federates it. */
+function bffFederation(bff, sgReg){
+  const owner=bffOwnerOp(bff);
+  if(!owner) return { ok:false, note:"Federation needs at least one query op to own the entity graph — add a query op, then pick it as the owning op." };
+  const ownerModel=bffOpModel(owner, sgReg);
+  const E=ownerModel.retEnt;
+  if(!E) return { ok:false, note:`The owning op “${owner.alias||owner.name}” returns “${ownerModel.returns||"?"}”, which isn’t a registry entity type — federation needs an owning entity with a @key.` };
+  const K=E.key||keyOf(E.fields)||"id";
+  const keyType=((E.fields||[]).find(f=>f.name===K)||{}).type||"ID!";
+  // every OTHER query op contributes an extension field on the owned entity (mutations stay flat)
+  const extensions=(bff.ops||[])
+    .filter(o=>o.kind==="query" && String(o.opId)!==String(owner.opId))
+    .map(o=>{ const em=bffOpModel(o, sgReg); return { op:o, model:em, retEnt:em.retEnt, fieldName:em.alias, fieldType:em.returns, args:em.args, prefix:em.prefix, fieldArgs:em.fieldArgs, varDefs:em.varDefs }; });
+
+  // --- single nested federated query (router resolves base entity, then the extension fields) ---
+  const varDefs=[...new Set([].concat(ownerModel.varDefs, ...extensions.map(x=>x.varDefs)))];
+  const ownerSel=gqlSelection(E, sgReg, "      ");                       // owner entity fields (incl. the @key)
+  const extBlocks=extensions.map(x=>{
+    const inner=x.retEnt && (x.retEnt.fields||[]).length ? "\n"+gqlSelection(x.retEnt, sgReg, "        ")+"\n      " : " ";
+    return `      ${x.fieldName}${x.fieldArgs?`(${x.fieldArgs})`:""} {${inner}}`;
+  }).join("\n");
+  const inner=[ownerSel, extBlocks].filter(s=>s&&s.trim()).join("\n");
+  const query=`query ${bff.name||"Bff"}${varDefs.length?`(${varDefs.join(", ")})`:""} {\n    ${owner.alias||owner.name}${ownerModel.fieldArgs?`(${ownerModel.fieldArgs})`:""} {\n${inner}\n    }\n}`;
+
+  // --- per-subgraph SDL: owning @key type + each extending subgraph's `extend … @key` ---
+  const sdl=[];
+  const ownerArgsSDL=ownerModel.args.length?`(${ownerModel.args.map(a=>`${a.name}: ${a.type}`).join(", ")})`:"";
+  sdl.push({ entityId:owner.entityId, label:`Owning subgraph — ${owner.entityId||"(entity)"} · owns ${E.name}`,
+    sdl:`${sdlForType(E)}\n\ntype Query {\n  ${owner.name}${ownerArgsSDL}: ${ownerModel.returns}\n}` });
+  for(const x of extensions){
+    const argsSDL=x.args.length?`(${x.args.map(a=>`${a.name}: ${a.type}`).join(", ")})`:"";
+    let block=`extend type ${E.name} @key(fields: "${K}") {\n  ${K}: ${keyType} @external\n  ${x.fieldName}${argsSDL}: ${x.fieldType}\n}`;
+    if(x.retEnt && (x.retEnt.fields||[]).length && x.retEnt.name!==E.name) block+="\n\n"+sdlForType(x.retEnt);
+    sdl.push({ entityId:x.op.entityId, label:`Extending subgraph — ${x.op.entityId||"(entity)"} · extends ${E.name}`, sdl:block });
+  }
+
+  const vars={};
+  for(const a of ownerModel.args) vars[`${ownerModel.prefix}_${a.name}`]=sampleForType(a.type, sgReg, 1);
+  for(const x of extensions) for(const a of x.args) vars[`${x.prefix}_${a.name}`]=sampleForType(a.type, sgReg, 1);
+
+  return { ok:true, owner:ownerModel, ownerOp:owner, entity:E, key:K, keyType, extensions, query, sdl, vars };
+}
+
+/* --- Mermaid SEQUENCE (trace) diagram: how the FedGQL router wires responses across subgraphs
+   via @key. The router resolves the base entity from the owning subgraph, then for each extending
+   subgraph issues an _entities([{__typename, <key>}]) call and merges the contributed fields. --- */
+function bffMermaid(bff, sgReg, fed){
+  const rest=M.restOps.find(o=>restRefOf(o)===bffRef);
+  const route=rest?`${rest.method} ${rest.path}`:(bffRef||"BFF");
+  // message text keeps parens/colons (only the first ':' splits target from text); labels stay plain
+  const msg=s=>String(s==null?"":s).replace(/"/g,"'").replace(/\n/g," ");
+  const lbl=s=>String(s==null?"":s).replace(/["():;#]/g,"").replace(/\n/g," ").trim();
+  const L=["sequenceDiagram","  autonumber"];
+  L.push(`  participant C as Client · ${lbl(route)}`);
+  L.push("  participant R as FedGQL Router");
+  if(fed && fed.ok){
+    const E=fed.entity, K=fed.key;
+    const ownArgs=(fed.owner.args||[]).map(a=>a.name).join(", ");
+    L.push(`  participant S0 as ${lbl(fed.ownerOp.entityId||"owner")} · owns ${lbl(E.name)}`);
+    fed.extensions.forEach((x,i)=>L.push(`  participant S${i+1} as ${lbl(x.op.entityId||"ext")} · extends ${lbl(E.name)}`));
+    L.push(`  C->>R: ${msg(bff.name||"Bff")} query${ownArgs?` (${msg(ownArgs)})`:""}`);
+    L.push(`  R->>S0: ${msg(fed.ownerOp.alias||fed.ownerOp.name)}(${msg(ownArgs)}) — resolve ${msg(E.name)} @key(${msg(K)})`);
+    L.push(`  S0-->>R: [${msg(E.name)} { ${msg(K)}, … }]`);
+    L.push(`  Note over R,S0: base entities carry @key(${msg(K)}) for the fan-out`);
+    fed.extensions.forEach((x,i)=>{
+      const eArgs=(x.args||[]).map(a=>a.name).join(", ");
+      L.push(`  R->>S${i+1}: _entities([{__typename: ${msg(E.name)}, ${msg(K)}}]) · ${msg(x.fieldName)}(${msg(eArgs)})`);
+      L.push(`  S${i+1}-->>R: { ${msg(x.fieldName)}: {…} } merged onto ${msg(E.name)} by @key`);
+    });
+    L.push(`  R-->>C: one merged ${msg(E.name)} graph`);
+  } else {
+    L.push(`  C->>R: ${msg(bff.name||"Bff")} query`);
+    L.push(`  Note over R: ${msg((fed&&fed.note)||"pick an owning query with a @key entity")}`);
+    L.push("  R-->>C: (federation not configured)");
+  }
+  return L.join("\n");
+}
+let bffMermaidReady=false;
+function ensureMermaid(){ if(!bffMermaidReady && window.mermaid){ mermaid.initialize({ startOnLoad:false, theme:"neutral", securityLevel:"loose" }); bffMermaidReady=true; } }
+async function renderBffGraph(src){
+  const out=document.getElementById("bffGraph"); if(!out||!src) return;
+  ensureMermaid();
+  if(!window.mermaid){ out.innerHTML='<div class="empty">Mermaid failed to load (offline?). The source below is still valid.</div>'; return; }
+  try{ const { svg }=await mermaid.render("bffGraph_"+Date.now(), src); out.innerHTML=svg; }
+  catch(e){ out.innerHTML='<div class="empty">Could not render diagram: '+esc(e.message)+'</div>'; }
+}
+
+/* --- BFF server generators: REST endpoint that composes the federated graph --- */
+const BFF_SERVER_LANGS={
+  "Node.js (Apollo Server)": (bff, comp, rest)=>{
+    const route=rest?`${rest.method} ${rest.path}`:"(no BFF endpoint)";
+    const vars=JSON.stringify(comp.__vars||{}, null, 2).replace(/\n/g,"\n  ");
+    const calls=[];
+    if(comp.query) calls.push(`  const q = await run(\`${tStr(comp.query.doc)}\`);`);
+    if(comp.mutation) calls.push(`  const m = await run(\`${tStr(comp.mutation.doc)}\`);`);
+    const merge=`{ ${[comp.query?"...q.data":"", comp.mutation?"...m.data":""].filter(Boolean).join(", ")} }`;
+    const code=`// BFF handler for ${route} — composes the federated graph in one place\nimport fetch from "node-fetch";\n\nexport async function ${bff.name||"bff"}Handler(req, res) {\n  const variables = ${vars};\n  const run = (query) => fetch(process.env.GRAPHQL_GATEWAY_URL, {\n    method: "POST",\n    headers: { "Content-Type": "application/json" },\n    body: JSON.stringify({ query, variables })\n  }).then(r => r.json());\n\n${calls.join("\n")}\n  res.json(${merge});\n}`;
+    return { codeTitle:`Node.js BFF handler — ${route} → federated graph`, code };
+  },
+  "Java (Spring for GraphQL)": (bff, comp, rest)=>{
+    const route=rest?`${rest.method} ${rest.path}`:"(no BFF endpoint)";
+    const map={GET:"GetMapping",POST:"PostMapping",PUT:"PutMapping",PATCH:"PatchMapping",DELETE:"DeleteMapping"}[rest?rest.method:"GET"]||"GetMapping";
+    const calls=[];
+    if(comp.query) calls.push(`    Map q = post("${jStr(comp.query.doc)}", variables);`);
+    if(comp.mutation) calls.push(`    Map m = post("${jStr(comp.mutation.doc)}", variables);`);
+    const puts=[comp.query?'    out.putAll((Map) q.get("data"));':"", comp.mutation?'    out.putAll((Map) m.get("data"));':""].filter(Boolean).join("\n");
+    const code=`// BFF controller for ${route} — composes the federated graph in one place\n@RestController\npublic class ${cap(bff.name||"Bff")}BffController {\n  private final WebClient gql = WebClient.create(System.getenv("GRAPHQL_GATEWAY_URL"));\n\n  @${map}("${rest?rest.path:"/bff"}")\n  public Map<String,Object> ${bff.name||"bff"}(@RequestParam Map<String,Object> variables) {\n    Map<String,Object> out = new HashMap<>();\n${calls.join("\n")}\n${puts}\n    return out;\n  }\n\n  private Map post(String query, Map<String,Object> variables) {\n    return gql.post().bodyValue(Map.of("query", query, "variables", variables))\n        .retrieve().bodyToMono(Map.class).block();\n  }\n}`;
+    return { codeTitle:`Spring BFF @RestController — ${route} → federated graph`, code };
+  },
+  ".NET (Hot Chocolate)": (bff, comp, rest)=>{
+    const route=rest?`${rest.method} ${rest.path}`:"(no BFF endpoint)";
+    const attr={GET:"HttpGet",POST:"HttpPost",PUT:"HttpPut",PATCH:"HttpPatch",DELETE:"HttpDelete"}[rest?rest.method:"GET"]||"HttpGet";
+    const calls=[];
+    if(comp.query) calls.push(`        var q = await Post("${jStr(comp.query.doc)}", variables);`);
+    if(comp.mutation) calls.push(`        var m = await Post("${jStr(comp.mutation.doc)}", variables);`);
+    const merge=[comp.query?"q":"", comp.mutation?"m":""].filter(Boolean).join(", ");
+    const code=`// BFF controller for ${route} — composes the federated graph in one place\n[ApiController]\npublic class ${cap(bff.name||"Bff")}BffController : ControllerBase {\n    private readonly IHttpClientFactory _http;\n    public ${cap(bff.name||"Bff")}BffController(IHttpClientFactory http) => _http = http;\n\n    [${attr}("${rest?rest.path:"/bff"}")]\n    public async Task<IActionResult> ${cap(bff.name||"Bff")}([FromQuery] Dictionary<string,object> variables) {\n${calls.join("\n")}\n        return Ok(Merge(${merge}));\n    }\n\n    private async Task<JsonElement> Post(string query, object variables) {\n        var client = _http.CreateClient("gateway");\n        var res = await client.PostAsJsonAsync(Environment.GetEnvironmentVariable("GRAPHQL_GATEWAY_URL"), new { query, variables });\n        return (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");\n    }\n}`;
+    return { codeTitle:`.NET BFF controller — ${route} → federated graph`, code };
+  },
+};
+/* --- BFF client generators: call the composed operation(s) in one round-trip --- */
+const BFF_CLIENT_LANGS={
+  "JavaScript": (bff, comp)=>{
+    const aliases=bffAliases(comp), vars=JSON.stringify(comp.__vars||{}, null, 2);
+    const calls=[];
+    if(comp.query) calls.push(`const query = \`${tStr(comp.query.doc)}\`;`);
+    if(comp.mutation) calls.push(`const mutation = \`${tStr(comp.mutation.doc)}\`;`);
+    const run=`const post = (q) => fetch(GRAPHQL_GATEWAY_URL, {\n  method: "POST",\n  headers: { "Content-Type": "application/json" },\n  body: JSON.stringify({ query: q, variables })\n}).then(r => r.json());`;
+    const runs=[comp.query?"const { data: qd } = await post(query);":"", comp.mutation?"const { data: md } = await post(mutation);":""].filter(Boolean).join("\n");
+    const merged=`const { ${aliases.join(", ")} } = { ${[comp.query?"...qd":"",comp.mutation?"...md":""].filter(Boolean).join(", ")} };`;
+    const code=`// Client — one round-trip to the gateway for ${bff.name||"Bff"}\nconst variables = ${vars};\n${calls.join("\n")}\n${run}\n${runs}\n${merged}`;
+    return { codeTitle:`JavaScript client — composed ${bff.name||"Bff"}`, code };
+  },
+  "Java": (bff, comp)=>{
+    const doc=comp.query?comp.query.doc:(comp.mutation?comp.mutation.doc:"");
+    const code=`// Client — call the composed operation on the gateway\nString query = "${jStr(doc)}";\nMap<String,Object> body = Map.of("query", query, "variables", variables);\nHttpRequest req = HttpRequest.newBuilder()\n    .uri(URI.create(System.getenv("GRAPHQL_GATEWAY_URL")))\n    .header("Content-Type","application/json")\n    .POST(BodyPublishers.ofString(mapper.writeValueAsString(body)))\n    .build();\nHttpResponse<String> res = client.send(req, BodyHandlers.ofString());\n// res.body(): { "data": { ${bffAliases(comp).map(a=>`"${a}": {…}`).join(", ")} } }`;
+    return { codeTitle:`Java client — composed ${bff.name||"Bff"}`, code };
+  },
+  "Android (Kotlin)": (bff, comp)=>{
+    const aliases=bffAliases(comp);
+    const code=`// Client (Apollo Kotlin) — composed ${bff.name||"Bff"}\nval response = apolloClient.query(${cap(bff.name||"Bff")}Query(/* variables */)).execute()\n${aliases.map(a=>`val ${a} = response.data?.${a}`).join("\n")}`;
+    return { codeTitle:`Android (Kotlin) client — composed ${bff.name||"Bff"}`, code };
+  },
+  "iOS (Swift)": (bff, comp)=>{
+    const aliases=bffAliases(comp);
+    const code=`// Client (Apollo iOS) — composed ${bff.name||"Bff"}\napollo.fetch(query: ${cap(bff.name||"Bff")}Query(/* variables */)) { result in\n  guard let data = try? result.get().data else { return }\n${aliases.map(a=>`  let ${a} = data.${a}`).join("\n")}\n}`;
+    return { codeTitle:`iOS (Swift) client — composed ${bff.name||"Bff"}`, code };
+  },
+};
+
+/* --- render the BFF composite editor --- */
+function renderBff(){
+  const host=document.getElementById("bffEditor"), sel=document.getElementById("bffSel"), nameInp=document.getElementById("bffName");
+  if(!host) return;
+  if(!M.restOps.length || !M.gqlOps.length){
+    if(sel) sel.innerHTML="";
+    host.innerHTML=`<div class="empty">${M.restOps.length ? "Load <b>GQLRegistry.xlsx</b> (needs Queries/Mutations rows)." : "Load a <b>REST spec</b> (the BFF API) above."}</div>`;
+    return;
+  }
+  if(!bffRef || !M.restOps.some(o=>restRefOf(o)===bffRef)) bffRef=restRefOf(M.restOps[0]);
+  if(sel) sel.innerHTML=M.restOps.map(o=>{ const ref=restRefOf(o); return `<option value="${esc(ref)}"${ref===bffRef?" selected":""}>${esc(ref)} — ${esc(o.name)}</option>`; }).join("");
+  const bffRestOp=M.restOps.find(o=>restRefOf(o)===bffRef);
+  const m=curBff();
+  if(nameInp && document.activeElement!==nameInp) nameInp.value=m.name||"";
+  const sgReg={ name:M.sgName||"registry", types:M.regTypes };
+
+  // op-set editor table
+  const entName=id=>{ const e=(M.entities||[]).find(x=>String(x.EntityID||"")===String(id)); return e&&e.Name?e.Name:""; };
+  const rows=(m.ops||[]).map((o,i)=>{
+    const reg=M.gqlOps.find(g=>String(g.id)===String(o.opId));
+    const ret=reg?reg.ReturnType:"";
+    return `<tr>
+      <td><select class="cell" onchange="setBffField(${i},'kind',this.value); render()">
+        ${["query","mutation"].map(k=>`<option${k===o.kind?" selected":""}>${k}</option>`).join("")}</select></td>
+      <td class="mono">${esc(o.name)}</td>
+      <td>${esc(o.entityId||"—")}${entName(o.entityId)?` <span class="hint">· ${esc(entName(o.entityId))}</span>`:""}</td>
+      <td><input class="cell" value="${esc(o.alias||"")}" oninput="setBffField(${i},'alias',this.value)" onchange="render()" /></td>
+      <td><input class="cell mono" value="${esc(o.args!=null?o.args:"")}" oninput="setBffField(${i},'args',this.value)" onchange="render()" placeholder="${esc(reg?reg.Parameters||"":"")}" /></td>
+      <td class="mono">${esc(ret||"—")}</td>
+      <td><button class="rm-row" title="Remove" onclick="removeBffOp(${i})">✕</button></td>
+    </tr>`;
+  }).join("");
+  const addBtn=`<div class="op-picker"><button class="addrow" onclick="toggleOpMenu()" data-help="code-bff">＋ Add FedGQL op</button>${openMenu?opMenuHtml():""}</div>`;
+  const tableHtml=`<div class="kv">Composed FedGQL operations <span class="hint">(pick from any subgraph)</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Kind</th><th>Op</th><th>Subgraph</th><th>Alias</th><th>Args</th><th>Returns</th><th></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="7" class="empty">No ops yet — use ＋ Add FedGQL op.</td></tr>`}</tbody></table></div>
+    <div style="margin:8px 0">${addBtn}</div>`;
+
+  // composed documents
+  const comp=bffComposeDoc(m, sgReg); comp.__vars=bffVarsSample(comp, sgReg);
+  const docBlock=(title, doc)=>`<div><div class="code-head"><h3>${esc(title)}</h3><button class="copy-btn" onclick='copyText(${attrJson(doc)})'>Copy</button></div><pre class="code">${highlightSDL(doc)}</pre></div>`;
+  let composedHtml="";
+  if(comp.query||comp.mutation){
+    composedHtml=`<div class="kv">Composed document — <span class="mono">${esc(bffRef)}</span> → <span class="mono">${esc(m.name||"Bff")}</span> <span class="hint">(variables are alias-prefixed to avoid cross-subgraph collisions)</span></div>
+      <div class="grid2">${comp.query?docBlock("query "+ (m.name||"Bff"), comp.query.doc):""}${comp.mutation?docBlock("mutation "+(m.name||"Bff"), comp.mutation.doc):""}</div>`;
+  }
+
+  // federation composition — nested entity-extension query + owning/extend @key SDL + Mermaid
+  const fed=bffFederation(m, sgReg);
+  const mmSrc=bffMermaid(m, sgReg, fed);
+  const queryOps=m.ops.filter(o=>o.kind==="query");
+  let fedHtml="";
+  if(m.ops.length){
+    const ownerSelHtml=queryOps.length ? `<label><b>Owning op</b> <select onchange="setBffOwner(this.value)">${queryOps.map(o=>{
+        const ret=(M.gqlOps.find(g=>String(g.id)===String(o.opId))||{}).ReturnType||"";
+        return `<option value="${esc(o.opId)}"${(fed.ok&&String(fed.ownerOp.opId)===String(o.opId))?" selected":""}>${esc(o.alias||o.name)}${ret?` : ${esc(ret)}`:""}</option>`;
+      }).join("")}</select> <span class="hint">owns the <span class="mono">@key</span> entity; every other query extends it</span></label>` : "";
+
+    // LEFT — current REST call (the BFF endpoint) : request body + response, sampled from the spec types
+    const sgRest={ name:M.restName||"rest", types:M.restTypes };
+    const restArgs=(bffRestOp.args||[]), bodyArg=restArgs.find(a=>a.name==="input"), paramArgs=restArgs.filter(a=>a.name!=="input");
+    const restLines=[`<span class="c"># ${esc(bffRestOp.method)} ${esc(bffRestOp.path)}${bffRestOp.name?"  ·  "+esc(bffRestOp.name):""}</span>`];
+    if(paramArgs.length) restLines.push(`<span class="c"># params:</span> ${esc(paramArgs.map(a=>a.name+": "+a.type).join(", "))}`);
+    if(bodyArg) restLines.push(`<span class="c"># request body: ${esc(baseType(bodyArg.type))}</span>\n`+esc(JSON.stringify(sampleForType(bodyArg.type, sgRest, 1), null, 2)));
+    restLines.push(`<span class="c"># response: ${esc(baseType(bffRestOp.returns))}</span>\n`+esc(JSON.stringify(sampleForType(bffRestOp.returns, sgRest, 1), null, 2)));
+    const currentBlock=`<div><div class="code-head"><h3>Current — REST</h3><span class="hint mono">${esc(bffRestOp.method)} ${esc(bffRestOp.path)}</span></div><pre class="code">${restLines.join("\n")}</pre></div>`;
+    // RIGHT — target federated FedGQL query (single nested selection wired by @key)
+    const targetBlock = fed.ok
+      ? `<div><div class="code-head"><h3>Target — federated FedGQL query</h3><button class="copy-btn" onclick='copyText(${attrJson(fed.query)})'>Copy</button></div><pre class="code">${highlightSDL(fed.query)}</pre></div>`
+      : `<div><div class="code-head"><h3>Target — federated FedGQL query</h3></div><pre class="code"><span class="c"># ${esc(fed.note)}</span></pre></div>`;
+    const sideBySide=`<div class="kv">Current query ↔ target query <span class="hint">(equal split — the REST BFF call vs the composed federated query)</span></div>
+      <div class="grid2">${currentBlock}${targetBlock}</div>`;
+
+    // sequence trace — how the router wires the responses across subgraphs via @key
+    const seqBlock=`<div class="code-head" style="margin-top:10px"><h3>Sequence trace <span class="hint">(router resolves the base entity, then <span class="mono">_entities</span> fan-out wires each subgraph by <span class="mono">@key</span>)</span></h3><button class="copy-btn" onclick='copyText(${attrJson(mmSrc)})'>Copy source</button></div>
+      <div id="bffGraph" style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;overflow:auto"></div><pre class="code" id="bffMermaidSrc">${esc(mmSrc)}</pre>`;
+
+    let fedBody=sideBySide;
+    if(fed.ok){
+      const sdlBlocks=fed.sdl.map(b=>`<div><div class="code-head"><h3>${esc(b.label)}</h3><button class="copy-btn" onclick='copyText(${attrJson(b.sdl)})'>Copy</button></div><pre class="code">${highlightSDL(b.sdl)}</pre></div>`).join("");
+      fedBody+=`<div class="kv" style="margin-top:10px">Subgraph SDL — <span class="mono">@key</span> wiring between subgraphs</div><div class="grid2">${sdlBlocks}</div>`;
+    }
+    fedBody+=seqBlock;
+
+    fedHtml=`<div class="kv" style="margin-top:14px">Federation composition <span class="hint">(GraphQL-federation style — one subgraph owns the entity via <span class="mono">@key</span>, the others <span class="mono">extend</span> it)</span></div>
+      ${ownerSelHtml?`<div class="selrow" style="margin:4px 0">${ownerSelHtml}</div>`:""}
+      ${fedBody}
+      ${comp.mutation?`<div class="hint" style="margin-top:6px">Mutations aren’t federated via entity extension — see the flat composed <span class="mono">mutation</span> document above.</div>`:""}`;
+  }
+
+  // output/language controls + generated code
+  const outSelHtml=`<label><b>Output</b> <select onchange="setOut(this.value)">${["Client","Server"].map(o=>`<option${o===outKind?" selected":""}>${o}</option>`).join("")}</select></label>`;
+  const langSelHtml=`<label><b>Language</b> <select onchange="setLang(this.value)">${langNames().map(n=>`<option${n===lang?" selected":""}>${esc(n)}</option>`).join("")}</select></label>`;
+  let codeHtml="";
+  if(m.ops.length){
+    const gen=(outKind==="Server"?BFF_SERVER_LANGS[lang]:BFF_CLIENT_LANGS[lang]) || (outKind==="Server"?BFF_SERVER_LANGS["Node.js (Apollo Server)"]:BFF_CLIENT_LANGS.JavaScript);
+    const s=gen(m, comp, bffRestOp);
+    codeHtml=`<div class="code-head" style="margin-top:12px"><h3>${esc(s.codeTitle)}</h3><div class="selrow" style="margin:0">${outSelHtml}${langSelHtml}</div></div>
+      <div class="code-head"><h3></h3><button class="copy-btn" onclick='copyText(${attrJson(s.code)})'>Copy</button></div><pre class="code">${esc(s.code)}</pre>`;
+  } else {
+    codeHtml=`<div class="selrow" style="margin-top:12px">${outSelHtml}${langSelHtml}</div>`;
+  }
+
+  // per-op REST -> FedGQL field mapping (each op matched to its own legacy REST reference)
+  let perOp="";
+  if(m.ops.length){
+    perOp=`<div class="kv">Per-op field mapping — each FedGQL op vs its legacy REST reference</div>`;
+    for(const o of m.ops){
+      const reg=M.gqlOps.find(g=>String(g.id)===String(o.opId)); if(!reg) continue;
+      const restSel=M.restOps.find(x=>restRefOf(x)===(reg.CurrentReference||"")) || bffRestOp;
+      const cx=buildOpCtx(reg, restSel, sgReg);
+      perOp+=`<details class="stdref" style="margin:6px 0"><summary><span class="badge ${o.kind}">${esc(o.kind)}</span> <b>${esc(o.alias||o.name)}</b> <span class="hint">· ${esc(o.entityId||"")} · ${esc(cx.restReqLine)} ${cx.mapNote}</span></summary>
+        <div style="padding:8px 0">${cx.changesHtml}
+        <div class="table-wrap"><table><thead><tr><th>REST field : type</th><th>FedGQL field : type</th><th>Change</th></tr></thead><tbody>${cx.fieldRowsHtml}</tbody></table></div></div></details>`;
+    }
+  }
+
+  host.innerHTML = `<h3 style="margin:0 0 2px">${esc(m.name||"Bff")} <small class="hint">· BFF <span class="mono">${esc(bffRef)}</span> · ${m.ops.length} op(s) · ${esc(M.sgName||"registry")}</small></h3>
+    ${tableHtml}${composedHtml}${fedHtml}${codeHtml}${perOp}`;
+  if(m.ops.length) renderBffGraph(mmSrc);   // deferred: host.innerHTML was just replaced, so #bffGraph exists now
+}
+function opMenuHtml(){
+  const byEnt={};
+  for(const o of M.gqlOps) (byEnt[o.EntityID]=byEnt[o.EntityID]||[]).push(o);
+  let h='<div class="op-menu">';
+  for(const [eid,list] of Object.entries(byEnt)){
+    const ent=(M.entities||[]).find(e=>String(e.EntityID||"")===String(eid));
+    h+=`<div class="grp">${esc(eid||"(no entity)")}${ent&&ent.Name?" · "+esc(ent.Name):""}</div>`;
+    for(const o of list) h+=`<button class="opt" onclick='addBffOp(${attrJson(String(o.id))})'><span class="badge ${o.kind}">${esc(o.kind)}</span> ${esc(o.Name)} <span class="hint">: ${esc(o.ReturnType||"")}</span></button>`;
+  }
+  return h+'</div>';
+}
+
+/* ------------------------------ boot ----------------------------------- */
+document.getElementById("f-reg").addEventListener("change", e=>onReg(e.target));
+document.getElementById("f-rest").addEventListener("change", e=>onRest(e.target));
+document.addEventListener("click", e=>{ if(openMenu && !e.target.closest(".op-picker")){ openMenu=false; if(mode==="bff") renderBff(); } });
+loadBff();
+populateLangSelect();
+tryAutoFetch();
+</script>
+</body>
+</html>

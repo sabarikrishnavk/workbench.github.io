@@ -1,0 +1,41 @@
+# inventory subgraph — stock positions per SKU per store. Owns Inventory and contributes
+# inventoryCount to pnp's ProductStoreContext, so one storeContext selection returns price + stock.
+# Registry: ENT-003 Inventory (BusinessApplication "inventory").
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external"])
+
+"""
+Stock position of a SKU at a store.
+"""
+type Inventory @key(fields: "sku storeId") {
+  sku: String!
+  storeId: ID!
+  onHand: Int!
+  reserved: Int!
+  availableToSell: Int!
+}
+
+# Contribute stock to the store-scoped product owned by pnp
+type ProductStoreContext @key(fields: "sku storeId") {
+  sku: String! @external
+  storeId: ID! @external
+  inventoryCount: Int!
+}
+
+input InventoryAdjustmentInput {
+  sku: String!
+  storeId: ID!
+  delta: Int!
+  reason: String
+}
+
+type Query {
+  """Stock position of a SKU at a store."""
+  inventory(sku: String!, storeId: ID!): Inventory
+}
+
+type Mutation {
+  """Apply a stock adjustment (delta) at a store."""
+  adjustInventory(input: InventoryAdjustmentInput!): Inventory
+}

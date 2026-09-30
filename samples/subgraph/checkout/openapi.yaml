@@ -1,0 +1,70 @@
+# Current REST API of the checkout / order service — migrates to subgraph.gql in this folder.
+# POST /checkout already orchestrates cart → inventory → payments → clear cart server-side; after
+# migration that logic lives in the submitCheckout resolver.
+openapi: 3.0.3
+info:
+  title: Checkout & Orders API
+  version: 3.0.0
+  description: Places orders by orchestrating the cart, inventory and payments services.
+servers:
+  - url: https://checkout.retail.example.com/v3
+paths:
+  /checkout:
+    post:
+      operationId: submitCheckout
+      summary: Verify the cart and stock, create a pending order, take payment and clear the cart.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitCheckoutInput" }
+      responses:
+        "200":
+          description: Checkout result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckoutResult" }
+  /orders/{id}:
+    get:
+      operationId: order
+      summary: Fetch an order placed through checkout.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+components:
+  schemas:
+    SubmitCheckoutInput:
+      type: object
+      required: [cartId, paymentMethodId, shippingAddress]
+      properties:
+        cartId: { type: string }
+        paymentMethodId: { type: string }
+        shippingAddress: { type: string }
+    CheckoutResult:
+      type: object
+      required: [success, errors]
+      properties:
+        success: { type: boolean }
+        order: { $ref: "#/components/schemas/Order" }
+        errors:
+          type: array
+          items: { $ref: "#/components/schemas/CheckoutError" }
+    Order:
+      type: object
+      required: [id, status, totalPaid]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [PENDING, PLACED, FAILED, UNKNOWN] }
+        totalPaid: { type: number }
+        paymentTransactionId: { type: string }
+    CheckoutError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }

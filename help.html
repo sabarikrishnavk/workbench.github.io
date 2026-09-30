@@ -135,12 +135,13 @@
     </ol>
 
     <h3 id="try-samples">Try it with the samples</h3>
-    <p>The <code>samples/</code> folder holds a complete retail example with four subgraphs: <b>product</b>, <b>pnp</b> (pricing), <b>inventory</b> and <b>search</b>.</p>
+    <p>The <code>samples/</code> folder holds a complete retail example with seven subgraphs: <b>product</b>, <b>pnp</b> (pricing), <b>inventory</b>, <b>search</b>, <b>cart</b>, <b>payments</b> and <b>checkout</b>.</p>
     <ol class="steps">
       <li><b class="t">Registry</b>In the workbench click <span class="ui">Load example</span>, or <span class="ui">Load .xlsx</span> → <code>samples/GQLRegistry-sample.xlsx</code>.</li>
       <li><b class="t">MonoGraph</b>In GQL migration, go to <b>MonoGraph schema</b> → <span class="ui">Choose file…</span> → <code>samples/mono-graph.gql</code>.</li>
       <li><b class="t">A subgraph</b>On <b>Load data</b>, load <code>samples/GQLRegistry-sample.xlsx</code> and pick <code>ENT-002 · ProductStoreContext</code>. Then <span class="ui">Import OpenAPI spec</span> → <code>samples/subgraph/pnp/openapi.yaml</code>. Compare the result with the target <code>samples/subgraph/pnp/subgraph.gql</code>.</li>
-      <li><b class="t">BFF code</b>In Code migration, load the sample registry and <code>samples/bff-openapi.yaml</code>, and switch Mode to <b>BFF composite</b>. The spec's header comment lists which FedGQL operations each endpoint composes.</li>
+      <li><b class="t">Single-op code</b>In Code migration, load the sample registry and <code>samples/subgraph/cart/openapi.yaml</code>. <code>GET /carts/{id}</code> pairs with <code>query cart</code>; scroll to the <b>Sequence trace</b> to see the router reach the product subgraph for each line.</li>
+      <li><b class="t">BFF code</b>Load <code>samples/bff-openapi.yaml</code> and switch Mode to <b>BFF composite</b>. The sample registry already maps four endpoints. <code>POST /bff/checkout</code> shows the <b>orchestrated checkout</b>: one <code>submitCheckout</code> mutation whose resolver calls cart → inventory → payments → cart. <code>GET /bff/cart/{cartId}</code> shows query federation.</li>
     </ol>
   </section>
 
@@ -248,14 +249,29 @@
     <div class="feat" id="code-modes"><h3>Mode</h3>
       <p><b>Single op</b> maps one REST operation to one FedGQL operation. <b>BFF composite</b> maps one BFF endpoint to a set of FedGQL queries and mutations from different subgraphs.</p></div>
     <div class="feat" id="code-single"><h3>Single op</h3>
-      <p>Pick the REST operation and the GraphQL operation; they are paired automatically when an operation's <b>Current Reference</b> matches the REST method and path. Choose <b>Client</b> (JavaScript, Java, Android/Kotlin, iOS/Swift) or <b>Server</b> (Java Spring for GraphQL, .NET Hot Chocolate, Node.js Apollo Server). You get the REST and FedGQL versions side by side, with renamed fields and types highlighted, plus a sample response.</p></div>
+      <p>Pick the REST operation and the GraphQL operation; they are paired automatically when an operation's <b>Current Reference</b> matches the REST method and path. Choose <b>Client</b> (JavaScript, Java, Android/Kotlin, iOS/Swift) or <b>Server</b> (Java Spring for GraphQL, .NET Hot Chocolate, Node.js Apollo Server). You get the REST and FedGQL versions side by side, with renamed fields and types highlighted, plus a sample response.</p>
+      <p>A <b>sequence trace</b> (Mermaid, rendered and copyable) shows how the router serves the operation: it calls the owning subgraph, then sends <code>_entities</code> calls by <code>@key</code> to every subgraph that owns an entity selected in the response. For example, <code>cart</code> → cart subgraph, then the product subgraph for each line's product fields. Mutations get the same trace.</p></div>
     <div class="feat" id="code-bff"><h3>BFF composite</h3>
       <p>Pick the BFF REST endpoint, then click <span class="ui">＋ Add FedGQL op</span> for each operation it composes, and set an alias and arguments for each. The page generates:</p>
       <ul>
         <li>the combined FedGQL document;</li>
-        <li>a single federated query, with a sequence diagram of how the router resolves the entity and then fetches from each subgraph by <code>@key</code>;</li>
+        <li>a single federated query, with a sequence diagram of how the router resolves the entity and then fetches from each subgraph by <code>@key</code>. When the owning entity is extended by another subgraph, the real contributed field is used (e.g. <code>product { storeContext(storeId:) }</code>);</li>
+        <li>a <b>mutation flow</b> (see below), when the endpoint composes mutations;</li>
         <li>the SDL for each subgraph involved;</li>
         <li>BFF handler (server) or client code.</li>
+      </ul>
+      <p><b>Mutation flow and the orchestrating mutation.</b> The router runs root mutation fields one after another, but one field can't use the previous field's result. So a flow like checkout (read cart → check stock → take payment → clear cart) belongs inside one mutation's resolver: a saga or process coordinator.</p>
+      <ul>
+        <li><b>Setting it up:</b> under <b>Orchestrating mutation</b>, pick that mutation (e.g. <code>submitCheckout</code>). Every other op in the table becomes one of its steps, run in table order.</li>
+        <li><b>What you get:</b>
+          <ul>
+            <li>the single mutation the client sends, with sample variables;</li>
+            <li>the ordered steps;</li>
+            <li>a Node.js orchestrator resolver skeleton, with a query/mutation document per step and compensation on failure;</li>
+            <li>a Mermaid sequence diagram of the orchestration.</li>
+          </ul></li>
+        <li><b>Without an orchestrator:</b> the diagram shows the router running the mutation fields in document order.</li>
+        <li><b>Saving it:</b> the choice is saved in the <code>BffMappings</code> sheet as <code>orchestrator</code>.</li>
       </ul></div>
     <div class="feat" id="code-export"><h3>Export registry + BFF mappings (.xlsx)</h3>
       <p>Writes the loaded registry back with a <code>BffMappings</code> sheet holding each endpoint's operations, aliases, arguments, order and owning operation. Load that workbook again later to restore the mappings.</p></div>

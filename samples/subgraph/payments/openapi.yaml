@@ -1,0 +1,54 @@
+# Current REST API of the payments service — migrates to subgraph.gql in this folder.
+openapi: 3.0.3
+info:
+  title: Payments API
+  version: 2.4.0
+  description: Headless payment processing — amounts and payment methods, no order contents.
+servers:
+  - url: https://payments.retail.example.com/v2
+paths:
+  /payments:
+    post:
+      operationId: processPayment
+      summary: Authorise and capture a payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProcessPaymentInput" }
+      responses:
+        "201":
+          description: Payment transaction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentTransaction" }
+  /payments/{id}:
+    get:
+      operationId: paymentTransaction
+      summary: Look up a payment transaction.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Payment transaction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentTransaction" }
+components:
+  schemas:
+    PaymentTransaction:
+      type: object
+      required: [id, status, gatewayReference, amount]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [SUCCESS, FAILED, DECLINED, UNKNOWN] }
+        gatewayReference: { type: string }
+        amount: { type: number }
+    ProcessPaymentInput:
+      type: object
+      required: [amount, currency, paymentMethodId, referenceId]
+      properties:
+        amount: { type: number }
+        currency: { type: string }
+        paymentMethodId: { type: string }
+        referenceId: { type: string }

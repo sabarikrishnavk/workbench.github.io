@@ -1,6 +1,6 @@
 # Sample MonoGraph (monolithic "monograph") schema — the source SDL to migrate FROM.
 # Load it on gql-migration.html → MonoGraph schema tab. Everything lives in one graph today;
-# the target splits it into the product, pnp, inventory and search subgraphs
+# the target splits it into the product, pnp, inventory, search, cart, payments and checkout subgraphs
 # (see samples/subgraph/*/subgraph.gql and the "Load example" registry).
 
 scalar Money
@@ -53,6 +53,66 @@ type FacetOption {
   count: Int!
 }
 
+type Cart {
+  id: ID!
+  userId: ID
+  items: [CartItem!]!
+  totalAmount: Money!
+}
+
+type CartItem {
+  id: ID!
+  quantity: Int!
+  product: Product!
+  unitPrice: Money!
+}
+
+enum OrderStatus {
+  PENDING
+  PLACED
+  FAILED
+  UNKNOWN
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+  DECLINED
+  UNKNOWN
+}
+
+"""Order and payment live together in the monolith (to be split into checkout + payments)."""
+type Order {
+  id: ID!
+  status: OrderStatus!
+  totalPaid: Money!
+  paymentStatus: PaymentStatus!
+  gatewayReference: String
+}
+
+type CheckoutError {
+  code: String!
+  message: String!
+}
+
+type CheckoutResult {
+  success: Boolean!
+  order: Order
+  errors: [CheckoutError!]!
+}
+
+input AddItemToCartInput {
+  cartId: ID!
+  sku: String!
+  quantity: Int!
+}
+
+input SubmitCheckoutInput {
+  cartId: ID!
+  paymentMethodId: String!
+  shippingAddress: String!
+}
+
 input ProductFilterInput {
   brand: [String!]!
   inStockAtStore: ID
@@ -83,6 +143,10 @@ type Query {
   inventory(sku: String!, storeId: ID!): Inventory
   """Full-text product search."""
   searchProducts(query: String!, filters: ProductFilterInput, limit: Int, offset: Int): SearchResponse!
+  """Fetch a cart with its lines."""
+  cart(id: ID!): Cart
+  """Fetch an order."""
+  order(id: ID!): Order
 }
 
 type Mutation {
@@ -90,4 +154,8 @@ type Mutation {
   updateStorePrice(input: UpdateStorePriceInput!): ProductStoreContext
   """Apply a stock adjustment (delta) at a store."""
   adjustInventory(input: InventoryAdjustmentInput!): Inventory
+  """Add a SKU to the cart."""
+  addItemToCart(input: AddItemToCartInput!): Cart!
+  """Check out: validate, charge and place the order — all inside the monolith today."""
+  submitCheckout(input: SubmitCheckoutInput!): CheckoutResult!
 }

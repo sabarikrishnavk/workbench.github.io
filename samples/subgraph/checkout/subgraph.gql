@@ -1,0 +1,66 @@
+# checkout subgraph — the saga / process coordinator for placing an order. submitCheckout's resolver:
+#   1. reads the cart (cart subgraph) and checks stock (inventory subgraph),
+#   2. creates a pending order,
+#   3. takes payment (payments subgraph, processPayment),
+#   4. clears the cart (cart subgraph, clearCart) — compensating completed steps on failure.
+# Mutations can't pipe results into each other through the router, so the orchestration lives in
+# this resolver and calls the other subgraphs over internal clients (gRPC / HTTP).
+# Registry: ENT-008 Order (BusinessApplication "checkout").
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires"])
+
+scalar Money
+
+type Order @key(fields: "id") {
+  id: ID!
+  status: OrderStatus!
+  totalPaid: Money!
+  paymentTransaction: PaymentTransaction
+}
+
+enum OrderStatus {
+  PENDING
+  PLACED
+  FAILED
+  UNKNOWN
+}
+
+type CheckoutResult {
+  success: Boolean!
+  order: Order
+  errors: [CheckoutError!]!
+}
+
+type CheckoutError {
+  code: String!
+  message: String!
+}
+
+input SubmitCheckoutInput {
+  cartId: ID!
+  paymentMethodId: String!
+  shippingAddress: String!
+}
+
+# Extend Cart (owned by the cart subgraph) with checkout eligibility
+type Cart @key(fields: "id") {
+  id: ID!                      # key field: not @external in Federation 2
+  totalAmount: Money! @external
+  isReadyForCheckout: Boolean! @requires(fields: "totalAmount")
+}
+
+# Reference stub: the order links to its payment, resolved by the payments subgraph
+type PaymentTransaction @key(fields: "id", resolvable: false) {
+  id: ID!
+}
+
+type Query {
+  """Fetch an order placed through checkout."""
+  order(id: ID!): Order
+}
+
+type Mutation {
+  """Orchestrating mutation: verify cart + stock, create a pending order, take payment, clear the cart."""
+  submitCheckout(input: SubmitCheckoutInput!): CheckoutResult!
+}

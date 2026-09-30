@@ -1754,9 +1754,10 @@ function renderOpDetail() {
 
 /* ------------------------------ Seed ------------------------------------ */
 function seedData() {
-  // Retail sample supergraph: four subgraphs (BusinessApplication) — product, pnp, inventory, search.
-  // Mirrors samples/subgraph/*/subgraph.gql. ProductStoreContext (sku + storeId) is owned by pnp;
-  // inventory contributes inventoryCount to it, and search returns Product references by sku.
+  // Retail sample supergraph: seven subgraphs (BusinessApplication) — product, pnp, inventory, search,
+  // cart, payments, checkout. Mirrors samples/subgraph/*/subgraph.gql. ProductStoreContext (sku + storeId)
+  // is owned by pnp; inventory contributes inventoryCount to it; search and cart reference Product by sku;
+  // checkout orchestrates submitCheckout (cart → inventory → payments → clear cart) and extends Cart.
   const db = emptyDB();
   const src = sg => "samples/subgraph/" + sg + "/subgraph.gql";
   // Entity links show each reference type: LeanIX fact sheet, Confluence page, ER model, source SDL.
@@ -1772,6 +1773,9 @@ function seedData() {
     { EntityID: "ENT-003", Name: "Inventory", ExperienceDomain: "Retail Web", BusinessApplication: "inventory", BusinessCapability: "Inventory Management", Description: "Stock position of a SKU at a store.", Links: refs("inventory", "Inventory+Subgraph") },
     { EntityID: "ENT-004", Name: "ProductSearch", ExperienceDomain: "Retail Web", BusinessApplication: "search", BusinessCapability: "Product Discovery", Description: "Full-text search, filtering and facets; returns Product references resolved by the router.", Links: refs("search", "Search+Subgraph") },
     { EntityID: "ENT-005", ...FEDGQL_ENTITY },
+    { EntityID: "ENT-006", Name: "Cart", ExperienceDomain: "Retail Web", BusinessApplication: "cart", BusinessCapability: "Cart Management", Description: "A shopper's cart and its lines; lines reference Product by sku.", Links: refs("cart", "Cart+Subgraph") },
+    { EntityID: "ENT-007", Name: "PaymentTransaction", ExperienceDomain: "Retail Web", BusinessApplication: "payments", BusinessCapability: "Payment Processing", Description: "Headless payment processing — knows amounts and payment methods, not what was bought.", Links: refs("payments", "Payments+Subgraph") },
+    { EntityID: "ENT-008", Name: "Order", ExperienceDomain: "Retail Web", BusinessApplication: "checkout", BusinessCapability: "Checkout & Order Orchestration", Description: "Checkout saga / process coordinator: validates the cart and stock, takes payment, places the order, clears the cart.", Links: refs("checkout", "Checkout+Subgraph") },
   ];
   const sch = (SchemaID, EntityID, Kind, TypeName, Definition) => ({ SchemaID, EntityID, Kind, TypeName, Definition, Links: "" });
   db.Schema = [
@@ -1792,20 +1796,53 @@ function seedData() {
     sch("SCH-ENT-004-003", "ENT-004", "Type", "FacetOption", "{\n  value: String!\n  count: Int!\n}"),
     sch("SCH-ENT-004-004", "ENT-004", "Input", "ProductFilterInput", "{\n  brand: [String!]!\n  inStockAtStore: ID\n}"),
     sch("SCH-ENT-004-005", "ENT-004", "Reference", "Product", '@key(fields: "sku", resolvable: false) {\n  sku: String!\n}'),
+    // cart — owns Cart; lines reference Product (owned by product) by sku
+    sch("SCH-ENT-006-001", "ENT-006", "Key", "Cart", '@key(fields: "id") {\n  id: ID!\n  userId: ID\n  items: [CartItem!]!\n  totalAmount: Money!\n}'),
+    sch("SCH-ENT-006-002", "ENT-006", "Type", "CartItem", "{\n  id: ID!\n  quantity: Int!\n  product: Product!\n  unitPrice: Money!\n}"),
+    sch("SCH-ENT-006-003", "ENT-006", "Reference", "Product", '@key(fields: "sku", resolvable: false) {\n  sku: String!\n}'),
+    sch("SCH-ENT-006-004", "ENT-006", "Input", "CreateCartInput", "{\n  userId: ID\n}"),
+    sch("SCH-ENT-006-005", "ENT-006", "Input", "AddItemToCartInput", "{\n  cartId: ID!\n  sku: String!\n  quantity: Int!\n}"),
+    sch("SCH-ENT-006-006", "ENT-006", "Input", "RemoveItemFromCartInput", "{\n  cartId: ID!\n  sku: String!\n}"),
+    sch("SCH-ENT-006-007", "ENT-006", "Input", "ClearCartInput", "{\n  cartId: ID!\n}"),
+    // payments — owns PaymentTransaction; knows amounts and methods, not what was bought
+    sch("SCH-ENT-007-001", "ENT-007", "Key", "PaymentTransaction", '@key(fields: "id") {\n  id: ID!\n  status: PaymentStatus!\n  gatewayReference: String!\n  amount: Money!\n}'),
+    sch("SCH-ENT-007-002", "ENT-007", "Enum", "PaymentStatus", "SUCCESS\nFAILED\nDECLINED\nUNKNOWN"),
+    sch("SCH-ENT-007-003", "ENT-007", "Input", "ProcessPaymentInput", "{\n  amount: Money!\n  currency: String!\n  paymentMethodId: String!\n  referenceId: ID!\n}"),
+    // checkout — owns Order, orchestrates submitCheckout, extends Cart with checkout eligibility
+    sch("SCH-ENT-008-001", "ENT-008", "Key", "Order", '@key(fields: "id") {\n  id: ID!\n  status: OrderStatus!\n  totalPaid: Money!\n  paymentTransaction: PaymentTransaction\n}'),
+    sch("SCH-ENT-008-002", "ENT-008", "Enum", "OrderStatus", "PENDING\nPLACED\nFAILED\nUNKNOWN"),
+    sch("SCH-ENT-008-003", "ENT-008", "Type", "CheckoutResult", "{\n  success: Boolean!\n  order: Order\n  errors: [CheckoutError!]!\n}"),
+    sch("SCH-ENT-008-004", "ENT-008", "Type", "CheckoutError", "{\n  code: String!\n  message: String!\n}"),
+    sch("SCH-ENT-008-005", "ENT-008", "Input", "SubmitCheckoutInput", "{\n  cartId: ID!\n  paymentMethodId: String!\n  shippingAddress: String!\n}"),
+    sch("SCH-ENT-008-006", "ENT-008", "Extend", "Cart", '@key(fields: "id") {\n  id: ID!\n  totalAmount: Money! @external\n  isReadyForCheckout: Boolean! @requires(fields: "totalAmount")\n}'),
+    sch("SCH-ENT-008-007", "ENT-008", "Reference", "PaymentTransaction", '@key(fields: "id", resolvable: false) {\n  id: ID!\n}'),
     // Default scalars owned by the foundational FedGQL entity (ENT-005).
     ...defaultScalarRows("ENT-005"),
   ];
   db.Queries = [
-    { QueryID: "QRY-ENT-001-001", EntityID: "ENT-001", Name: "product", Parameters: "sku: String!", ReturnType: "Product", AuthScopes: "catalog:read", Description: "Fetch a product by SKU.", Links: src("product") },
-    { QueryID: "QRY-ENT-001-002", EntityID: "ENT-001", Name: "products", Parameters: "skus: [String!]!", ReturnType: "[Product!]!", AuthScopes: "catalog:read", Description: "Batch-fetch products by SKU.", Links: src("product") },
-    { QueryID: "QRY-ENT-002-001", EntityID: "ENT-002", Name: "productStoreContext", Parameters: "sku: String!, storeId: ID!", ReturnType: "ProductStoreContext", AuthScopes: "price:read", Description: "Store-scoped price for a SKU.", Links: src("pnp") },
-    { QueryID: "QRY-ENT-003-001", EntityID: "ENT-003", Name: "inventory", Parameters: "sku: String!, storeId: ID!", ReturnType: "Inventory", AuthScopes: "inventory:read", Description: "Stock position of a SKU at a store.", Links: src("inventory") },
-    { QueryID: "QRY-ENT-004-001", EntityID: "ENT-004", Name: "searchProducts", Parameters: "query: String!, filters: ProductFilterInput, limit: Int, offset: Int", ReturnType: "SearchResponse!", AuthScopes: "search:read", Description: "Main entry point for search and catalogue exploration.", Links: src("search") },
+    { QueryID: "QRY-ENT-001-001", EntityID: "ENT-001", Name: "product", Parameters: "sku: String!", ReturnType: "Product", AuthScopes: "catalog:read", Description: "Fetch a product by SKU.", CurrentReference: "REST: GET /products/{sku}", Links: src("product") },
+    { QueryID: "QRY-ENT-001-002", EntityID: "ENT-001", Name: "products", Parameters: "skus: [String!]!", ReturnType: "[Product!]!", AuthScopes: "catalog:read", Description: "Batch-fetch products by SKU.", CurrentReference: "REST: GET /products", Links: src("product") },
+    { QueryID: "QRY-ENT-002-001", EntityID: "ENT-002", Name: "productStoreContext", Parameters: "sku: String!, storeId: ID!", ReturnType: "ProductStoreContext", AuthScopes: "price:read", Description: "Store-scoped price for a SKU.", CurrentReference: "REST: GET /prices/{sku}/stores/{storeId}", Links: src("pnp") },
+    { QueryID: "QRY-ENT-003-001", EntityID: "ENT-003", Name: "inventory", Parameters: "sku: String!, storeId: ID!", ReturnType: "Inventory", AuthScopes: "inventory:read", Description: "Stock position of a SKU at a store.", CurrentReference: "REST: GET /inventory/{sku}/stores/{storeId}", Links: src("inventory") },
+    { QueryID: "QRY-ENT-004-001", EntityID: "ENT-004", Name: "searchProducts", Parameters: "query: String!, filters: ProductFilterInput, limit: Int, offset: Int", ReturnType: "SearchResponse!", AuthScopes: "search:read", Description: "Main entry point for search and catalogue exploration.", CurrentReference: "REST: GET /search", Links: src("search") },
   ];
+  db.Queries.push(
+    { QueryID: "QRY-ENT-006-001", EntityID: "ENT-006", Name: "cart", Parameters: "id: ID!", ReturnType: "Cart", AuthScopes: "cart:read", Description: "Fetch a cart with its lines.", CurrentReference: "REST: GET /carts/{id}", Links: src("cart") },
+    { QueryID: "QRY-ENT-007-001", EntityID: "ENT-007", Name: "paymentTransaction", Parameters: "id: ID!", ReturnType: "PaymentTransaction", AuthScopes: "payment:read", Description: "Look up a payment transaction.", CurrentReference: "REST: GET /payments/{id}", Links: src("payments") },
+    { QueryID: "QRY-ENT-008-001", EntityID: "ENT-008", Name: "order", Parameters: "id: ID!", ReturnType: "Order", AuthScopes: "order:read", Description: "Fetch an order placed through checkout.", CurrentReference: "REST: GET /orders/{id}", Links: src("checkout") },
+  );
   db.Mutations = [
-    { MutationID: "MUT-ENT-002-001", EntityID: "ENT-002", Name: "updateStorePrice", Parameters: "input: UpdateStorePriceInput!", ReturnType: "ProductStoreContext", AuthScopes: "price:write", Description: "Set the price of a SKU at a store.", Links: src("pnp") },
-    { MutationID: "MUT-ENT-003-001", EntityID: "ENT-003", Name: "adjustInventory", Parameters: "input: InventoryAdjustmentInput!", ReturnType: "Inventory", AuthScopes: "inventory:write", Description: "Apply a stock adjustment (delta) at a store.", Links: src("inventory") },
+    { MutationID: "MUT-ENT-002-001", EntityID: "ENT-002", Name: "updateStorePrice", Parameters: "input: UpdateStorePriceInput!", ReturnType: "ProductStoreContext", AuthScopes: "price:write", Description: "Set the price of a SKU at a store.", CurrentReference: "REST: PUT /prices/{sku}/stores/{storeId}", Links: src("pnp") },
+    { MutationID: "MUT-ENT-003-001", EntityID: "ENT-003", Name: "adjustInventory", Parameters: "input: InventoryAdjustmentInput!", ReturnType: "Inventory", AuthScopes: "inventory:write", Description: "Apply a stock adjustment (delta) at a store.", CurrentReference: "REST: POST /inventory/adjustments", Links: src("inventory") },
   ];
+  db.Mutations.push(
+    { MutationID: "MUT-ENT-006-001", EntityID: "ENT-006", Name: "createCart", Parameters: "input: CreateCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Start a cart for a (possibly anonymous) user.", CurrentReference: "REST: POST /carts", Links: src("cart") },
+    { MutationID: "MUT-ENT-006-002", EntityID: "ENT-006", Name: "addItemToCart", Parameters: "input: AddItemToCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Add a SKU to the cart.", CurrentReference: "REST: POST /carts/{cartId}/items", Links: src("cart") },
+    { MutationID: "MUT-ENT-006-003", EntityID: "ENT-006", Name: "removeItemFromCart", Parameters: "input: RemoveItemFromCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Remove a SKU from the cart.", CurrentReference: "REST: DELETE /carts/{cartId}/items/{sku}", Links: src("cart") },
+    { MutationID: "MUT-ENT-006-004", EntityID: "ENT-006", Name: "clearCart", Parameters: "input: ClearCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Empty the cart (called by checkout after payment).", CurrentReference: "REST: DELETE /carts/{cartId}/items", Links: src("cart") },
+    { MutationID: "MUT-ENT-007-001", EntityID: "ENT-007", Name: "processPayment", Parameters: "input: ProcessPaymentInput!", ReturnType: "PaymentTransaction!", AuthScopes: "payment:write", Description: "Authorise and capture a payment (called by the checkout orchestrator).", CurrentReference: "REST: POST /payments", Links: src("payments") },
+    { MutationID: "MUT-ENT-008-001", EntityID: "ENT-008", Name: "submitCheckout", Parameters: "input: SubmitCheckoutInput!", ReturnType: "CheckoutResult!", AuthScopes: "checkout:write", Description: "Orchestrating mutation: verify cart + stock, create a pending order, take payment, clear the cart.", CurrentReference: "REST: POST /checkout", Links: src("checkout") },
+  );
   // One row per scope × persona (a persona with no row has no access to that scope).
   const scp = (ScopeID, EntityID, Scope, Persona, Permission, Description = "") => ({ ScopeID, EntityID, Scope, Persona, Permission, Description, Links: "" });
   db.AuthScopes = [
@@ -1820,6 +1857,16 @@ function seedData() {
     scp("SCP-ENT-003-003", "ENT-003", "inventory:write", "B2BAdmin", "adjust stock for own org stores"),
     scp("SCP-ENT-004-001", "ENT-004", "search:read", "Customer", "search the catalogue"),
     scp("SCP-ENT-004-002", "ENT-004", "search:read", "B2BShopper", "search org catalogue"),
+    scp("SCP-ENT-006-001", "ENT-006", "cart:read", "Customer", "read own cart"),
+    scp("SCP-ENT-006-002", "ENT-006", "cart:read", "CustomerCare", "read a customer's cart on their behalf"),
+    scp("SCP-ENT-006-003", "ENT-006", "cart:write", "Customer", "change own cart"),
+    scp("SCP-ENT-006-004", "ENT-006", "cart:write", "B2BShopper", "change own org cart"),
+    scp("SCP-ENT-007-001", "ENT-007", "payment:read", "CustomerCare", "look up a customer's payment"),
+    scp("SCP-ENT-007-002", "ENT-007", "payment:write", "B2BAdmin", "take payment for own org", "Called by the checkout orchestrator; not exposed to shoppers directly."),
+    scp("SCP-ENT-008-001", "ENT-008", "order:read", "Customer", "read own orders"),
+    scp("SCP-ENT-008-002", "ENT-008", "order:read", "B2BAdmin", "read all org orders"),
+    scp("SCP-ENT-008-003", "ENT-008", "checkout:write", "Customer", "check out own cart"),
+    scp("SCP-ENT-008-004", "ENT-008", "checkout:write", "B2BShopper", "check out own org cart"),
   ];
   return db;
 }
@@ -1835,7 +1882,7 @@ document.getElementById("nav").addEventListener("click", (e) => {
 document.getElementById("fileInput").addEventListener("change", (e) => { if (e.target.files[0]) importWorkbook(e.target.files[0]); e.target.value = ""; });
 document.getElementById("exportBtn").onclick = exportWorkbook;
 document.getElementById("templateBtn").onclick = downloadTemplate;
-document.getElementById("seedBtn").onclick = () => { if (SHEET_ORDER.some(s=>DB[s].length) && !confirm("Replace current data with the retail example (product · pnp · inventory · search)?")) return; DB = seedData(); save(); renderAll(); };
+document.getElementById("seedBtn").onclick = () => { if (SHEET_ORDER.some(s=>DB[s].length) && !confirm("Replace current data with the retail example (7 subgraphs: product · pnp · inventory · search · cart · payments · checkout)?")) return; DB = seedData(); save(); renderAll(); };
 document.getElementById("clearBtn").onclick = () => { if (!confirm("Clear all data?")) return; DB = emptyDB(); save(); renderAll(); };
 document.getElementById("groupSeg").addEventListener("click", (e) => { const b = e.target.closest("button[data-group]"); if (!b) return; groupBy = b.dataset.group; document.querySelectorAll("#groupSeg button").forEach(x=>x.classList.toggle("active", x===b)); renderGraph(); });
 document.getElementById("copyMermaid").onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById("mermaidSrc").textContent);

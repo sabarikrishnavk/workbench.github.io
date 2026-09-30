@@ -1,0 +1,23 @@
+sequenceDiagram
+    autonumber
+    participant C as Client · POST /bff/checkout
+    participant R as FedGQL Router
+    participant K as checkout subgraph · orchestrator
+    participant CT as cart subgraph
+    participant I as inventory subgraph
+    participant P as payments subgraph
+    C->>R: mutation SubmitCheckout(input: cartId, paymentMethodId, shippingAddress)
+    R->>K: submitCheckout(input)
+    Note over K: saga / process coordinator — steps run inside the resolver (internal gRPC or HTTP), not through the router
+    K->>CT: 1. cart(id) — lines + totalAmount
+    CT-->>K: Cart
+    K->>I: 2. inventory(sku, storeId) per line
+    I-->>K: Inventory (availableToSell)
+    Note over K: 3. create a pending Order
+    K->>P: 4. processPayment(input: amount, currency, paymentMethodId, referenceId = order id)
+    P-->>K: PaymentTransaction (SUCCESS / DECLINED)
+    K->>CT: 5. clearCart(input: cartId)
+    CT-->>K: Cart (empty)
+    Note over K: on failure after a write, compensate (refund / restore the cart) and return success false
+    K-->>R: CheckoutResult { success, order, errors }
+    R-->>C: { data: { submitCheckout } } — Order status and payment transaction

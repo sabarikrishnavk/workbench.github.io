@@ -418,25 +418,58 @@
   <div class="foot"><span>13</span><span class="sp"></span><a href="subgraph-codemigration.html">Open</a><a href="help.html#code-bff">Help</a></div>
 </section>
 
-<!-- 14 · Samples -->
+<!-- 14 · Code: orchestrated mutation -->
+<section class="slide" data-id="code-orch">
+  <div class="kicker">Code migration · orchestrating mutation</div>
+  <h2>Checkout: one mutation, orchestrated</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li>The router runs mutation fields one after another, but <b>one field can't use the previous field's result</b>.</li>
+      <li>Pick <b>submitCheckout</b> as the <b>orchestrating mutation</b>. The other ops become its steps: cart → inventory → payments → clear cart.</li>
+      <li>You get the one mutation the client sends, a <b>resolver skeleton</b> with compensation on failure, and a <b>Mermaid</b> sequence diagram.</li>
+      <li>Single ops get a sequence trace too: router → subgraph → <code>_entities</code> by <code>@key</code>.</li>
+    </ul>
+    <div>
+      <div class="win" style="margin-bottom:10px"><div class="body seq">
+        <div class="lane"><span class="actor">Client</span><span class="actor">Router</span><span class="actor">checkout</span><span class="actor">cart · inventory</span><span class="actor">payments</span></div>
+        <div class="lane"><span>POST /bff/checkout</span><span class="msg" style="grid-column:2/4">① submitCheckout(input)</span></div>
+        <div class="lane"><span></span><span class="msg" style="grid-column:3/5;margin-left:30%">② cart(id) · ③ inventory(sku, storeId)</span></div>
+        <div class="lane"><span></span><span class="msg" style="grid-column:3/6;margin-left:20%">④ processPayment(input) → PaymentTransaction</span></div>
+        <div class="lane"><span></span><span class="msg" style="grid-column:3/5;margin-left:30%">⑤ clearCart(input)</span></div>
+        <div class="lane"><span></span><span class="msg" style="grid-column:2/4">⑥ CheckoutResult { success, order }</span></div>
+      </div></div>
+<pre class="code" style="font-size:11.5px"><span class="k">mutation</span> SubmitCheckout($input: SubmitCheckoutInput!) {
+  submitCheckout(input: $input) {
+    success
+    order { id status totalPaid paymentTransaction { id status } }
+    errors { code message } } }</pre>
+    </div>
+  </div>
+  <div class="foot"><span>14</span><span class="sp"></span><a href="subgraph-codemigration.html">Open</a><a href="help.html#code-bff">Help</a></div>
+</section>
+
+<!-- 15 · Samples -->
 <section class="slide" data-id="samples">
   <div class="kicker">samples/</div>
   <h2>A complete retail example to practise on</h2>
-  <div class="router">Router · supergraph (4 subgraphs)</div>
+  <div class="router">Router · supergraph (7 subgraphs)</div>
   <div class="sg">
-    <div class="sgc"><h4>product</h4><div>Owns <code>Product @key(sku)</code>: title, description, imageUrl, brand.</div></div>
-    <div class="sgc"><h4>pnp</h4><div>Owns <code>ProductStoreContext @key(sku storeId)</code> and Price, and adds <code>storeContext</code> to Product.</div></div>
-    <div class="sgc"><h4>inventory</h4><div>Owns <code>Inventory</code> and adds <code>inventoryCount</code> to ProductStoreContext.</div></div>
-    <div class="sgc"><h4>search</h4><div><code>searchProducts</code> with facets. Returns Product references that the router fills in from the other subgraphs.</div></div>
+    <div class="sgc"><h4>product</h4><div>Owns <code>Product @key(sku)</code>.</div></div>
+    <div class="sgc"><h4>pnp</h4><div>Owns ProductStoreContext and Price; adds <code>storeContext</code> to Product.</div></div>
+    <div class="sgc"><h4>inventory</h4><div>Owns Inventory; adds <code>inventoryCount</code>.</div></div>
+    <div class="sgc"><h4>search</h4><div><code>searchProducts</code>; returns Product references.</div></div>
+    <div class="sgc"><h4>cart</h4><div>Owns <code>Cart @key(id)</code>; lines reference Product.</div></div>
+    <div class="sgc"><h4>payments</h4><div><code>processPayment</code>; knows amounts, not items.</div></div>
+    <div class="sgc"><h4>checkout</h4><div><code>submitCheckout</code> saga; owns Order.</div></div>
   </div>
   <ul class="pts" style="margin-top:24px">
-    <li><code>subgraph/&lt;name&gt;/subgraph.gql</code> (target) and <code>openapi.yaml</code> (the service's current REST API) for each subgraph. The four subgraphs compose into a valid supergraph.</li>
-    <li><code>mono-graph.gql</code>, <code>bff-openapi.yaml</code> and <code>GQLRegistry-sample.xlsx</code> for the other tools.</li>
+    <li><code>subgraph/&lt;name&gt;/subgraph.gql</code> (target) and <code>openapi.yaml</code> (the service's current REST API) for each subgraph. All seven compose into a valid supergraph.</li>
+    <li><code>mono-graph.gql</code>, <code>bff-openapi.yaml</code>, <code>GQLRegistry-sample.xlsx</code> (with pre-mapped BFF endpoints) and reference query/mutation + Mermaid files.</li>
   </ul>
-  <div class="foot"><span>14</span><span class="sp"></span><a href="help.html#try-samples">Help: try the samples</a></div>
+  <div class="foot"><span>15</span><span class="sp"></span><a href="help.html#try-samples">Help: try the samples</a></div>
 </section>
 
-<!-- 15 · Get started -->
+<!-- 16 · Get started -->
 <section class="slide" data-id="start">
   <div class="kicker">Get started</div>
   <h2>End to end in eight steps</h2>
@@ -450,7 +483,7 @@
     <li>Export, or <b>Save &amp; push</b> to SharePoint or Drive.</li>
     <li><b>Code migration</b>: generate the REST/BFF → FedGQL code.</li>
   </ol>
-  <div class="foot"><span>15</span><span class="sp"></span><a href="index.html">Home</a><a href="workbench.html">Open workbench</a><a href="help.html#quick-start">Step-by-step help</a></div>
+  <div class="foot"><span>16</span><span class="sp"></span><a href="index.html">Home</a><a href="workbench.html">Open workbench</a><a href="help.html#quick-start">Step-by-step help</a></div>
 </section>
 
 </div></div>

@@ -1,0 +1,36 @@
+# One mutation across the supergraph: checkout. The client sends ONLY submitCheckout; the checkout
+# subgraph's resolver is the saga / process coordinator and calls the other subgraphs itself.
+#
+# Why not chain mutations in one document? The router runs root mutation fields serially, but a field
+# can't read the previous field's result — so "take payment, then clear the cart" has to live in a
+# resolver, not in the client document.
+#
+# Orchestration inside submitCheckout (see checkout-orchestration.mmd):
+#   1. cart          — cart subgraph: read the cart lines and totalAmount
+#   2. inventory     — inventory subgraph: check stock for each line
+#   3. (create a pending Order in the checkout subgraph's own store)
+#   4. processPayment — payments subgraph: charge the payment method (referenceId = pending order id)
+#   5. clearCart     — cart subgraph: empty the cart
+#   On failure after a write: compensate (refund / restore the cart) and return success: false.
+mutation SubmitCheckout($input: SubmitCheckoutInput!) {
+  submitCheckout(input: $input) {
+    success
+    order {
+      id
+      status
+      totalPaid
+      paymentTransaction {        # resolved by the payments subgraph via @key(id)
+        id
+        status
+        gatewayReference
+      }
+    }
+    errors {
+      code
+      message
+    }
+  }
+}
+
+# Variables:
+# { "input": { "cartId": "cart-42", "paymentMethodId": "pm_card_visa", "shippingAddress": "1 Collins St, Melbourne VIC 3000" } }

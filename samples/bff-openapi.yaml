@@ -1,6 +1,7 @@
 # Sample monolithic BFF (backend-for-frontend) REST API — the composite endpoints to migrate.
 # Each endpoint today fans out to several services by hand; after migration it becomes ONE
-# federated query/mutation across the product, pnp, inventory and search subgraphs.
+# federated query/mutation across the product, pnp, inventory, search, cart, payments and checkout
+# subgraphs.
 # Load it on subgraph-codemigration.html as the "REST spec", switch Mode → "BFF composite",
 # and map each endpoint to the FedGQL operations it composes:
 #   GET  /bff/search                          → searchProducts (+ Product / storeContext hydration)
@@ -8,11 +9,17 @@
 #   GET  /bff/product-detail/{sku}/stores     → product + Product.allStoreContexts
 #   PUT  /bff/admin/prices/{sku}/stores/{id}  → updateStorePrice
 #   POST /bff/admin/inventory/adjustments     → adjustInventory
+#   GET    /bff/cart/{cartId}                 → cart (router hydrates each line's Product by sku)
+#   POST   /bff/cart/{cartId}/items           → addItemToCart
+#   DELETE /bff/cart/{cartId}/items/{sku}     → removeItemFromCart
+#   POST   /bff/checkout                      → submitCheckout — the ORCHESTRATING mutation; add
+#                                               cart, inventory, processPayment, clearCart as its steps
+#   GET    /bff/orders/{orderId}              → order (confirmation page)
 openapi: 3.0.3
 info:
   title: Retail Web BFF (monolithic)
-  version: 2.0.0
-  description: Web storefront BFF that aggregates the search, product, pricing and inventory services.
+  version: 2.1.0
+  description: Web storefront BFF that aggregates the search, product, pricing, inventory, cart, payments and checkout services.
 servers:
   - url: https://bff.retail.example.com
 paths:
@@ -90,6 +97,75 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StockPosition" }
+  /bff/cart/{cartId}:
+    get:
+      operationId: getCartPage
+      summary: Cart page — lines with product title and brand (product) and line prices (cart).
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Cart page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CartPage" }
+  /bff/cart/{cartId}/items:
+    post:
+      operationId: addToCart
+      summary: Add a SKU to the cart and return the refreshed cart page.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddToCartRequest" }
+      responses:
+        "200":
+          description: Updated cart page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CartPage" }
+  /bff/cart/{cartId}/items/{sku}:
+    delete:
+      operationId: removeFromCart
+      summary: Remove a SKU from the cart and return the refreshed cart page.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+        - { name: sku, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Updated cart page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CartPage" }
+  /bff/checkout:
+    post:
+      operationId: placeOrder
+      summary: Checkout — today the BFF calls cart, inventory, payments and cart again in sequence; after migration it sends one submitCheckout mutation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlaceOrderRequest" }
+      responses:
+        "200":
+          description: Checkout outcome
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlaceOrderResponse" }
+  /bff/orders/{orderId}:
+    get:
+      operationId: getOrderConfirmation
+      summary: Order confirmation page.
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Order confirmation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderConfirmation" }
 components:
   schemas:
     SearchPage:
@@ -176,3 +252,55 @@ components:
         storeId: { type: string }
         onHand: { type: integer }
         availableToSell: { type: integer }
+    CartPage:
+      type: object
+      required: [cartId, lines]
+      properties:
+        cartId: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/CartLine" }
+        totalAmount: { $ref: "#/components/schemas/Money" }
+    CartLine:
+      type: object
+      properties:
+        sku: { type: string }
+        title: { type: string }
+        brand: { type: string }
+        quantity: { type: integer }
+        unitPrice: { $ref: "#/components/schemas/Money" }
+    AddToCartRequest:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku: { type: string }
+        quantity: { type: integer }
+    PlaceOrderRequest:
+      type: object
+      required: [cartId, paymentMethodId, shippingAddress]
+      properties:
+        cartId: { type: string }
+        paymentMethodId: { type: string }
+        shippingAddress: { type: string }
+    PlaceOrderResponse:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean }
+        orderId: { type: string }
+        status: { type: string, enum: [PENDING, PLACED, FAILED] }
+        totalPaid: { $ref: "#/components/schemas/Money" }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              message: { type: string }
+    OrderConfirmation:
+      type: object
+      properties:
+        orderId: { type: string }
+        status: { type: string }
+        totalPaid: { $ref: "#/components/schemas/Money" }
+        paymentStatus: { type: string }

@@ -1,0 +1,39 @@
+# payments subgraph — a headless billing / processing engine. It processes financial transactions
+# without knowing what was bought (single responsibility). Called by the checkout orchestrator.
+# Registry: ENT-007 PaymentTransaction (BusinessApplication "payments").
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key"])
+
+scalar Money
+
+type PaymentTransaction @key(fields: "id") {
+  id: ID!
+  status: PaymentStatus!
+  gatewayReference: String!
+  amount: Money!
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+  DECLINED
+  UNKNOWN
+}
+
+input ProcessPaymentInput {
+  amount: Money!
+  currency: String!
+  paymentMethodId: String!
+  referenceId: ID!   # usually the pending Order ID or checkout session ID
+}
+
+type Query {
+  """Look up a payment transaction."""
+  paymentTransaction(id: ID!): PaymentTransaction
+}
+
+type Mutation {
+  """Authorise and capture a payment (triggered by the checkout orchestrator)."""
+  processPayment(input: ProcessPaymentInput!): PaymentTransaction!
+}

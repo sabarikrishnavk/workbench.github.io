@@ -1,0 +1,63 @@
+# cart subgraph — manages shopping carts and their lines. Lines reference Product (owned by the
+# product subgraph) by its sku key; the router hydrates product details from there.
+# Registry: ENT-006 Cart (BusinessApplication "cart").
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key"])
+
+scalar Money
+
+type Cart @key(fields: "id") {
+  id: ID!
+  userId: ID
+  items: [CartItem!]!
+  totalAmount: Money!
+}
+
+type CartItem {
+  id: ID!
+  quantity: Int!
+  # Product is owned by the product subgraph; the cart only holds its key
+  product: Product!
+  unitPrice: Money!
+}
+
+# Reference stub so the router can resolve product fields from the product subgraph
+type Product @key(fields: "sku", resolvable: false) {
+  sku: String!
+}
+
+input CreateCartInput {
+  userId: ID
+}
+
+input AddItemToCartInput {
+  cartId: ID!
+  sku: String!
+  quantity: Int!
+}
+
+input RemoveItemFromCartInput {
+  cartId: ID!
+  sku: String!
+}
+
+input ClearCartInput {
+  cartId: ID!
+}
+
+type Query {
+  """Fetch a cart with its lines."""
+  cart(id: ID!): Cart
+}
+
+type Mutation {
+  """Start a cart for a (possibly anonymous) user."""
+  createCart(input: CreateCartInput!): Cart!
+  """Add a SKU to the cart."""
+  addItemToCart(input: AddItemToCartInput!): Cart!
+  """Remove a SKU from the cart."""
+  removeItemFromCart(input: RemoveItemFromCartInput!): Cart!
+  """Empty the cart (called by the checkout orchestrator after payment)."""
+  clearCart(input: ClearCartInput!): Cart!
+}

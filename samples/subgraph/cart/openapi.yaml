@@ -1,0 +1,107 @@
+# Current REST API of the cart service — migrates to subgraph.gql in this folder.
+openapi: 3.0.3
+info:
+  title: Cart API
+  version: 1.2.0
+  description: Shopping carts and their lines.
+servers:
+  - url: https://cart.retail.example.com/v1
+paths:
+  /carts:
+    post:
+      operationId: createCart
+      summary: Start a cart for a (possibly anonymous) user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCartInput" }
+      responses:
+        "201":
+          description: Created cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+  /carts/{id}:
+    get:
+      operationId: cart
+      summary: Fetch a cart with its lines.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+  /carts/{cartId}/items:
+    post:
+      operationId: addItemToCart
+      summary: Add a SKU to the cart.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddItemToCartInput" }
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+    delete:
+      operationId: clearCart
+      summary: Empty the cart.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Emptied cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+  /carts/{cartId}/items/{sku}:
+    delete:
+      operationId: removeItemFromCart
+      summary: Remove a SKU from the cart.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+        - { name: sku, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+components:
+  schemas:
+    Cart:
+      type: object
+      required: [id, items, totalAmount]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CartItem" }
+        totalAmount: { type: number }
+    CartItem:
+      type: object
+      required: [id, quantity, sku, unitPrice]
+      properties:
+        id: { type: string }
+        quantity: { type: integer }
+        sku: { type: string }
+        unitPrice: { type: number }
+    CreateCartInput:
+      type: object
+      properties:
+        userId: { type: string }
+    AddItemToCartInput:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku: { type: string }
+        quantity: { type: integer }

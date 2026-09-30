@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    participant C as Client · GET /bff/search
+    participant R as FedGQL Router
+    participant S as search subgraph
+    participant PR as product subgraph
+    participant PN as pnp subgraph
+    participant I as inventory subgraph
+    C->>R: query SearchAndCheckStorePrices (supergraph-query.graphql)
+    R->>S: searchProducts(query, filters)
+    S-->>R: SearchResponse { totalCount, hits [Product {sku}] }
+    par hydrate the hits in parallel
+        R->>PR: _entities([{__typename: Product, sku}]) · title, brand
+        PR-->>R: Product fields merged by @key(sku)
+    and
+        R->>PN: _entities([{__typename: Product, sku}]) · storeContext(storeId)
+        PN-->>R: ProductStoreContext { sku, storeId, price }
+    end
+    R->>I: _entities([{__typename: ProductStoreContext, sku, storeId}]) · inventoryCount
+    I-->>R: inventoryCount merged by @key(sku storeId)
+    R-->>C: one JSON payload

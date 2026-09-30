@@ -161,6 +161,9 @@ function markDiffs(s, tokens){
   return s;
 }
 function restRefOf(op){ return `${op.method||""} ${op.path||""}`.trim(); }
+// A registry row's Current Reference lines ("REST: GET /x" as saved by the workbench, or a bare "GET /x").
+function restRefsOf(reg){ return String((reg&&reg.CurrentReference)||"").split(/[\n\r]+/).map(l=>l.trim().replace(/^(REST|monograph|Other)\s*:\s*/i,"")).filter(Boolean); }
+function refMatches(reg, restOp){ return !!restOp && restRefsOf(reg).includes(restRefOf(restOp)); }
 function parseGqlParams(str){
   return String(str||"").split(",").map(s=>s.trim()).filter(Boolean).map(s=>{
     const i=s.indexOf(":"); return i<0 ? {name:s, type:"String"} : {name:s.slice(0,i).trim(), type:s.slice(i+1).trim()||"String"};
@@ -169,7 +172,7 @@ function parseGqlParams(str){
 // Parse a registry Schema.Definition body ('@key(fields:"id") {\n id: ID! ...}') back into a type object.
 function parseDefBody(kind, name, def){
   def=String(def||""); const k=String(kind||"");
-  const km=def.match(/@key\(fields:\s*"([^"]*)"\)/); const key=km?km[1]:"";
+  const km=def.match(/@key\(fields:\s*"([^"]*)"/); const key=km?km[1]:"";
   // borrowed entity from another subgraph: Reference (stub) or Extend (field contribution)
   const extMode = k==="Reference" ? "reference" : (k==="Extend" ? "extend"
                 : (/^extend\s+type/.test(def.trim()) ? "extend" : (/resolvable:\s*false/.test(def) ? "reference" : "")));
@@ -177,7 +180,8 @@ function parseDefBody(kind, name, def){
   const inner=(def.match(/\{([\s\S]*)\}/)||[,""])[1];
   const lines=inner.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).filter(s=>!s.startsWith("#"));
   if(kind==="Enum") return { name, kind:"enum", isEntity:false, key:"", fields:[], values:lines };
-  const fields=lines.map(l=>{ const i=l.indexOf(":"); return i<0?null:{ name:l.slice(0,i).trim(), type:l.slice(i+1).trim() }; }).filter(Boolean);
+  // "name(args): Type @directive" → { name, args, type, external } (args/directives kept out of the type)
+  const fields=lines.map(l=>{ const m=l.match(/^(\w+)\s*(\([^)]*\))?\s*:\s*([^@#=]+)(.*)$/); return m?{ name:m[1], args:(m[2]||"").slice(1,-1).trim(), type:m[3].trim(), external:/@external\b/.test(m[4]) }:null; }).filter(Boolean);
   const t={ name, kind:(kind==="Input"?"input":"type"), isEntity, key:key||(isEntity?keyOf(fields):""), fields, values:[] };
   if(extMode){ t.ext=extMode; if(extMode==="reference") t.external=true; }
   return t;
@@ -275,13 +279,23 @@ function sampleForType(type, sg, depth){
     else one="sample"; }
   return isList ? [one] : one;
 }
-function gqlSelection(t, sg, indent, depth){
+// Selection set for type t. Fields with required arguments are skipped; nested objects past the depth
+// limit select just their key (or first scalar) so the document stays valid. `acc`, when given, collects
+// the entity types whose fields are selected (for the router fan-out in the sequence trace).
+function gqlSelection(t, sg, indent, depth, acc){
   indent=indent||"  "; depth=depth||0;
   const lines=[];
   for(const f of ((t&&t.fields)||[])){
-    const bt=baseType(f.type), named=(sg.types||[]).find(x=>x.name===bt);
-    if(named && named.kind!=="enum" && depth<1){
-      lines.push(indent+f.name+" {"); lines.push(gqlSelection(named, sg, indent+"  ", depth+1)); lines.push(indent+"}");
+    if(f.external || /!/.test(f.args||"")) continue;
+    const bt=baseType(f.type), named=(sg.types||[]).find(x=>x.name===bt && !x.ext);
+    if(named && named.kind!=="enum" && (named.fields||[]).length){       // object type (scalars/enums have no fields)
+      if(depth<2){
+        if(acc && named.isEntity) acc.push({ type:named.name, key:named.key, fields:(named.fields||[]).filter(x=>!x.external&&!/!/.test(x.args||"")).map(x=>x.name) });
+        lines.push(indent+f.name+" {"); lines.push(gqlSelection(named, sg, indent+"  ", depth+1, acc)); lines.push(indent+"}");
+      } else {
+        const leaf=named.key ? named.key.split(/[\s,]+/)[0] : ((named.fields||[]).find(x=>!(sg.types||[]).some(y=>y.name===baseType(x.type)&&(y.fields||[]).length))||{}).name;
+        if(leaf) lines.push(indent+f.name+" { "+leaf+" }");
+      }
     } else lines.push(indent+f.name);
   }
   return lines.join("\n");
@@ -473,7 +487,7 @@ function buildOpCtx(gqlSel, restSel, sgReg){
   const varName=retEnt.name.charAt(0).toLowerCase()+retEnt.name.slice(1);
   const p=opPayloads(gqlOp, sgReg, retEnt);
   const restReqLine=restRefOf(restSel);
-  const matched=(gqlSel.CurrentReference||"")===restReqLine;
+  const matched=refMatches(gqlSel, restSel);
 
   const of=origRet.fields||[], nf=retEnt.fields||[], nField=Math.max(of.length, nf.length);
   const ra=restSel.args||[], ga=gqlOp.args||[], nParam=Math.max(ra.length, ga.length);
@@ -531,9 +545,9 @@ function render(){
   // Resolve selections; default to a natural REST↔GQL pairing (matched by REST reference).
   let gqlSel=gqlOps.find(r=>r.id===selGql);
   let restSel=restOps.find(o=>o.id===selRest);
-  if(!gqlSel && !restSel){ gqlSel=gqlOps[0]; restSel=restOps.find(o=>restRefOf(o)===(gqlSel.CurrentReference||""))||restOps[0]; }
-  else if(gqlSel && !restSel){ restSel=restOps.find(o=>restRefOf(o)===(gqlSel.CurrentReference||""))||restOps[0]; }
-  else if(!gqlSel && restSel){ const rr=restRefOf(restSel); gqlSel=gqlOps.find(r=>(r.CurrentReference||"")===rr)||gqlOps[0]; }
+  if(!gqlSel && !restSel){ gqlSel=gqlOps.find(g=>restOps.some(o=>refMatches(g,o)))||gqlOps[0]; restSel=restOps.find(o=>refMatches(gqlSel,o))||restOps[0]; }
+  else if(gqlSel && !restSel){ restSel=restOps.find(o=>refMatches(gqlSel,o))||restOps[0]; }
+  else if(!gqlSel && restSel){ gqlSel=gqlOps.find(g=>refMatches(g,restSel))||gqlOps[0]; }
   selRest=restSel.id; selGql=gqlSel.id;
 
   if(selR) selR.innerHTML=restOps.map(o=>`<option value="${esc(o.id)}"${o.id===selRest?" selected":""}>${esc(restRefOf(o))} — ${esc(o.name)}</option>`).join("");
@@ -542,6 +556,7 @@ function render(){
   // Build the code-gen op + REST→FedGQL diff (shared with BFF per-op mapping).
   const cx=buildOpCtx(gqlSel, restSel, sgReg);
   const { gqlOp, retEnt, varName, p, restReqLine, diffTokens, changesHtml, fieldRowsHtml, mapNote }=cx;
+  const seqSrc=opSequenceMermaid(gqlSel, cx, sgReg);
 
   // Generated code section (client or server).
   let codeSection;
@@ -583,7 +598,9 @@ function render(){
         <pre class="code">${markDiffs(esc(JSON.stringify(p.gqlResponse,null,2)), diffTokens)}</pre>
       </div>
     </div>
+    ${mermaidBlock("opGraph", "Sequence trace", `(router → <span class="mono">${esc(subgraphOf(gqlSel.EntityID))}</span> subgraph${gqlOp.opKind==="query"?", then <span class=\"mono\">_entities</span> fan-out by <span class=\"mono\">@key</span> for fields owned elsewhere":""})`, seqSrc)}
     ${codeSection}`;
+  renderBffGraph(seqSrc, "opGraph");
 }
 
 /* ========================= BFF composite editor ========================= */
@@ -606,7 +623,9 @@ function hydrateBff(rows){  // rows from the BffMappings sheet -> M.bff (registr
     const opId=String(r.GqlOpId||"");
     m.ops.push({ alias:r.Alias||r.GqlOp||"", kind:(r.GqlKind||"query"), name:r.GqlOp||"",
       opId, entityId:String(r.EntityID||""), args:r.Args||"", notes:r.Notes||"" });
-    if(String(r.Owner||"").trim()) m.owner=opId;              // owning op for federation composition
+    const role=String(r.Owner||"").trim().toLowerCase();
+    if(role==="orchestrator") m.orchestrator=opId;            // orchestrating mutation (saga)
+    else if(role) m.owner=opId;                               // owning op for federation composition
   }
   if(Object.keys(bff).length){ M.bff=bff; saveBff(); }
 }
@@ -614,12 +633,14 @@ function bffRowsAoA(){
   const header=["BffRef","BffName","Alias","GqlKind","GqlOp","GqlOpId","EntityID","Args","Order","Notes","Owner"];
   const rows=[header];
   for(const [ref,m] of Object.entries(M.bff||{}))
-    (m.ops||[]).forEach((o,i)=>rows.push([ref, m.name||"", o.alias||"", o.kind||"", o.name||"", o.opId||"", o.entityId||"", o.args||"", i+1, o.notes||"", (m.owner&&String(m.owner)===String(o.opId))?"owner":""]));
+    (m.ops||[]).forEach((o,i)=>rows.push([ref, m.name||"", o.alias||"", o.kind||"", o.name||"", o.opId||"", o.entityId||"", o.args||"", i+1, o.notes||"", (m.orchestrator&&String(m.orchestrator)===String(o.opId))?"orchestrator":((m.owner&&String(m.owner)===String(o.opId))?"owner":"")]));
   return rows;
 }
 function exportRegistryWithBff(){
   if(!M.wb){ toast("Load GQLRegistry.xlsx first"); return; }
   const wb=M.wb, ws=XLSX.utils.aoa_to_sheet(bffRowsAoA());
+  wb.Sheets["BffMappings"]=ws;
+  if(!wb.SheetNames.includes("BffMappings")) wb.SheetNames.push("BffMappings");
   const fname=String(M.sgName||"GQLRegistry").replace(/[^a-zA-Z0-9_-]+/g,"-")+".xlsx";
   XLSX.writeFile(wb, fname); toast("Exported "+fname);
 }
@@ -644,7 +665,7 @@ function addBffOp(opId){
   if(!m.owner && o.kind==="query") m.owner=String(o.id);      // default owner = first query added
   openMenu=false; saveBff(); render();
 }
-function removeBffOp(idx){ const m=curBff(); if(m){ const rm=m.ops[idx]; m.ops.splice(idx,1); if(rm&&String(m.owner)===String(rm.opId)) m.owner=""; saveBff(); render(); } }
+function removeBffOp(idx){ const m=curBff(); if(m){ const rm=m.ops[idx]; m.ops.splice(idx,1); if(rm&&String(m.owner)===String(rm.opId)) m.owner=""; if(rm&&String(m.orchestrator)===String(rm.opId)) m.orchestrator=""; saveBff(); render(); } }
 
 /* --- compose the aliased query / mutation documents --- */
 function bffOpModel(o, sgReg){
@@ -679,6 +700,14 @@ function bffAliases(comp){ return [].concat(comp.query?comp.query.ops:[], comp.m
 const jStr=s=>String(s).replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\n/g,"\\n");   // Java/C# string literal
 const tStr=s=>String(s).replace(/\\/g,"\\\\").replace(/`/g,"\\`").replace(/\$\{/g,"\\${"); // JS template literal
 
+// The field a subgraph contributes to entity `typeName` (registry Extend row) whose type matches `returns`.
+function contributedField(typeName, entityId, returns){
+  const row=(M.reg.Schema||[]).find(r=>r.Kind==="Extend" && r.TypeName===typeName && String(r.EntityID||"")===String(entityId||""));
+  if(!row) return null;
+  const fields=parseDefBody(row.Kind, row.TypeName, row.Definition).fields.filter(f=>!f.external);
+  const rt=baseType(returns);
+  return fields.find(f=>baseType(f.type)===rt && !/^\s*\[/.test(f.type)) || fields.find(f=>baseType(f.type)===rt) || null;
+}
 /* --- GraphQL-federation composition: one subgraph owns the @key entity, the others extend it ---
    The router resolves the base entity from the owning op, then fans out to each extending subgraph
    via _entities/reference-resolvers keyed by @key, and merges the contributed fields. The client
@@ -691,17 +720,24 @@ function bffFederation(bff, sgReg){
   if(!E) return { ok:false, note:`The owning op “${owner.alias||owner.name}” returns “${ownerModel.returns||"?"}”, which isn’t a registry entity type — federation needs an owning entity with a @key.` };
   const K=E.key||keyOf(E.fields)||"id";
   const keyType=((E.fields||[]).find(f=>f.name===K)||{}).type||"ID!";
-  // every OTHER query op contributes an extension field on the owned entity (mutations stay flat)
+  // every OTHER query op contributes an extension field on the owned entity (mutations stay flat).
+  // When the registry has that subgraph's Extend row on the entity (e.g. pnp: Product.storeContext(storeId)),
+  // use the real contributed field + its args; otherwise the op's alias stands in for the field.
   const extensions=(bff.ops||[])
     .filter(o=>o.kind==="query" && String(o.opId)!==String(owner.opId))
-    .map(o=>{ const em=bffOpModel(o, sgReg); return { op:o, model:em, retEnt:em.retEnt, fieldName:em.alias, fieldType:em.returns, args:em.args, prefix:em.prefix, fieldArgs:em.fieldArgs, varDefs:em.varDefs }; });
+    .map(o=>{ const em=bffOpModel(o, sgReg), cf=contributedField(E.name, o.entityId, em.returns);
+      if(!cf) return { op:o, model:em, retEnt:em.retEnt, fieldName:em.alias, fieldType:em.returns, args:em.args, prefix:em.prefix, fieldArgs:em.fieldArgs, varDefs:em.varDefs, alias:"" };
+      const args=parseGqlParams(cf.args);
+      return { op:o, model:em, retEnt:em.retEnt, fieldName:cf.name, fieldType:cf.type, args, prefix:em.prefix,
+        fieldArgs:args.map(a=>`${a.name}: $${em.prefix}_${a.name}`).join(", "), varDefs:args.map(a=>`$${em.prefix}_${a.name}: ${a.type}`),
+        alias:(o.alias && o.alias!==o.name && o.alias!==cf.name) ? o.alias : "" }; });
 
   // --- single nested federated query (router resolves base entity, then the extension fields) ---
   const varDefs=[...new Set([].concat(ownerModel.varDefs, ...extensions.map(x=>x.varDefs)))];
   const ownerSel=gqlSelection(E, sgReg, "      ");                       // owner entity fields (incl. the @key)
   const extBlocks=extensions.map(x=>{
     const inner=x.retEnt && (x.retEnt.fields||[]).length ? "\n"+gqlSelection(x.retEnt, sgReg, "        ")+"\n      " : " ";
-    return `      ${x.fieldName}${x.fieldArgs?`(${x.fieldArgs})`:""} {${inner}}`;
+    return `      ${x.alias?x.alias+": ":""}${x.fieldName}${x.fieldArgs?`(${x.fieldArgs})`:""} {${inner}}`;
   }).join("\n");
   const inner=[ownerSel, extBlocks].filter(s=>s&&s.trim()).join("\n");
   const query=`query ${bff.name||"Bff"}${varDefs.length?`(${varDefs.join(", ")})`:""} {\n    ${owner.alias||owner.name}${ownerModel.fieldArgs?`(${ownerModel.fieldArgs})`:""} {\n${inner}\n    }\n}`;
@@ -761,12 +797,136 @@ function bffMermaid(bff, sgReg, fed){
 }
 let bffMermaidReady=false;
 function ensureMermaid(){ if(!bffMermaidReady && window.mermaid){ mermaid.initialize({ startOnLoad:false, theme:"neutral", securityLevel:"loose" }); bffMermaidReady=true; } }
-async function renderBffGraph(src){
-  const out=document.getElementById("bffGraph"); if(!out||!src) return;
+// Mermaid renders are queued: overlapping mermaid.render() calls share SVG marker ids, which drops
+// the arrowheads / step numbers from whichever diagram finishes second.
+let mermaidQueue=Promise.resolve();
+function renderBffGraph(src, id){ mermaidQueue=mermaidQueue.then(()=>renderMermaidNow(src, id)).catch(()=>{}); return mermaidQueue; }
+async function renderMermaidNow(src, id){
+  id=id||"bffGraph";
+  const out=document.getElementById(id); if(!out||!src) return;
   ensureMermaid();
   if(!window.mermaid){ out.innerHTML='<div class="empty">Mermaid failed to load (offline?). The source below is still valid.</div>'; return; }
-  try{ const { svg }=await mermaid.render("bffGraph_"+Date.now(), src); out.innerHTML=svg; }
+  try{ const { svg }=await mermaid.render(id+"_"+Date.now()+"_"+Math.floor(Math.random()*1e6), src); out.innerHTML=uniqueMarkers(svg, id); }
   catch(e){ out.innerHTML='<div class="empty">Could not render diagram: '+esc(e.message)+'</div>'; }
+}
+// Mermaid names its arrowhead / sequence-number <marker>s with fixed ids; a hidden diagram elsewhere on
+// the page (e.g. the single-op view while in BFF mode) would win the url(#id) lookup and the visible
+// diagram loses its arrows. Suffix this diagram's marker ids and references so each SVG is self-contained.
+function uniqueMarkers(svg, tag){
+  const ids=[...svg.matchAll(/<marker\b[^>]*\bid="([^"]+)"/g)].map(m=>m[1]); if(!ids.length) return svg;
+  const sfx="-"+tag+"-"+Date.now().toString(36);
+  for(const idv of new Set(ids)){
+    const e=idv.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    svg=svg.replace(new RegExp(`id="${e}"`,"g"), `id="${idv}${sfx}"`).replace(new RegExp(`url\\(#${e}\\)`,"g"), `url(#${idv}${sfx})`);
+  }
+  return svg;
+}
+// Diagram card: rendered SVG + copyable Mermaid source.
+function mermaidBlock(id, title, hint, src){
+  return `<div class="code-head" style="margin-top:10px"><h3>${title} ${hint?`<span class="hint">${hint}</span>`:""}</h3><button class="copy-btn" onclick='copyText(${attrJson(src)})'>Copy Mermaid</button></div>
+    <div id="${id}" style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;overflow:auto"></div><pre class="code">${esc(src)}</pre>`;
+}
+
+/* --- which subgraph serves what (Entities.BusinessApplication = subgraph) --- */
+function subgraphOf(entityId){ const e=(M.entities||[]).find(x=>String(x.EntityID||"")===String(entityId)); return (e&&(String(e.BusinessApplication||"").trim()||e.Name))||entityId||"subgraph"; }
+function keyOwnerOf(typeName){ const r=(M.reg.Schema||[]).find(x=>x.Kind==="Key" && x.TypeName===typeName); return r?String(r.EntityID||""):""; }
+const mmMsg=s=>String(s==null?"":s).replace(/"/g,"'").replace(/[\n;#]/g," ");
+const mmLbl=s=>String(s==null?"":s).replace(/["():;#,]/g,"").replace(/\n/g," ").trim();
+
+/* --- single operation: client → router → owning subgraph, plus the _entities fan-out to every
+   subgraph that owns an entity selected in the response (resolved by @key) --- */
+function opSequenceMermaid(gqlSel, cx, sgReg){
+  const acc=[]; gqlSelection(cx.retEnt, sgReg, "  ", 0, acc);
+  const own=String(gqlSel.EntityID||""), kw=cx.gqlOp.opKind==="mutation"?"mutation":"query";
+  const args=(cx.gqlOp.args||[]).map(a=>a.name).join(", ");
+  const fan=[], seen=new Set();
+  const retOwner=keyOwnerOf(cx.retEnt.name);
+  if(cx.retEnt.isEntity && retOwner && retOwner!==own) acc.unshift({ type:cx.retEnt.name, key:cx.retEnt.key, fields:(cx.retEnt.fields||[]).map(f=>f.name) });
+  for(const e of acc){ const o=keyOwnerOf(e.type); if(!o || o===own || seen.has(e.type)) continue; seen.add(e.type); fan.push({ ...e, owner:o }); }
+  const L=["sequenceDiagram","  autonumber",
+    `  participant C as Client · ${mmLbl(cx.restReqLine)}`,
+    "  participant R as FedGQL Router",
+    `  participant S0 as ${mmLbl(subgraphOf(own))} subgraph`];
+  const sgIdx={}; fan.forEach(f=>{ const sg=subgraphOf(f.owner); if(!(sg in sgIdx)){ sgIdx[sg]=Object.keys(sgIdx).length+1; L.push(`  participant S${sgIdx[sg]} as ${mmLbl(sg)} subgraph`); } });
+  L.push(`  C->>R: ${kw} ${mmMsg(cap(cx.gqlOp.name))}${args?` (${mmMsg(args)})`:""}`);
+  L.push(`  R->>S0: ${mmMsg(cx.gqlOp.name)}(${mmMsg(args)})`);
+  if(kw==="mutation") L.push("  Note over S0: mutation resolver writes, then returns the payload");
+  L.push(`  S0-->>R: ${mmMsg(baseType(cx.gqlOp.returns))}${fan.length?` incl. ${mmMsg(fan.map(f=>f.type+" {"+f.key+"}").join(", "))}`:""}`);
+  for(const f of fan){
+    const i=sgIdx[subgraphOf(f.owner)], more=(f.fields||[]).filter(x=>x!==f.key);
+    L.push(`  R->>S${i}: _entities([{__typename: ${mmMsg(f.type)}, ${mmMsg(f.key)}}]) · ${mmMsg(more.slice(0,4).join(", "))}${more.length>4?" …":""}`);
+    L.push(`  S${i}-->>R: ${mmMsg(f.type)} fields merged by @key(${mmMsg(f.key)})`);
+  }
+  L.push(`  R-->>C: { data: { ${mmMsg(cx.gqlOp.name)} } }`);
+  return L.join("\n");
+}
+
+/* --- BFF mutation flow. With an orchestrating mutation (saga / process coordinator, e.g.
+   submitCheckout) the client sends ONE mutation; its resolver calls the other ops' subgraphs in
+   table order over internal clients. Without one, the router runs the root mutation fields serially
+   in document order (a field can't read the previous field's result). --- */
+function bffOrchestratorOp(m){ return (m.ops||[]).find(o=>o.kind==="mutation" && String(o.opId)===String(m.orchestrator||"")) || null; }
+function setBffOrchestrator(opId){ const m=curBff(); if(m){ m.orchestrator=String(opId||""); saveBff(); render(); } }
+function bffOpDoc(model, kw){
+  const vars=model.varDefs.length?`(${model.varDefs.join(", ")})`:"";
+  return `${kw} ${cap(model.alias)}${vars} {\n${model.field.replace(/^ {4}/gm,"  ")}\n}`;
+}
+function bffMutationFlow(bff, sgReg){
+  const orch=bffOrchestratorOp(bff), muts=(bff.ops||[]).filter(o=>o.kind==="mutation");
+  if(!muts.length) return null;
+  const rest=M.restOps.find(o=>restRefOf(o)===bffRef), route=rest?`${rest.method} ${rest.path}`:(bffRef||"BFF");
+  const L=["sequenceDiagram","  autonumber", `  participant C as Client · ${mmLbl(route)}`, "  participant R as FedGQL Router"];
+  const idx={}, part=(eid, tag)=>{ const sg=subgraphOf(eid); if(!(sg in idx)){ idx[sg]="S"+(Object.keys(idx).length+1); L.push(`  participant ${idx[sg]} as ${mmLbl(sg)} subgraph${tag?" · "+mmLbl(tag):""}`); } return idx[sg]; };
+  const argNames=mo=>mo.args.map(a=>a.name).join(", ");
+  if(orch){
+    const om=bffOpModel(orch, sgReg), O=part(orch.entityId, "orchestrator");
+    const steps=(bff.ops||[]).filter(o=>o!==orch).map(o=>({ op:o, model:bffOpModel(o, sgReg) }));
+    steps.forEach(st=>part(st.op.entityId));
+    L.push(`  C->>R: mutation ${mmMsg(cap(om.alias))} (${mmMsg(argNames(om))})`);
+    L.push(`  R->>${O}: ${mmMsg(om.name)}(${mmMsg(argNames(om))})`);
+    L.push(`  Note over ${O}: saga / process coordinator — steps run inside the resolver (internal gRPC or HTTP), not through the router`);
+    steps.forEach((st,i)=>{
+      const P=idx[subgraphOf(st.op.entityId)];
+      L.push(`  ${O}->>${P}: ${i+1}. ${mmMsg(st.model.name)}(${mmMsg(argNames(st.model))})${st.op.kind==="mutation"?" · write":""}`);
+      L.push(`  ${P}-->>${O}: ${mmMsg(baseType(st.model.returns)||"result")}`);
+    });
+    if(steps.some(st=>st.op.kind==="mutation")) L.push(`  Note over ${O}: on failure, compensate the completed writes (e.g. refund / restore the cart)`);
+    L.push(`  ${O}-->>R: ${mmMsg(baseType(om.returns)||"result")}`);
+    L.push(`  R-->>C: { data: { ${mmMsg(om.alias)} } }`);
+    const doc=bffOpDoc(om, "mutation");
+    const vars={}; for(const a of om.args) vars[`${om.prefix}_${a.name}`]=sampleForType(a.type, sgReg, 1);
+    return { orchestrated:true, orch, om, steps, doc, vars, mermaid:L.join("\n"), code:orchestratorCode(orch, om, steps, sgReg) };
+  }
+  const models=muts.map(o=>bffOpModel(o, sgReg));
+  models.forEach((mo,i)=>part(muts[i].entityId));
+  L.push(`  C->>R: mutation ${mmMsg(bff.name||"Bff")}`);
+  L.push("  Note over R: root mutation fields execute serially in document order — results can't be piped into the next field");
+  models.forEach((mo,i)=>{ const P=idx[subgraphOf(muts[i].entityId)];
+    L.push(`  R->>${P}: ${mmMsg(mo.alias)}: ${mmMsg(mo.name)}(${mmMsg(argNames(mo))})`);
+    L.push(`  ${P}-->>R: ${mmMsg(baseType(mo.returns)||"result")}`); });
+  L.push(`  R-->>C: { data: { ${mmMsg(models.map(mo=>mo.alias).join(", "))} } }`);
+  return { orchestrated:false, mermaid:L.join("\n") };
+}
+// Node.js resolver skeleton for the orchestrating mutation: each step is an internal call to the owning subgraph.
+function orchestratorCode(orch, om, steps, sgReg){
+  const sgVar=eid=>subgraphOf(eid).replace(/[^A-Za-z0-9]/g,"")||"svc";
+  const lines=[`// ${subgraphOf(orch.entityId)} subgraph — ${om.name} orchestrator (saga / process coordinator)`,
+    `// The client sends ONE mutation; this resolver drives the other subgraphs over internal clients.`,
+    `const resolvers = {`, `  Mutation: {`, `    async ${om.name}(_, args, { clients }) {`, `      const done = [];   // completed writes, for compensation`, `      try {`];
+  steps.forEach((st,i)=>{
+    const sel=st.model.retEnt&&(st.model.retEnt.fields||[]).length ? " {\n"+gqlSelection(st.model.retEnt, sgReg, "            ")+"\n          }" : "";
+    const vars=st.model.args.length?"("+st.model.args.map(a=>`$${a.name}: ${a.type}`).join(", ")+")":"";
+    const call=`${st.model.name}${st.model.args.length?"("+st.model.args.map(a=>`${a.name}: $${a.name}`).join(", ")+")":""}${sel}`;
+    const from=i?`from args / r1${i>1?"…r"+i:""}`:"from args";
+    lines.push(`        // ${i+1}. ${st.op.kind} ${st.model.name} — ${subgraphOf(st.op.entityId)} subgraph`);
+    lines.push(`        const r${i+1} = await clients.${sgVar(st.op.entityId)}.request(\`${st.op.kind} ${cap(st.model.name)}${vars} {\n          ${call}\n        }\`, { /* ${st.model.args.map(a=>a.name).join(", ")} ${from} */ });`);
+    if(st.op.kind==="mutation") lines.push(`        done.push({ step: "${st.model.name}", result: r${i+1} });`);
+  });
+  lines.push(`        return { success: true /* , … build the ${baseType(om.returns)||"result"} from r1…r${steps.length} */ };`,
+    `      } catch (err) {`, `        for (const d of done.reverse()) { /* compensate d.step (refund, restore, cancel) */ }`,
+    `        return { success: false, errors: [{ code: "CHECKOUT_FAILED", message: String(err.message || err) }] };`,
+    `      }`, `    },`, `  },`, `};`);
+  return lines.join("\n");
 }
 
 /* --- BFF server generators: REST endpoint that composes the federated graph --- */
@@ -871,11 +1031,13 @@ function renderBff(){
     <div style="margin:8px 0">${addBtn}</div>`;
 
   // composed documents
-  const comp=bffComposeDoc(m, sgReg); comp.__vars=bffVarsSample(comp, sgReg);
+  let comp=bffComposeDoc(m, sgReg); comp.__vars=bffVarsSample(comp, sgReg);
+  const flow=bffMutationFlow(m, sgReg);
+  if(flow && flow.orchestrated) comp={ query:null, mutation:{ doc:flow.doc, vars:flow.om.varDefs, ops:[flow.om] }, models:comp.models, __vars:flow.vars };
   const docBlock=(title, doc)=>`<div><div class="code-head"><h3>${esc(title)}</h3><button class="copy-btn" onclick='copyText(${attrJson(doc)})'>Copy</button></div><pre class="code">${highlightSDL(doc)}</pre></div>`;
   let composedHtml="";
   if(comp.query||comp.mutation){
-    composedHtml=`<div class="kv">Composed document — <span class="mono">${esc(bffRef)}</span> → <span class="mono">${esc(m.name||"Bff")}</span> <span class="hint">(variables are alias-prefixed to avoid cross-subgraph collisions)</span></div>
+    composedHtml=`<div class="kv">Composed document — <span class="mono">${esc(bffRef)}</span> → <span class="mono">${esc(m.name||"Bff")}</span> <span class="hint">${flow&&flow.orchestrated?`(orchestrated — the client sends only <span class="mono">${esc(flow.om.name)}</span>; the other ops run inside its resolver)`:"(variables are alias-prefixed to avoid cross-subgraph collisions)"}</span></div>
       <div class="grid2">${comp.query?docBlock("query "+ (m.name||"Bff"), comp.query.doc):""}${comp.mutation?docBlock("mutation "+(m.name||"Bff"), comp.mutation.doc):""}</div>`;
   }
 
@@ -884,7 +1046,7 @@ function renderBff(){
   const mmSrc=bffMermaid(m, sgReg, fed);
   const queryOps=m.ops.filter(o=>o.kind==="query");
   let fedHtml="";
-  if(m.ops.length){
+  if(m.ops.length && !(flow && flow.orchestrated) && queryOps.length){
     const ownerSelHtml=queryOps.length ? `<label><b>Owning op</b> <select onchange="setBffOwner(this.value)">${queryOps.map(o=>{
         const ret=(M.gqlOps.find(g=>String(g.id)===String(o.opId))||{}).ReturnType||"";
         return `<option value="${esc(o.opId)}"${(fed.ok&&String(fed.ownerOp.opId)===String(o.opId))?" selected":""}>${esc(o.alias||o.name)}${ret?` : ${esc(ret)}`:""}</option>`;
@@ -919,7 +1081,28 @@ function renderBff(){
     fedHtml=`<div class="kv" style="margin-top:14px">Federation composition <span class="hint">(GraphQL-federation style — one subgraph owns the entity via <span class="mono">@key</span>, the others <span class="mono">extend</span> it)</span></div>
       ${ownerSelHtml?`<div class="selrow" style="margin:4px 0">${ownerSelHtml}</div>`:""}
       ${fedBody}
-      ${comp.mutation?`<div class="hint" style="margin-top:6px">Mutations aren’t federated via entity extension — see the flat composed <span class="mono">mutation</span> document above.</div>`:""}`;
+`;
+  }
+
+  // mutation flow — orchestrating mutation (saga) or serial root mutation fields, with Mermaid trace
+  let mutHtml="";
+  if(flow){
+    const mutOps=m.ops.filter(o=>o.kind==="mutation");
+    const orchSel=`<label><b>Orchestrating mutation</b> <select onchange="setBffOrchestrator(this.value)"><option value="">— none: the router runs the mutation fields serially —</option>${mutOps.map(o=>`<option value="${esc(o.opId)}"${String(m.orchestrator||"")===String(o.opId)?" selected":""}>${esc(o.alias||o.name)} · ${esc(subgraphOf(o.entityId))}</option>`).join("")}</select>
+      <span class="hint">a saga / process coordinator (e.g. <span class="mono">submitCheckout</span>) whose resolver calls the other ops' subgraphs in table order</span></label>`;
+    let body="";
+    if(flow.orchestrated){
+      body=`<div class="grid2">
+          <div><div class="code-head"><h3>Target — mutation the client sends</h3><button class="copy-btn" onclick='copyText(${attrJson(flow.doc)})'>Copy</button></div><pre class="code">${highlightSDL(flow.doc)}</pre>
+            <div class="code-head"><h3>Variables</h3></div><pre class="code">${esc(JSON.stringify(flow.vars,null,2))}</pre></div>
+          <div><div class="code-head"><h3>Orchestrator steps</h3></div><ol style="margin:0;padding-left:20px;font-size:13px">${flow.steps.map(st=>`<li><span class="badge ${st.op.kind}">${esc(st.op.kind)}</span> <span class="mono">${esc(st.model.name)}</span> <span class="hint">· ${esc(subgraphOf(st.op.entityId))} subgraph</span></li>`).join("")||'<li class="hint">add the ops the orchestrator calls</li>'}</ol>
+            <div class="code-head"><h3>Orchestrator resolver (Node.js skeleton)</h3><button class="copy-btn" onclick='copyText(${attrJson(flow.code)})'>Copy</button></div><pre class="code">${esc(flow.code)}</pre></div>
+        </div>
+        ${mermaidBlock("bffMutGraph", "Mutation orchestration", "(one client mutation; the orchestrator drives each subgraph and compensates on failure)", flow.mermaid)}`;
+    } else {
+      body=mermaidBlock("bffMutGraph", "Mutation sequence", "(root mutation fields run serially in document order)", flow.mermaid);
+    }
+    mutHtml=`<div class="kv" style="margin-top:14px">Mutation flow</div><div class="selrow" style="margin:4px 0">${orchSel}</div>${body}`;
   }
 
   // output/language controls + generated code
@@ -941,7 +1124,7 @@ function renderBff(){
     perOp=`<div class="kv">Per-op field mapping — each FedGQL op vs its legacy REST reference</div>`;
     for(const o of m.ops){
       const reg=M.gqlOps.find(g=>String(g.id)===String(o.opId)); if(!reg) continue;
-      const restSel=M.restOps.find(x=>restRefOf(x)===(reg.CurrentReference||"")) || bffRestOp;
+      const restSel=M.restOps.find(x=>refMatches(reg,x)) || bffRestOp;
       const cx=buildOpCtx(reg, restSel, sgReg);
       perOp+=`<details class="stdref" style="margin:6px 0"><summary><span class="badge ${o.kind}">${esc(o.kind)}</span> <b>${esc(o.alias||o.name)}</b> <span class="hint">· ${esc(o.entityId||"")} · ${esc(cx.restReqLine)} ${cx.mapNote}</span></summary>
         <div style="padding:8px 0">${cx.changesHtml}
@@ -950,8 +1133,9 @@ function renderBff(){
   }
 
   host.innerHTML = `<h3 style="margin:0 0 2px">${esc(m.name||"Bff")} <small class="hint">· BFF <span class="mono">${esc(bffRef)}</span> · ${m.ops.length} op(s) · ${esc(M.sgName||"registry")}</small></h3>
-    ${tableHtml}${composedHtml}${fedHtml}${codeHtml}${perOp}`;
-  if(m.ops.length) renderBffGraph(mmSrc);   // deferred: host.innerHTML was just replaced, so #bffGraph exists now
+    ${tableHtml}${composedHtml}${fedHtml}${mutHtml}${codeHtml}${perOp}`;
+  if(fedHtml) renderBffGraph(mmSrc);   // deferred: host.innerHTML was just replaced, so #bffGraph exists now
+  if(flow) renderBffGraph(flow.mermaid, "bffMutGraph");
 }
 function opMenuHtml(){
   const byEnt={};

@@ -19,7 +19,7 @@ and the seven `subgraph.gql` files compose into a valid supergraph.
 
 | File | What it is | Where to load it |
 |---|---|---|
-| [`GQLRegistry-sample.xlsx`](GQLRegistry-sample.xlsx) | The seven-subgraph registry exported from `workbench.html`. Every operation's **Current Reference** names its REST endpoint, so REST and GraphQL operations pair automatically. A **BffMappings** sheet pre-maps four BFF endpoints, including the checkout orchestration. | **GQLRegistry.xlsx** picker on `gql-migration.html` and `subgraph-codemigration.html` (or **Load .xlsx** on `workbench.html`) |
+| [`GQLRegistry-sample.xlsx`](GQLRegistry-sample.xlsx) | The seven-subgraph registry exported from `workbench.html`. Every operation's **Links & References** has a `REST:` line naming its REST endpoint, so REST and GraphQL operations pair automatically. A **BffMappings** sheet pre-maps four BFF endpoints, including the checkout orchestration. | **GQLRegistry.xlsx** picker on `gql-migration.html` and `subgraph-codemigration.html` (or **Load .xlsx** on `workbench.html`) |
 | [`mono-graph.gql`](mono-graph.gql) | The monolithic MonoGraph SDL to migrate *from*: product, price, stock, search, cart and checkout in one graph. | `gql-migration.html` → **MonoGraph schema** tab |
 | [`bff-openapi.yaml`](bff-openapi.yaml) | Monolithic BFF. Its composite endpoints (search, product detail, cart page, add to cart, checkout, order confirmation, admin price/stock) fan out to several services. The header comment lists the target FedGQL operations for each. | `subgraph-codemigration.html` → REST spec, Mode **BFF composite** |
 | [`subgraph/<name>/subgraph.gql`](subgraph/) | Target Apollo Federation 2 SDL for each subgraph. | Reference / router composition |

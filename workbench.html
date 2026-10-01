@@ -182,8 +182,32 @@
   /* Modal */
   .modal{ position: fixed; inset: 0; background: rgba(15,23,42,.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
   .modal[hidden]{ display: none; }
+  .gql[hidden], #expEr[hidden]{ display: none; }
+  .id-cell{ display: flex; align-items: center; gap: 2px; }
+  .id-cell .row-edit{ flex: none; color: var(--accent); }
+  .id-cell input{ min-width: 150px; }
+  table.param-doc{ font-size: 12.5px; margin: 4px 0 8px; }
+  table.param-doc td{ padding: 3px 6px; }
   .modal-card{ background: #fff; border-radius: 12px; padding: 20px 22px; width: 520px; max-width: 92vw; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
   .modal-card h2{ margin: 0 0 10px; font-size: 16px; }
+  .modal-card.wide{ width: 1060px; max-height: 90vh; overflow: auto; }
+  .re-grid{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
+  .re-field{ display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  .re-field.wide{ grid-column: 1 / -1; }
+  .re-field input, .re-field select, .re-field textarea, .re-table input, .re-table textarea{ width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; font: inherit; color: var(--ink); background: #fff; box-sizing: border-box; }
+  .re-field .type-combo input{ width: 100%; }
+  .re-sub{ margin: 14px 0 6px; font-size: 13px; }
+  .re-table-wrap{ border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+  .re-table{ width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .re-table th{ text-align: left; font-weight: 600; color: var(--muted); padding: 4px; border-bottom: 1px solid var(--line); }
+  .re-table td{ padding: 3px 4px; vertical-align: top; }
+  .re-table td.re-act{ white-space: nowrap; width: 1%; }
+  .re-table .type-combo input{ width: 100%; }
+  .re-table textarea{ min-width: 220px; resize: vertical; }
+  .re-issues{ margin-top: 8px; font-size: 12.5px; }
+  .exp-tabs{ display: flex; gap: 6px; margin-bottom: 10px; }
+  .exp-tabs button.active{ background: var(--accent); color: #fff; border-color: var(--accent); }
+  .er-out{ background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; max-height: 72vh; margin: 8px 0; }
   .modal-card ol{ margin: 0 0 12px; padding-left: 20px; }
   .modal-card li{ margin: 6px 0; }
   .modal-card label.field{ display: block; margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
@@ -307,7 +331,23 @@
   </section>
 
   <section class="view" id="view-explorer">
-    <div class="gql">
+    <div class="exp-tabs" id="expTabs">
+      <button data-x="ops" class="active" data-help="wb-explorer">Operations</button>
+      <button data-x="er" data-help="wb-er">ER diagram</button>
+    </div>
+    <div class="card" id="expEr" hidden>
+      <h2>ER diagram — types across subgraphs</h2>
+      <p class="desc">Each box is a type in a subgraph. <b>(extends)</b> boxes are fields a subgraph adds to another subgraph's entity, and <b>(reference)</b> boxes are key-only stubs; both join the owning type by <code>@key</code>. Fields typed with another type become relations (list → one-to-many, nullable → zero-or-one). PK = <code>@key</code> field, FK = field that points at another type.</p>
+      <div class="toolbar-inline">
+        <span class="hint">Subgraph:</span><select id="erScope"></select>
+        <label class="hint"><input type="checkbox" id="erValues" /> Include value &amp; input types</label>
+        <button id="erCopy" class="copy-btn">Copy Mermaid source</button>
+      </div>
+      <div id="erOut" class="er-out"></div>
+      <div class="code-head"><h3>Mermaid source</h3></div>
+      <pre class="code" id="erSrc"></pre>
+    </div>
+    <div class="gql" id="expOps">
       <div class="side">
         <div class="filters">
           <input type="text" id="opSearch" placeholder="Search operations…" />
@@ -413,6 +453,7 @@ const SCHEMA = {
       { key: "Kind", label: "Kind", options: KINDS, rerender: true },
       { key: "TypeName", label: "Type / Enum name" },
       { key: "Definition", label: "Definition (SDL body · enum values)", area: true, rows: 8 },
+      { key: "Description", label: "Description", area: true },
     ],
   },
   Queries: {
@@ -460,7 +501,6 @@ for (const s of Object.keys(SCHEMA)) {
   SCHEMA[s].cols.push({ key: "Contacts", label: "Contacts", contacts: true });
   SCHEMA[s].cols.push({ key: "ApprovalStatus", label: "Approval Status", options: APPROVAL_STATES, rerender: true });
   SCHEMA[s].cols.push({ key: "Comments", label: "Comments", area: true, rows: 1 });
-  SCHEMA[s].cols.push({ key: "CurrentReference", label: "Current Reference", ops: true });
   SCHEMA[s].cols.push({ key: "Links", label: "Links & References", links: true });
 }
 const SHEET_ORDER = Object.keys(SCHEMA);
@@ -974,7 +1014,7 @@ function renderSheet() {
       delete issuesOnly[activeSheet];
     }
   }
-  const hint = document.createElement("span"); hint.className = "hint"; hint.textContent = "Edits save automatically. Hover a header to filter ▾, widen ⤢ or hide ×."; toolbar.appendChild(hint);
+  const hint = document.createElement("span"); hint.className = "hint"; hint.textContent = "Edits save automatically. Hover a header to filter ▾, widen ⤢ or hide ×." + (VALIDATED_SHEETS.has(activeSheet) ? " ✎ on a row edits every field with its description." : ""); toolbar.appendChild(hint);
   card.appendChild(toolbar);
 
   // Column visibility panel (checkbox per column)
@@ -1044,7 +1084,18 @@ function renderSheet() {
     const viols = VALIDATED_SHEETS.has(activeSheet) ? validateRow(activeSheet, row) : [];
     const byCol = {}; for (const v of viols) (byCol[v.col] = byCol[v.col] || []).push(v);
     const reval = () => replaceRow(tr, row);   // incremental single-row re-render
-    def.cols.forEach(c => { const td = document.createElement("td"); if (hidden.has(c.key)) td.className = "hidden-col"; else if (wide.has(c.key)) td.className = "wide-col"; td.appendChild(makeCell(activeSheet, row, c, byCol[c.key], reval)); tr.appendChild(td); });
+    def.cols.forEach(c => {
+      const td = document.createElement("td"); if (hidden.has(c.key)) td.className = "hidden-col"; else if (wide.has(c.key)) td.className = "wide-col";
+      const cell = makeCell(activeSheet, row, c, byCol[c.key], reval);
+      // ✎ opens the row editor dialog — sits next to the row's ID (first column) on Types / Queries / Mutations.
+      if (c.key === def.id && VALIDATED_SHEETS.has(activeSheet)) {
+        const wrapId = document.createElement("div"); wrapId.className = "id-cell";
+        const ed = document.createElement("button"); ed.type = "button"; ed.className = "icon-btn row-edit"; ed.textContent = "✎"; ed.title = "Edit row — every field / parameter with its description";
+        ed.onclick = () => openRowEditor(activeSheet, row);
+        wrapId.append(ed, cell); td.appendChild(wrapId);
+      } else td.appendChild(cell);
+      tr.appendChild(td);
+    });
     const tda = document.createElement("td"); tda.className = "row-actions";
     if (viols.length) {
       const worst = worstSeverity(viols);
@@ -1087,7 +1138,6 @@ function makeCell(sheet, row, col, colViols, reval) {
   reval = reval || (() => {});   // incremental single-row re-render supplied by buildRow
   if (col.links) return makeLinksCell(row, col);
   if (col.contacts) return makeContactsCell(row, col);
-  if (col.ops) return makeOpsCell(row, col);
   if (col.params) return flag(makeParamsCell(row, col, reval));
   if (col.typeref) return flag(typeCombo(row.EntityID, row[col.key], v => { row[col.key] = v; save(); renderGraph(); renderExplorer(); reval(); }, "Type"));
   const opts = optionsFor(col); let el;
@@ -1143,29 +1193,31 @@ function makeParamsCell(row, col, reval) {
   const wrap = document.createElement("div"); wrap.className = "attrs-cell";
   const list = document.createElement("div"); list.className = "attrs-list";
   const commit = () => {
-    row[col.key] = [...list.querySelectorAll(".attr-line")].map(ln => {
-      const name = ln.querySelector(".attr-name").value.trim(); if (!name) return "";
+    row[col.key] = formatDescribed([...list.querySelectorAll(".attr-line")].map(ln => {
+      const name = ln.querySelector(".attr-name").value.trim(); if (!name) return { line: "" };
       const t = ln.querySelector(".attr-type input"); const type = t ? t.value.trim() : "";
-      return type ? `${name}: ${type}` : name;
-    }).filter(Boolean).join("\n");
+      return { desc: ln.dataset.desc || "", line: type ? `${name}: ${type}` : name };
+    }), "");
     save(); renderGraph(); renderExplorer(); if (reval) reval();
   };
   const addLine = (a) => {
-    const line = document.createElement("div"); line.className = "attr-line";
+    const line = document.createElement("div"); line.className = "attr-line"; line.dataset.desc = (a && a.desc) || ""; if (a && a.desc) line.title = a.desc;
     const name = document.createElement("input"); name.className = "attr-name"; name.placeholder = "arg"; name.value = (a && a.name) || ""; name.onchange = commit;
     const colon = document.createElement("span"); colon.className = "attr-colon"; colon.textContent = ":";
     const tc = typeCombo(row.EntityID, (a && a.type) || "", commit, "Type"); tc.classList.add("attr-type");
     const rm = document.createElement("button"); rm.type = "button"; rm.className = "icon-btn"; rm.textContent = "✕"; rm.title = "Remove"; rm.onclick = () => { line.remove(); commit(); };
     line.append(name, colon, tc, rm); list.appendChild(line);
   };
-  const rows = String(row[col.key] || "").split(/[\n,]+/).map(s => s.trim()).filter(Boolean).map(line => { const i = line.indexOf(":"); return i < 0 ? { name: line, type: "" } : { name: line.slice(0, i).trim(), type: line.slice(i + 1).trim() }; });
+  // Descriptions (edited in the row dialog) ride along on each line so inline edits keep them.
+  const rows = describedLines(row[col.key], true).map(({ desc, line }) => { const i = line.indexOf(":"); return i < 0 ? { name: line, type: "", desc } : { name: line.slice(0, i).trim(), type: line.slice(i + 1).trim(), desc }; });
   rows.forEach(addLine);
   const add = document.createElement("button"); add.type = "button"; add.className = "mini-add"; add.textContent = "+ parameter"; add.onclick = () => addLine();
   wrap.append(list, add); return wrap;
 }
-// Links & References cell — one reference per line, each tagged with a LINK_TYPES type
-// (LeanIX / Confluence / ER / Other) from a dropdown. Stored one "Type: target" per line so it
+// Links & References cell — one reference per line, each tagged with a LINK_TYPES type from a
+// dropdown: docs (LeanIX / Confluence / ER) and the legacy operation migrated from (REST / monograph). Stored one "Type: target" per line so it
 // round-trips through a single Excel cell; "↗" opens targets that are URLs.
+const LINK_PLACEHOLDER = { REST: "GET /path", monograph: "Query.field", Other: "text or https://…" };
 function makeLinksCell(row, col) {
   const wrap = document.createElement("div"); wrap.className = "links-cell";
   const list = document.createElement("div"); list.className = "links-list";
@@ -1177,8 +1229,10 @@ function makeLinksCell(row, col) {
     const line = document.createElement("div"); line.className = "link-line";
     const sel = document.createElement("select");
     for (const t of LINK_TYPES) { const o = document.createElement("option"); o.value = t; o.textContent = t; sel.appendChild(o); }
-    sel.value = (l && l.type) || LINK_TYPES[0]; sel.onchange = commit;
-    const inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "https://…"; inp.value = (l && l.value) || ""; inp.onchange = commit;
+    sel.value = (l && l.type) || LINK_TYPES[0];
+    const inp = document.createElement("input"); inp.type = "text"; inp.value = (l && l.value) || ""; inp.onchange = commit;
+    const ph = () => { inp.placeholder = LINK_PLACEHOLDER[sel.value] || "https://…"; }; ph();
+    sel.onchange = () => { ph(); commit(); };
     const open = document.createElement("a"); open.className = "link-open"; open.textContent = "↗"; open.target = "_blank"; open.rel = "noopener"; open.title = "Open link";
     const sync = () => { const u = inp.value.trim(), isUrl = /^https?:\/\//i.test(u); open.href = isUrl ? u : "#"; open.style.visibility = isUrl ? "visible" : "hidden"; }; inp.oninput = sync; sync();
     const rm = document.createElement("button"); rm.type = "button"; rm.className = "icon-btn"; rm.textContent = "✕"; rm.onclick = () => { line.remove(); commit(); };
@@ -1225,41 +1279,6 @@ function makeContactsCell(row, col) {
   wrap.append(list, add); return wrap;
 }
 
-// Current Reference cell — a list of legacy operationIds this entity/operation
-// migrates from, each tagged with its source system (REST / monograph). Stored one
-// "Source: operationId" per line so it round-trips through a single Excel cell.
-const OP_SOURCES = ["REST", "monograph", "Other"];
-function parseOps(v) {
-  return String(v||"").split(/[\n\r]+/).map(s=>s.trim()).filter(Boolean).map(line => {
-    const i = line.indexOf(":");
-    if (i < 0) return { src: OP_SOURCES[0], value: line };
-    const src = line.slice(0, i).trim();
-    return { src: OP_SOURCES.includes(src) ? src : OP_SOURCES[0], value: line.slice(i+1).trim() };
-  });
-}
-function makeOpsCell(row, col) {
-  const wrap = document.createElement("div"); wrap.className = "ops-cell";
-  const list = document.createElement("div"); list.className = "links-list";
-  const commit = () => {
-    row[col.key] = [...list.querySelectorAll(".op-line")]
-      .map(l => ({ src: l.querySelector("select").value, value: l.querySelector("input").value.trim() }))
-      .filter(o => o.value).map(o => `${o.src}: ${o.value}`).join("\n");
-    save();
-  };
-  const addRow = (o) => {
-    const line = document.createElement("div"); line.className = "op-line";
-    const sel = document.createElement("select");
-    for (const s of OP_SOURCES) { const op = document.createElement("option"); op.value = s; op.textContent = s; sel.appendChild(op); }
-    sel.value = (o && o.src) || OP_SOURCES[0]; sel.onchange = commit;
-    const inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "operationId"; inp.value = (o && o.value) || ""; inp.onchange = commit;
-    const rm = document.createElement("button"); rm.type = "button"; rm.className = "icon-btn"; rm.textContent = "✕"; rm.onclick = () => { line.remove(); commit(); };
-    line.append(sel, inp, rm); list.appendChild(line);
-  };
-  parseOps(row[col.key]).forEach(addRow);
-  const add = document.createElement("button"); add.type = "button"; add.className = "add-link"; add.textContent = "+ operationId";
-  add.onclick = () => { addRow(null); list.lastChild.querySelector("input").focus(); };
-  wrap.append(list, add); return wrap;
-}
 
 /* ---------------------------- Helpers ----------------------------------- */
 function schemaFor(entId) { return DB.Schema.find(r => r.EntityID === entId) || null; }
@@ -1315,7 +1334,15 @@ async function renderGraph() {
 }
 
 /* ---------------------------- Explorer (GraphiQL-like) ------------------ */
+let explorerView = "ops";
+function setExplorerView(v) {
+  explorerView = v === "er" ? "er" : "ops";
+  document.querySelectorAll("#expTabs button").forEach(b => b.classList.toggle("active", b.dataset.x === explorerView));
+  document.getElementById("expOps").hidden = explorerView !== "ops"; document.getElementById("expEr").hidden = explorerView !== "er";
+  if (explorerView === "er") renderEr();
+}
 function renderExplorer() {
+  if (explorerView === "er") renderEr();
   renderOpList();
   if (selectedOp && !allOps().some(o => o.OpID === selectedOp)) selectedOp = null;
   renderOpDetail();
@@ -1390,17 +1417,18 @@ function sdlForSchemaRow(r, ent) {
   const name = (r.TypeName || "").trim() || (ent && ent.Name) || "Type";
   const kind = r.Kind || "Type";
   const def = String(r.Definition || "").trim();
-  if (kind === "Scalar") return `scalar ${name}`;
+  const doc = r.Description ? descLine(r.Description) + "\n" : "";
+  if (kind === "Scalar") return `${doc}scalar ${name}`;
   if (kind === "Enum") {
-    const vals = def.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-    return `enum ${name} {\n${vals.map(v => "  " + v).join("\n")}\n}`;
+    const vals = def.replace(/^[^{]*\{|\}\s*$/g, "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    return `${doc}enum ${name} {\n${vals.map(v => "  " + v).join("\n")}\n}`;
   }
   const kw = kind === "Input" ? "input" : kind === "Interface" ? "interface" : "type";
   const body = def.includes("{") ? def : `{\n${defBodyLines(def).map(f => "  " + f).join("\n")}\n}`;
   // "Extend" = borrowed entity this subgraph contributes a field to → `extend type X @key(…) { … }`.
   // "Reference" = borrowed entity used only as a field type → its Definition already carries `resolvable: false`.
   const prefix = kind === "Extend" ? "extend " : "";
-  return `${prefix}${kw} ${name} ${body}`.replace(/\s+$/, "");
+  return (r.Description ? descLine(r.Description) + "\n" : "") + `${prefix}${kw} ${name} ${body}`.replace(/\s+$/, "");
 }
 function isKeyRow(r) { return (r.Kind === "Key") || /@key/i.test(String(r.Definition || "")); }
 // First Schema row that DEFINES a given type name (names are unique except @key entities).
@@ -1430,8 +1458,8 @@ function keyStub(r) {
 }
 function opSig(o, ent) { const args = parseArgs(o.Args); return `${o.Name}${args.length ? "(" + args.map(a => `${a.name}: ${a.type || "String"}`).join(", ") + ")" : ""}: ${o.ReturnType || (ent && ent.Name) || "Boolean"}`; }
 function opBlocks(ops, ent) {
-  const byType = {}; for (const o of ops) { const t = o.OpType || "Query"; (byType[t] = byType[t] || []).push(opSig(o, ent)); }
-  return Object.entries(byType).map(([t, sigs]) => `type ${t} {\n${sigs.map(s => "  " + s).join("\n")}\n}`);
+  const byType = {}; for (const o of ops) { const t = o.OpType || "Query"; (byType[t] = byType[t] || []).push(opSDL(o, ent, "  ")); }
+  return Object.entries(byType).map(([t, sigs]) => `type ${t} {\n${sigs.join("\n")}\n}`);
 }
 // Entity SDL (explorer op detail): only the types reachable from the viewed operation's
 // return + parameter types (or the entity's own key type). Value types / inputs / enums /
@@ -1738,18 +1766,226 @@ function renderOpDetail() {
   const sdl = buildEntitySDL(ent, op);
   host.innerHTML = `
     <div><span class="tag ${tl}">${esc(t)}</span></div>
-    <h2 style="margin:8px 0 2px;">${esc(op.Name || op.OpID)}</h2>
+    <h2 style="margin:8px 0 2px;">${esc(op.Name || op.OpID)} <button class="copy-btn" id="opEdit" title="Edit this operation — parameters and descriptions">✎ Edit</button></h2>
     <div class="hint">${ent ? "Entity: " + esc(ent.Name || ent.EntityID) + " · " + esc(ent.BusinessApplication||"") : "unlinked"}</div>
     ${op.Description ? `<p>${esc(op.Description)}</p>` : ""}
     <div class="kv">Auth Scopes</div><div>${scopes.length ? scopes.map(s=>`<span class="tag scope">${esc(s)}</span>`).join(" ") : '<span class="hint">none</span>'}</div>
-    ${args.length ? `<div class="kv">Parameters</div><pre class="code">${highlightSDL(args.map(a=>`${a.name}: ${a.type||"String"}`).join("\n"))}</pre>` : ""}
+    ${args.length ? `<div class="kv">Parameters</div><table class="param-doc"><tbody>${describedLines(op.Args, true).map(p=>{ const i=p.line.indexOf(":"); return `<tr><td class="mono">${esc(i<0?p.line:p.line.slice(0,i).trim())}</td><td class="mono">${esc(i<0?"":p.line.slice(i+1).trim())}</td><td>${p.desc?esc(p.desc):'<span class="hint">no description</span>'}</td></tr>`; }).join("")}</tbody></table>` : ""}
     <div class="kv">Signature</div><pre class="code">${highlightSDL(sig)}</pre>
     <div class="code-head"><div class="kv" style="margin:0;">Sample operation document</div><button class="copy-btn" data-copy="doc">Copy</button></div>
     <pre class="code" id="docCode">${highlightSDL(doc)}</pre>
     <div class="code-head"><div class="kv" style="margin:0;">Entity SDL</div><button class="copy-btn" data-copy="sdl">Copy</button></div>
     <pre class="code" id="sdlCode">${highlightSDL(sdl)}</pre>`;
+  host.querySelector("#opEdit").onclick = () => { const sheet = op.OpType === "Mutation" ? "Mutations" : "Queries"; const row = DB[sheet].find(r => r[SCHEMA[sheet].id] === op.OpID); if (row) openRowEditor(sheet, row); };
   host.querySelector('[data-copy="doc"]').onclick = () => navigator.clipboard && navigator.clipboard.writeText(doc);
   host.querySelector('[data-copy="sdl"]').onclick = () => navigator.clipboard && navigator.clipboard.writeText(sdl);
+}
+
+/* ---------------------------- Row editor dialog -------------------------- */
+// One dialog per Types (Schema) / Queries / Mutations row. Every field, enum value or parameter is its
+// own editable row with a description; saved back into Definition / Parameters as GraphQL SDL with a
+// """description""" line above each documented entry (parsers strip them — see common.js).
+const FIELD_RE = /^([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?\s*:\s*([^@#]+?)\s*((?:@.*)?)$/;
+function parseFieldLine(line) {
+  const m = String(line).match(FIELD_RE);
+  return m ? { name: m[1], args: (m[2] || "").trim(), type: m[3].trim(), dirs: (m[4] || "").trim() } : { name: String(line).trim(), args: "", type: "", dirs: "" };
+}
+function fieldLine(f) { return `${f.name}${f.args ? `(${f.args})` : ""}: ${f.type || "String"}${f.dirs ? " " + f.dirs : ""}`; }
+// Split a Definition into its header (e.g. `@key(fields: "sku")`) and its described body entries.
+function splitDefinition(def, kind) {
+  def = String(def || "");
+  if (kind === "Enum" && !/\{/.test(def)) return { head: "", entries: describedLines(def) };
+  const b = def.indexOf("{"), e = def.lastIndexOf("}");
+  if (b < 0) return { head: def.trim(), entries: [] };
+  return { head: def.slice(0, b).trim(), entries: describedLines(def.slice(b + 1, e > b ? e : def.length)) };
+}
+function joinDefinition(kind, head, entries) {
+  if (kind === "Enum") return formatDescribed(entries, "");          // registry enums store bare values, one per line
+  if (kind === "Scalar") return head;
+  return `${head ? head + " " : ""}{\n${formatDescribed(entries, "  ")}\n}`;
+}
+// Operation SDL with its description and per-parameter descriptions.
+function opSDL(o, ent, indent) {
+  indent = indent || "";
+  const params = describedLines(o.Args != null ? o.Args : o.Parameters, true);
+  const ret = o.ReturnType || (ent && ent.Name) || "Boolean";
+  const anyDesc = params.some(p => p.desc);
+  const args = !params.length ? "" : anyDesc
+    ? "(\n" + params.map(p => (p.desc ? indent + "  " + descLine(p.desc) + "\n" : "") + indent + "  " + p.line).join("\n") + "\n" + indent + ")"
+    : "(" + params.map(p => p.line).join(", ") + ")";
+  return (o.Description ? indent + descLine(o.Description) + "\n" : "") + indent + `${o.Name || "operation"}${args}: ${ret}`;
+}
+function rowEditorKind(sheet, kind) { return sheet !== "Schema" ? "params" : kind === "Enum" ? "values" : kind === "Scalar" ? "none" : "fields"; }
+
+function openRowEditor(sheet, row) {
+  const idKey = SCHEMA[sheet].id, isSchema = sheet === "Schema";
+  const draft = { ...row };
+  let parts = isSchema ? splitDefinition(row.Definition, row.Kind) : { head: "", entries: describedLines(row.Parameters, true) };
+  let entries = parts.entries.map(e => isSchema && row.Kind !== "Enum" ? { ...parseFieldLine(e.line), desc: e.desc } : { ...(isSchema ? { name: e.line } : (() => { const i = e.line.indexOf(":"); return i < 0 ? { name: e.line.trim(), type: "" } : { name: e.line.slice(0, i).trim(), type: e.line.slice(i + 1).trim() }; })()), desc: e.desc });
+  let head = parts.head;
+  const what = isSchema ? "type" : sheet === "Queries" ? "query" : "mutation";
+  document.getElementById("modalCard").classList.add("wide");
+  openModal(`
+    <h2>Edit ${what} <span class="mono">${esc(row[idKey] || "")}</span></h2>
+    <div class="re-grid" id="reHead"></div>
+    <div class="re-sub"><b id="reListTitle"></b> <span class="hint" id="reListHint"></span></div>
+    <div class="re-table-wrap" id="reTableWrap"><table class="re-table"><thead id="reTHead"></thead><tbody id="reBody"></tbody></table>
+      <button type="button" class="mini-add" id="reAdd"></button></div>
+    <div class="re-issues" id="reIssues"></div>
+    <div class="kv">SDL preview</div><pre class="code" id="rePreview"></pre>
+    <div class="modal-actions"><button id="reCancel">Cancel</button><button class="primary" id="reSave">Save</button></div>`);
+  const headEl = document.getElementById("reHead");
+  const field = (label, el, wide) => { const w = document.createElement("label"); w.className = "re-field" + (wide ? " wide" : ""); const s = document.createElement("span"); s.textContent = label; w.append(s, el); headEl.appendChild(w); return el; };
+  const input = (v, ph) => { const i = document.createElement("input"); i.type = "text"; i.value = v || ""; if (ph) i.placeholder = ph; return i; };
+  const area = (v, ph, rows) => { const t = document.createElement("textarea"); t.value = v || ""; t.rows = rows || 2; if (ph) t.placeholder = ph; return t; };
+  const select = (opts, v, blank) => { const s = document.createElement("select"); if (blank) { const o = document.createElement("option"); o.value = ""; o.textContent = "—"; s.appendChild(o); } for (const [val, lbl] of opts) { const o = document.createElement("option"); o.value = val; o.textContent = lbl; s.appendChild(o); } s.value = v || ""; return s; };
+  const entOpts = DB.Entities.map(e => [e.EntityID, e.EntityID + (e.Name ? " · " + e.Name : "") + (e.BusinessApplication ? " (" + e.BusinessApplication + ")" : "")]);
+  const bind = (el, key, ev) => { el.addEventListener(ev || "input", () => { draft[key] = el.value; if (key === "Kind") { if (rowEditorKind(sheet, draft.Kind) !== rowEditorKind(sheet, row.Kind)) entries = entries.map(e => draft.Kind === "Enum" ? { name: e.name, desc: e.desc } : { name: e.name, args: e.args || "", type: e.type || "", dirs: e.dirs || "", desc: e.desc }); renderList(); } refresh(); }); return el; };
+
+  bind(field("Entity", select(entOpts, draft.EntityID, true)), "EntityID", "change");
+  if (isSchema) {
+    bind(field("Kind", select(KINDS.map(k => [k, k]), draft.Kind)), "Kind", "change");
+    bind(field("Type name", input(draft.TypeName, "PascalCase")), "TypeName");
+    const h = field("Directives on the type", input(head, '@key(fields: "id")'));
+    h.addEventListener("input", () => { head = h.value; refresh(); });
+  } else {
+    bind(field("Name", input(draft.Name, "camelCase")), "Name");
+    const rt = typeCombo(draft.EntityID, draft.ReturnType, v => { draft.ReturnType = v; refresh(); }, "Return type");
+    rt.querySelector("input").addEventListener("input", e => { draft.ReturnType = e.target.value; refresh(); });
+    field("Return type", rt);
+    bind(field("Auth scopes", input(draft.AuthScopes, "price:read")), "AuthScopes");
+  }
+  bind(field("Approval status", select(APPROVAL_STATES.map(s => [s, s]), draft.ApprovalStatus, true)), "ApprovalStatus", "change");
+  bind(field("Description", area(draft.Description, `What this ${what} represents — becomes its SDL description`, 2), true), "Description");
+  bind(field("Comments", area(draft.Comments, "Review notes (not part of the schema)", 1), true), "Comments");
+  field("Links & References — docs (LeanIX / Confluence / ER) and the REST / monograph operation this replaces", makeLinksCell(draft, { key: "Links" }), true);
+
+  function renderList() {
+    const k = rowEditorKind(sheet, draft.Kind);
+    const wrap = document.getElementById("reTableWrap"), thead = document.getElementById("reTHead"), body = document.getElementById("reBody");
+    const title = document.getElementById("reListTitle"), hint = document.getElementById("reListHint"), add = document.getElementById("reAdd");
+    wrap.hidden = k === "none"; title.textContent = k === "none" ? "" : k === "values" ? "Enum values" : k === "params" ? "Parameters" : "Fields";
+    hint.textContent = k === "none" ? "Scalars have no fields." : k === "fields" ? "One row per field · args like  storeId: ID!  · directives like  @external" : "One row per entry · the description becomes its SDL doc string";
+    add.textContent = k === "values" ? "+ value" : k === "params" ? "+ parameter" : "+ field";
+    const cols = k === "values" ? ["Value", "Description"] : k === "params" ? ["Name", "Type", "Description"] : ["Name", "Args", "Type", "Directives", "Description"];
+    thead.innerHTML = "<tr>" + cols.map(c => `<th>${c}</th>`).join("") + "<th></th></tr>";
+    body.innerHTML = "";
+    entries.forEach((e, i) => {
+      const tr = document.createElement("tr");
+      const cell = (el) => { const td = document.createElement("td"); td.appendChild(el); tr.appendChild(td); return el; };
+      const txt = (key, ph, cls) => { const el = input(e[key], ph); if (cls) el.className = cls; el.addEventListener("input", () => { e[key] = el.value; refresh(); }); return cell(el); };
+      txt("name", k === "values" ? "VALUE" : "name", "mono");
+      if (k === "fields") txt("args", "arg: Type", "mono");
+      if (k !== "values") { const tc = typeCombo(draft.EntityID, e.type, v => { e.type = v; refresh(); }, "Type"); tc.querySelector("input").addEventListener("input", ev => { e.type = ev.target.value; refresh(); }); cell(tc); }
+      if (k === "fields") txt("dirs", "@external", "mono");
+      const d = area(e.desc, "Description", 1); d.addEventListener("input", () => { e.desc = d.value; refresh(); }); cell(d);
+      const act = document.createElement("td"); act.className = "re-act";
+      const btn = (label, title, fn, dis) => { const b = document.createElement("button"); b.type = "button"; b.className = "icon-btn"; b.textContent = label; b.title = title; b.disabled = !!dis; b.onclick = () => { fn(); renderList(); refresh(); }; act.appendChild(b); };
+      btn("↑", "Move up", () => entries.splice(i - 1, 0, entries.splice(i, 1)[0]), i === 0);
+      btn("↓", "Move down", () => entries.splice(i + 1, 0, entries.splice(i, 1)[0]), i === entries.length - 1);
+      btn("✕", "Remove", () => entries.splice(i, 1));
+      tr.appendChild(act); body.appendChild(tr);
+    });
+    add.onclick = () => { entries.push(k === "values" ? { name: "", desc: "" } : { name: "", args: "", type: "", dirs: "", desc: "" }); renderList(); refresh(); const ins = body.querySelectorAll("tr:last-child input"); if (ins[0]) ins[0].focus(); };
+  }
+  function build() {
+    const out = { ...draft };
+    if (isSchema) {
+      const k = rowEditorKind(sheet, draft.Kind);
+      const list = entries.filter(e => String(e.name || "").trim()).map(e => ({ desc: String(e.desc || "").trim(), line: k === "values" ? e.name.trim() : fieldLine({ ...e, name: e.name.trim() }) }));
+      out.Definition = joinDefinition(draft.Kind, head, k === "none" ? [] : list);
+    } else {
+      out.Parameters = formatDescribed(entries.filter(e => String(e.name || "").trim()).map(e => ({ desc: String(e.desc || "").trim(), line: `${e.name.trim()}: ${(e.type || "String").trim()}` })), "");
+    }
+    return out;
+  }
+  function refresh() {
+    const b = build(), ent = index("Entities")[b.EntityID];
+    const sdl = isSchema ? (b.Kind === "Scalar" ? (b.Description ? descLine(b.Description) + "\n" : "") + `scalar ${b.TypeName || "Scalar"}` : sdlForSchemaRow(b, ent))
+      : `type ${sheet === "Queries" ? "Query" : "Mutation"} {\n${opSDL({ ...b, Args: b.Parameters }, ent, "  ")}\n}`;
+    document.getElementById("rePreview").innerHTML = highlightSDL(sdl);
+    const v = VALIDATED_SHEETS.has(sheet) ? validateRow(sheet, b) : [];
+    document.getElementById("reIssues").innerHTML = v.map(x => `<div class="val-item sev-${x.severity}"><span class="sev-dot"></span><code>${esc(x.ruleId)}</code> ${esc(x.subject)}${esc(x.message)}</div>`).join("");
+  }
+  renderList(); refresh();
+  const close = () => { document.getElementById("modalCard").classList.remove("wide"); closeModal(); };
+  document.getElementById("reCancel").onclick = close;
+  document.getElementById("reSave").onclick = () => {
+    const b = build();
+    if (ENTITY_OWNED.has(sheet) && b.EntityID !== row.EntityID && isGeneratedChildId(sheet, row[idKey])) b[idKey] = nextId(sheet, b.EntityID);
+    Object.assign(row, b);
+    save(); close(); renderAll();
+  };
+}
+
+/* ------------------------- ER diagram (Explorer) ------------------------- */
+// Types per subgraph (Entities.BusinessApplication) as ER entities. An Extend row (a subgraph adding
+// fields to another subgraph's entity) and a Reference stub are their own boxes joined to the owning
+// type by "extends / references @key(...)"; fields typed with another registry type become relations
+// (list → one-to-many, nullable → zero-or-one).
+let erScope = "", erValues = false;
+function erTypeAttr(t) { const b = baseTypeName(t).replace(/[^A-Za-z0-9_]/g, "") || "String"; return /^\s*\[/.test(String(t || "")) ? b + "[]" : b; }
+const erQ = s => String(s == null ? "" : s).replace(/"/g, "'").replace(/[\r\n]+/g, " ");
+function erNodes() {
+  return DB.Schema.filter(r => r.Kind !== "Scalar" && r.Kind !== "Enum" && (r.TypeName || "").trim()).map(r => {
+    const sg = subgraphOfEntity(r.EntityID), name = r.TypeName.trim();
+    const fields = splitDefinition(r.Definition, r.Kind).entries.map(e => ({ ...parseFieldLine(e.line), desc: e.desc })).filter(f => f.name);
+    return { r, sg, name, kind: r.Kind, key: parseDefKey(r.Definition), fields, id: "t_" + (sg + "__" + name).replace(/[^A-Za-z0-9_]/g, "_") };
+  });
+}
+function buildErMermaid(scope, includeValues) {
+  const all = erNodes(), fed = n => ["Key", "Extend", "Reference"].includes(n.kind);
+  const ownerOf = name => all.find(n => n.name === name && n.kind === "Key") || all.find(n => n.name === name && !["Extend", "Reference"].includes(n.kind)) || null;
+  const keep = new Set(all.filter(n => (!scope || n.sg === scope) && (includeValues || fed(n))));
+  for (const n of [...keep]) {
+    if (n.kind === "Extend" || n.kind === "Reference") { const o = ownerOf(n.name); if (o) keep.add(o); }
+    if (scope) for (const f of n.fields) { const o = ownerOf(baseTypeName(f.type)); if (o && o.kind === "Key") keep.add(o); }
+  }
+  // Scoped view: also show other subgraphs extending / referencing this subgraph's entities.
+  if (scope) for (const n of all) if ((n.kind === "Extend" || n.kind === "Reference") && n.sg !== scope) { const o = ownerOf(n.name); if (o && o.sg === scope) keep.add(n); }
+  const nodes = all.filter(n => keep.has(n));
+  if (!nodes.length) return "";
+  const target = (from, typeName) => nodes.find(n => n.name === typeName && n.sg === from.sg && n !== from) || (() => { const o = ownerOf(typeName); return o && keep.has(o) ? o : null; })() || nodes.find(n => n.name === typeName && n !== from) || null;
+  const L = ["erDiagram"], edges = new Set();
+  for (const n of nodes) {
+    const keys = new Set(n.key.split(/[\s,]+/).filter(Boolean));
+    const tag = n.kind === "Extend" ? " (extends)" : n.kind === "Reference" ? " (reference)" : n.kind === "Input" ? " (input)" : "";
+    L.push(`  ${n.id}["${erQ(n.name + " · " + n.sg + tag)}"] {`);
+    for (const f of n.fields) {
+      const t = target(n, baseTypeName(f.type));
+      const note = [f.type, f.args ? "args " + f.args : "", f.dirs, f.desc].filter(Boolean).join(" · ");
+      L.push(`    ${erTypeAttr(f.type)} ${f.name.replace(/[^A-Za-z0-9_]/g, "_")}${keys.has(f.name) ? " PK" : t ? " FK" : ""} "${erQ(note)}"`);
+    }
+    if (!n.fields.length) L.push(`    String _ "no fields"`);
+    L.push("  }");
+  }
+  for (const n of nodes) {
+    if (n.kind === "Extend" || n.kind === "Reference") {
+      const o = ownerOf(n.name);
+      if (o && keep.has(o) && o !== n) edges.add(`  ${n.id} ||--|| ${o.id} : "${n.kind === "Extend" ? "extends" : "references"} @key(${erQ(n.key || o.key || "id")})"`);
+    }
+    for (const f of n.fields) {
+      if (/@external/.test(f.dirs)) continue;
+      const t = target(n, baseTypeName(f.type)); if (!t) continue;
+      const card = /^\s*\[/.test(f.type) ? "||--o{" : /!\s*$/.test(f.type) ? "||--||" : "||--o|";
+      edges.add(`  ${n.id} ${card} ${t.id} : "${erQ(f.name)}"`);
+    }
+  }
+  return L.concat([...edges]).join("\n");
+}
+async function renderEr() {
+  const out = document.getElementById("erOut"), srcEl = document.getElementById("erSrc"), sel = document.getElementById("erScope");
+  if (!out) return;
+  const sgs = allSubgraphs();
+  if (erScope && !sgs.includes(erScope)) erScope = "";
+  sel.innerHTML = `<option value="">All subgraphs</option>` + sgs.map(s => `<option value="${esc(s)}"${s === erScope ? " selected" : ""}>${esc(s)}</option>`).join("");
+  document.getElementById("erValues").checked = erValues;
+  const src = buildErMermaid(erScope, erValues); srcEl.textContent = src;
+  if (!src) { out.innerHTML = '<div class="empty">No types to show — add Schema rows (Key / Type / Extend / Reference).</div>'; return; }
+  ensureMermaid();
+  if (!window.mermaid) { out.innerHTML = '<div class="empty">Mermaid failed to load (offline?). The source below is still valid.</div>'; return; }
+  try { const { svg } = await mermaid.render("erGraph_" + Date.now(), src); out.innerHTML = svg; }
+  catch (e) { out.innerHTML = '<div class="empty">Could not render diagram: ' + esc(e.message) + '</div>'; }
 }
 
 /* ------------------------------ Seed ------------------------------------ */
@@ -1777,10 +2013,10 @@ function seedData() {
     { EntityID: "ENT-007", Name: "PaymentTransaction", ExperienceDomain: "Retail Web", BusinessApplication: "payments", BusinessCapability: "Payment Processing", Description: "Headless payment processing — knows amounts and payment methods, not what was bought.", Links: refs("payments", "Payments+Subgraph") },
     { EntityID: "ENT-008", Name: "Order", ExperienceDomain: "Retail Web", BusinessApplication: "checkout", BusinessCapability: "Checkout & Order Orchestration", Description: "Checkout saga / process coordinator: validates the cart and stock, takes payment, places the order, clears the cart.", Links: refs("checkout", "Checkout+Subgraph") },
   ];
-  const sch = (SchemaID, EntityID, Kind, TypeName, Definition) => ({ SchemaID, EntityID, Kind, TypeName, Definition, Links: "" });
+  const sch = (SchemaID, EntityID, Kind, TypeName, Definition, Description = "") => ({ SchemaID, EntityID, Kind, TypeName, Definition, Description, Links: "" });
   db.Schema = [
     // product — owns Product
-    sch("SCH-ENT-001-001", "ENT-001", "Key", "Product", '@key(fields: "sku") {\n  sku: String!\n  title: String!\n  description: String\n  imageUrl: String\n  brand: String\n}'),
+    sch("SCH-ENT-001-001", "ENT-001", "Key", "Product", '@key(fields: "sku") {\n  """Stock-keeping unit — the global product key"""\n  sku: String!\n  """Display name shown on product tiles and the PDP"""\n  title: String!\n  description: String\n  """Primary image (CDN URL)"""\n  imageUrl: String\n  brand: String\n}', "Core, global product attributes that don't depend on location or store."),
     // pnp — owns ProductStoreContext + Price, extends Product with store-scoped pricing
     sch("SCH-ENT-002-001", "ENT-002", "Key", "ProductStoreContext", '@key(fields: "sku storeId") {\n  sku: String!\n  storeId: ID!\n  price: Price!\n}'),
     sch("SCH-ENT-002-002", "ENT-002", "Type", "Price", "{\n  amount: Money!\n  currency: String!\n}"),
@@ -1797,7 +2033,7 @@ function seedData() {
     sch("SCH-ENT-004-004", "ENT-004", "Input", "ProductFilterInput", "{\n  brand: [String!]!\n  inStockAtStore: ID\n}"),
     sch("SCH-ENT-004-005", "ENT-004", "Reference", "Product", '@key(fields: "sku", resolvable: false) {\n  sku: String!\n}'),
     // cart — owns Cart; lines reference Product (owned by product) by sku
-    sch("SCH-ENT-006-001", "ENT-006", "Key", "Cart", '@key(fields: "id") {\n  id: ID!\n  userId: ID\n  items: [CartItem!]!\n  totalAmount: Money!\n}'),
+    sch("SCH-ENT-006-001", "ENT-006", "Key", "Cart", '@key(fields: "id") {\n  id: ID!\n  """Shopper id; empty for an anonymous cart"""\n  userId: ID\n  items: [CartItem!]!\n  """Sum of quantity × unitPrice across the lines"""\n  totalAmount: Money!\n}', "A shopper's cart; lines reference Product (owned by the product subgraph) by sku."),
     sch("SCH-ENT-006-002", "ENT-006", "Type", "CartItem", "{\n  id: ID!\n  quantity: Int!\n  product: Product!\n  unitPrice: Money!\n}"),
     sch("SCH-ENT-006-003", "ENT-006", "Reference", "Product", '@key(fields: "sku", resolvable: false) {\n  sku: String!\n}'),
     sch("SCH-ENT-006-004", "ENT-006", "Input", "CreateCartInput", "{\n  userId: ID\n}"),
@@ -1820,28 +2056,28 @@ function seedData() {
     ...defaultScalarRows("ENT-005"),
   ];
   db.Queries = [
-    { QueryID: "QRY-ENT-001-001", EntityID: "ENT-001", Name: "product", Parameters: "sku: String!", ReturnType: "Product", AuthScopes: "catalog:read", Description: "Fetch a product by SKU.", CurrentReference: "REST: GET /products/{sku}", Links: src("product") },
-    { QueryID: "QRY-ENT-001-002", EntityID: "ENT-001", Name: "products", Parameters: "skus: [String!]!", ReturnType: "[Product!]!", AuthScopes: "catalog:read", Description: "Batch-fetch products by SKU.", CurrentReference: "REST: GET /products", Links: src("product") },
-    { QueryID: "QRY-ENT-002-001", EntityID: "ENT-002", Name: "productStoreContext", Parameters: "sku: String!, storeId: ID!", ReturnType: "ProductStoreContext", AuthScopes: "price:read", Description: "Store-scoped price for a SKU.", CurrentReference: "REST: GET /prices/{sku}/stores/{storeId}", Links: src("pnp") },
-    { QueryID: "QRY-ENT-003-001", EntityID: "ENT-003", Name: "inventory", Parameters: "sku: String!, storeId: ID!", ReturnType: "Inventory", AuthScopes: "inventory:read", Description: "Stock position of a SKU at a store.", CurrentReference: "REST: GET /inventory/{sku}/stores/{storeId}", Links: src("inventory") },
-    { QueryID: "QRY-ENT-004-001", EntityID: "ENT-004", Name: "searchProducts", Parameters: "query: String!, filters: ProductFilterInput, limit: Int, offset: Int", ReturnType: "SearchResponse!", AuthScopes: "search:read", Description: "Main entry point for search and catalogue exploration.", CurrentReference: "REST: GET /search", Links: src("search") },
+    { QueryID: "QRY-ENT-001-001", EntityID: "ENT-001", Name: "product", Parameters: "sku: String!", ReturnType: "Product", AuthScopes: "catalog:read", Description: "Fetch a product by SKU.", Links: "REST: GET /products/{sku}\nOther: " + src("product") },
+    { QueryID: "QRY-ENT-001-002", EntityID: "ENT-001", Name: "products", Parameters: "skus: [String!]!", ReturnType: "[Product!]!", AuthScopes: "catalog:read", Description: "Batch-fetch products by SKU.", Links: "REST: GET /products\nOther: " + src("product") },
+    { QueryID: "QRY-ENT-002-001", EntityID: "ENT-002", Name: "productStoreContext", Parameters: "sku: String!, storeId: ID!", ReturnType: "ProductStoreContext", AuthScopes: "price:read", Description: "Store-scoped price for a SKU.", Links: "REST: GET /prices/{sku}/stores/{storeId}\nOther: " + src("pnp") },
+    { QueryID: "QRY-ENT-003-001", EntityID: "ENT-003", Name: "inventory", Parameters: "sku: String!, storeId: ID!", ReturnType: "Inventory", AuthScopes: "inventory:read", Description: "Stock position of a SKU at a store.", Links: "REST: GET /inventory/{sku}/stores/{storeId}\nOther: " + src("inventory") },
+    { QueryID: "QRY-ENT-004-001", EntityID: "ENT-004", Name: "searchProducts", Parameters: "query: String!, filters: ProductFilterInput, limit: Int, offset: Int", ReturnType: "SearchResponse!", AuthScopes: "search:read", Description: "Main entry point for search and catalogue exploration.", Links: "REST: GET /search\nOther: " + src("search") },
   ];
   db.Queries.push(
-    { QueryID: "QRY-ENT-006-001", EntityID: "ENT-006", Name: "cart", Parameters: "id: ID!", ReturnType: "Cart", AuthScopes: "cart:read", Description: "Fetch a cart with its lines.", CurrentReference: "REST: GET /carts/{id}", Links: src("cart") },
-    { QueryID: "QRY-ENT-007-001", EntityID: "ENT-007", Name: "paymentTransaction", Parameters: "id: ID!", ReturnType: "PaymentTransaction", AuthScopes: "payment:read", Description: "Look up a payment transaction.", CurrentReference: "REST: GET /payments/{id}", Links: src("payments") },
-    { QueryID: "QRY-ENT-008-001", EntityID: "ENT-008", Name: "order", Parameters: "id: ID!", ReturnType: "Order", AuthScopes: "order:read", Description: "Fetch an order placed through checkout.", CurrentReference: "REST: GET /orders/{id}", Links: src("checkout") },
+    { QueryID: "QRY-ENT-006-001", EntityID: "ENT-006", Name: "cart", Parameters: '"""Cart id from the session cookie"""\nid: ID!', ReturnType: "Cart", AuthScopes: "cart:read", Description: "Fetch a cart with its lines.", Links: "REST: GET /carts/{id}\nOther: " + src("cart") },
+    { QueryID: "QRY-ENT-007-001", EntityID: "ENT-007", Name: "paymentTransaction", Parameters: "id: ID!", ReturnType: "PaymentTransaction", AuthScopes: "payment:read", Description: "Look up a payment transaction.", Links: "REST: GET /payments/{id}\nOther: " + src("payments") },
+    { QueryID: "QRY-ENT-008-001", EntityID: "ENT-008", Name: "order", Parameters: "id: ID!", ReturnType: "Order", AuthScopes: "order:read", Description: "Fetch an order placed through checkout.", Links: "REST: GET /orders/{id}\nOther: " + src("checkout") },
   );
   db.Mutations = [
-    { MutationID: "MUT-ENT-002-001", EntityID: "ENT-002", Name: "updateStorePrice", Parameters: "input: UpdateStorePriceInput!", ReturnType: "ProductStoreContext", AuthScopes: "price:write", Description: "Set the price of a SKU at a store.", CurrentReference: "REST: PUT /prices/{sku}/stores/{storeId}", Links: src("pnp") },
-    { MutationID: "MUT-ENT-003-001", EntityID: "ENT-003", Name: "adjustInventory", Parameters: "input: InventoryAdjustmentInput!", ReturnType: "Inventory", AuthScopes: "inventory:write", Description: "Apply a stock adjustment (delta) at a store.", CurrentReference: "REST: POST /inventory/adjustments", Links: src("inventory") },
+    { MutationID: "MUT-ENT-002-001", EntityID: "ENT-002", Name: "updateStorePrice", Parameters: "input: UpdateStorePriceInput!", ReturnType: "ProductStoreContext", AuthScopes: "price:write", Description: "Set the price of a SKU at a store.", Links: "REST: PUT /prices/{sku}/stores/{storeId}\nOther: " + src("pnp") },
+    { MutationID: "MUT-ENT-003-001", EntityID: "ENT-003", Name: "adjustInventory", Parameters: "input: InventoryAdjustmentInput!", ReturnType: "Inventory", AuthScopes: "inventory:write", Description: "Apply a stock adjustment (delta) at a store.", Links: "REST: POST /inventory/adjustments\nOther: " + src("inventory") },
   ];
   db.Mutations.push(
-    { MutationID: "MUT-ENT-006-001", EntityID: "ENT-006", Name: "createCart", Parameters: "input: CreateCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Start a cart for a (possibly anonymous) user.", CurrentReference: "REST: POST /carts", Links: src("cart") },
-    { MutationID: "MUT-ENT-006-002", EntityID: "ENT-006", Name: "addItemToCart", Parameters: "input: AddItemToCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Add a SKU to the cart.", CurrentReference: "REST: POST /carts/{cartId}/items", Links: src("cart") },
-    { MutationID: "MUT-ENT-006-003", EntityID: "ENT-006", Name: "removeItemFromCart", Parameters: "input: RemoveItemFromCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Remove a SKU from the cart.", CurrentReference: "REST: DELETE /carts/{cartId}/items/{sku}", Links: src("cart") },
-    { MutationID: "MUT-ENT-006-004", EntityID: "ENT-006", Name: "clearCart", Parameters: "input: ClearCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Empty the cart (called by checkout after payment).", CurrentReference: "REST: DELETE /carts/{cartId}/items", Links: src("cart") },
-    { MutationID: "MUT-ENT-007-001", EntityID: "ENT-007", Name: "processPayment", Parameters: "input: ProcessPaymentInput!", ReturnType: "PaymentTransaction!", AuthScopes: "payment:write", Description: "Authorise and capture a payment (called by the checkout orchestrator).", CurrentReference: "REST: POST /payments", Links: src("payments") },
-    { MutationID: "MUT-ENT-008-001", EntityID: "ENT-008", Name: "submitCheckout", Parameters: "input: SubmitCheckoutInput!", ReturnType: "CheckoutResult!", AuthScopes: "checkout:write", Description: "Orchestrating mutation: verify cart + stock, create a pending order, take payment, clear the cart.", CurrentReference: "REST: POST /checkout", Links: src("checkout") },
+    { MutationID: "MUT-ENT-006-001", EntityID: "ENT-006", Name: "createCart", Parameters: "input: CreateCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Start a cart for a (possibly anonymous) user.", Links: "REST: POST /carts\nOther: " + src("cart") },
+    { MutationID: "MUT-ENT-006-002", EntityID: "ENT-006", Name: "addItemToCart", Parameters: "input: AddItemToCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Add a SKU to the cart.", Links: "REST: POST /carts/{cartId}/items\nOther: " + src("cart") },
+    { MutationID: "MUT-ENT-006-003", EntityID: "ENT-006", Name: "removeItemFromCart", Parameters: "input: RemoveItemFromCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Remove a SKU from the cart.", Links: "REST: DELETE /carts/{cartId}/items/{sku}\nOther: " + src("cart") },
+    { MutationID: "MUT-ENT-006-004", EntityID: "ENT-006", Name: "clearCart", Parameters: "input: ClearCartInput!", ReturnType: "Cart!", AuthScopes: "cart:write", Description: "Empty the cart (called by checkout after payment).", Links: "REST: DELETE /carts/{cartId}/items\nOther: " + src("cart") },
+    { MutationID: "MUT-ENT-007-001", EntityID: "ENT-007", Name: "processPayment", Parameters: "input: ProcessPaymentInput!", ReturnType: "PaymentTransaction!", AuthScopes: "payment:write", Description: "Authorise and capture a payment (called by the checkout orchestrator).", Links: "REST: POST /payments\nOther: " + src("payments") },
+    { MutationID: "MUT-ENT-008-001", EntityID: "ENT-008", Name: "submitCheckout", Parameters: '"""Cart to check out, payment method and shipping address"""\ninput: SubmitCheckoutInput!', ReturnType: "CheckoutResult!", AuthScopes: "checkout:write", Description: "Orchestrating mutation: verify cart + stock, create a pending order, take payment, clear the cart.", Links: "REST: POST /checkout\nOther: " + src("checkout") },
   );
   // One row per scope × persona (a persona with no row has no access to that scope).
   const scp = (ScopeID, EntityID, Scope, Persona, Permission, Description = "") => ({ ScopeID, EntityID, Scope, Persona, Permission, Description, Links: "" });
@@ -1887,6 +2123,10 @@ document.getElementById("clearBtn").onclick = () => { if (!confirm("Clear all da
 document.getElementById("groupSeg").addEventListener("click", (e) => { const b = e.target.closest("button[data-group]"); if (!b) return; groupBy = b.dataset.group; document.querySelectorAll("#groupSeg button").forEach(x=>x.classList.toggle("active", x===b)); renderGraph(); });
 document.getElementById("copyMermaid").onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById("mermaidSrc").textContent);
 document.getElementById("optypeTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-t]"); if (!b) return; opFilter = b.dataset.t; document.querySelectorAll("#optypeTabs button").forEach(x=>x.classList.toggle("active", x===b)); renderOpList(); });
+document.getElementById("expTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-x]"); if (b) setExplorerView(b.dataset.x); });
+document.getElementById("erScope").addEventListener("change", (e) => { erScope = e.target.value; renderEr(); });
+document.getElementById("erValues").addEventListener("change", (e) => { erValues = e.target.checked; renderEr(); });
+document.getElementById("erCopy").onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById("erSrc").textContent);
 document.getElementById("opSearch").addEventListener("input", (e) => { opSearch = e.target.value; renderOpList(); });
 document.getElementById("subgraphSel").addEventListener("change", (e) => { selectedSubgraph = e.target.value; renderSubgraph(); });
 document.getElementById("copySubgraph").onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById("subgraphSDL").textContent);

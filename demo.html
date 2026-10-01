@@ -243,7 +243,8 @@
   <div class="cols">
     <ul class="pts">
       <li><b>Federated Graph</b>: a Mermaid diagram of router → subgraphs → entities, grouped by application or capability.</li>
-      <li><b>Explorer</b>: search the operations and see each one's signature, a sample operation and the entity SDL.</li>
+      <li><b>Explorer</b>: search the operations and see each one's signature, a sample operation and the entity SDL; the <b>ER diagram</b> shows how types extend each other across subgraphs.</li>
+      <li><b>✎ Edit row</b>: every field and parameter as its own row with a description.</li>
       <li><b>Subgraph SDL</b>: the complete SDL for an entity, with <b>borrow / extend</b> for entities owned by other subgraphs.</li>
       <li><b>Summary</b>: counts per subgraph, an approval breakdown and a tree of type relationships.</li>
     </ul>
@@ -372,7 +373,7 @@
   <h2>REST call in, FedGQL client or server code out</h2>
   <div class="cols">
     <ul class="pts">
-      <li>Load the registry and the service's REST spec. <b>Current Reference</b> pairs each REST operation with its GraphQL operation.</li>
+      <li>Load the registry and the service's REST spec. The <b>REST</b> line in each operation's <b>Links &amp; References</b> pairs it with its REST operation.</li>
       <li><b>Client</b>: JavaScript, Java, Android (Kotlin), iOS (Swift).</li>
       <li><b>Server</b>: Spring for GraphQL, .NET Hot Chocolate, Apollo Server.</li>
       <li>REST and FedGQL shown side by side, with <mark style="background:#fef3c7">renamed fields highlighted</mark>.</li>

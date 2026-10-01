@@ -41,16 +41,19 @@ function entityKey(name, fields){
 function sheetRows(wb, name){ return wb.Sheets[name] ? XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:"", raw:false}) : []; }
 
 /* ------------------- Links & References (typed links) ------------------ */
-// Every sheet's Links cell holds one reference per line, tagged "Type: target" with a LINK_TYPES
-// type (picked from a dropdown in the registry grid). Untagged lines — older data, generated
-// "subgraph:…" sources — read as Other.
-const LINK_TYPES = ["LeanIX", "Confluence", "ER", "Other"];
+// Every sheet's Links & References cell holds one reference per line, tagged "Type: target" with a
+// LINK_TYPES type (picked from a dropdown): documentation (LeanIX / Confluence / ER) and the legacy
+// operation a row migrates from (REST "GET /path", monograph "Query.field"). Untagged lines — e.g.
+// generated "subgraph:…" sources — read as Other.
+const LINK_TYPES = ["LeanIX", "Confluence", "ER", "REST", "monograph", "Other"];
 function parseLinks(v){
   return String(v||"").split(/[\n\r]+/).map(s=>s.trim()).filter(Boolean).map(line=>{
-    const m=line.match(/^(LeanIX|Confluence|ER|Other)\s*:\s*(.*)$/i);
+    const m=line.match(/^(LeanIX|Confluence|ER|REST|monograph|Other)\s*:\s*(.*)$/i);
     return m ? { type: LINK_TYPES.find(t=>t.toLowerCase()===m[1].toLowerCase()), value: m[2].trim() } : { type: "Other", value: line };
   });
 }
+// Values of one link type, e.g. linkValues(row.Links, "REST") → ["GET /carts/{id}"].
+function linkValues(links, type){ return parseLinks(links).filter(l=>l.type===type).map(l=>l.value).filter(Boolean); }
 function formatLinks(list){ return (list||[]).filter(l=>l.value).map(l=>`${l.type}: ${l.value}`).join("\n"); }
 // Read-only rendering: a type badge per line, clickable when the target is a URL.
 function linksHTML(v){
@@ -118,9 +121,24 @@ function ruleMeta(id){ const r=(STANDARDS.rules||[]).find(x=>x.id===id); return 
 function docUrlFor(rule){ const base=(STANDARDS.meta&&STANDARDS.meta.docBase)||""; if(!base||!rule.section) return base; return base+"#"+rule.section.trim().replace(/[^A-Za-z0-9]+/g,"-"); }
 function mkViol(list,id,col,subject){ const r=ruleMeta(id); if(!r) return; list.push({ ruleId:id, severity:r.severity||"warning", col, subject:subject||"", title:r.title, section:r.section, message:r.message, fix:r.fix, doc:docUrlFor(r) }); }
 function parseDefKey(def){ const m=String(def||"").match(/@key\s*\(\s*fields\s*:\s*"([^"]*)"/i); return m?m[1]:""; }
-function defBodyLines(def){ let s=String(def||""); const b=s.indexOf("{"), e=s.lastIndexOf("}"); if(b>=0&&e>b) s=s.slice(b+1,e); return s.split(/[\n\r]+/).map(l=>l.trim()).filter(l=>l&&l!=="{"&&l!=="}"&&!l.startsWith("#")&&!l.startsWith("@")); }
+/* Descriptions: a """text""" line directly above a field, parameter or enum value documents it (standard
+   GraphQL SDL), in a Schema Definition or a Queries/Mutations Parameters cell. Parsers strip them;
+   describedLines() pairs each entry with its description for the row editor. */
+function stripDescriptions(s){ return String(s||"").replace(/"""[\s\S]*?"""/g, ""); }
+function describedLines(s, splitCommas){
+  const out=[]; let pending="";
+  for(const m of String(s||"").matchAll(/[ \t]*"""([\s\S]*?)"""|([^\n\r]+)/g)){
+    if(m[1]!==undefined){ pending=m[1].replace(/\s+/g," ").trim(); continue; }
+    const parts=splitCommas ? m[2].split(",") : [m[2]];
+    for(const part of parts){ const line=part.trim(); if(!line) continue; out.push({ desc:pending, line }); pending=""; }
+  }
+  return out;
+}
+function descLine(desc){ return desc ? '"""'+String(desc).replace(/"""/g,"'''").replace(/\s+/g," ").trim()+'"""' : ""; }
+function formatDescribed(entries, indent){ indent=indent||""; return (entries||[]).filter(e=>e.line).map(e=>(e.desc?indent+descLine(e.desc)+"\n":"")+indent+e.line).join("\n"); }
+function defBodyLines(def){ let s=stripDescriptions(def); const b=s.indexOf("{"), e=s.lastIndexOf("}"); if(b>=0&&e>b) s=s.slice(b+1,e); return s.split(/[\n\r]+/).map(l=>l.trim()).filter(l=>l&&l!=="{"&&l!=="}"&&!l.startsWith("#")&&!l.startsWith("@")); }
 function fieldDefs(def){ return defBodyLines(def).map(l=>{ const m=l.match(/^([A-Za-z_]\w*)\s*(?:\([^)]*\))?\s*:\s*(.+)$/); if(!m) return null; const rawType=m[2].split("@")[0].trim(); return { name:m[1], rawType, base:baseType(rawType) }; }).filter(Boolean); }
-function parseArgs(s){ return String(s||"").split(/[,\n\r]+/).map(x=>x.trim()).filter(Boolean).map(pair=>{ const i=pair.indexOf(":"); return i===-1?{name:pair,type:""}:{name:pair.slice(0,i).trim(), type:pair.slice(i+1).trim()}; }); }
+function parseArgs(s){ return stripDescriptions(s).split(/[,\n\r]+/).map(x=>x.trim()).filter(Boolean).map(pair=>{ const i=pair.indexOf(":"); return i===-1?{name:pair,type:""}:{name:pair.slice(0,i).trim(), type:pair.slice(i+1).trim()}; }); }
 function keyFieldSet(def){ const raw=parseDefKey(def); return new Set(raw.replace(/[{}]/g," ").split(/\s+/).map(s=>s.trim()).filter(Boolean)); }
 // Validate one generated registry row → array of violation entries (mirrors workbench.html validateRow).
 function validateRow(sheet, row){

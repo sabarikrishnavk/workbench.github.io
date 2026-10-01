@@ -171,6 +171,9 @@
       <p>One tab per sheet. Every cell is editable in place, and dropdowns appear for entities (EntityID), Kind, Persona and Approval Status. Row colour follows Approval Status. Hover a column header to filter it Excel-style (▾), widen it (⤢) or hide it (×).</p></div>
     <div class="feat" id="wb-add-row"><h3>+ Add row</h3>
       <p>Adds a row at the top of the sheet with a generated ID (see <a href="#row-ids">Row IDs</a>). If the grid is filtered to a single entity, the new row belongs to that entity.</p></div>
+    <div class="feat" id="wb-row-editor"><h3>✎ Edit row (fields &amp; descriptions) <span class="where">Schema · Queries · Mutations rows, and ✎ Edit in the Explorer</span></h3>
+      <p>Opens a dialog for one row. For a <b>type</b>, every field is its own row: name, arguments (e.g. <code>storeId: ID!</code>), type, directives (e.g. <code>@external</code>) and a description. Enum values and their descriptions work the same way. For a <b>query or mutation</b>, each parameter is a row with its type and description, alongside the operation's name, return type, auth scopes and description. Reorder with ↑ ↓, add with + field / + parameter, and see the SDL and any standards issues update as you type.</p>
+      <p>Descriptions are saved as standard GraphQL doc strings: a <code>"""text"""</code> line above the field or parameter in <b>Definition</b> / <b>Parameters</b>. They appear in the generated SDL, and all three tools read past them.</p></div>
     <div class="feat" id="wb-columns"><h3>Columns</h3>
       <p>Show or hide columns, and reset widths. Hidden columns are still saved and exported.</p></div>
 
@@ -178,7 +181,7 @@
     <div class="feat" id="sheet-entities"><h3>Entities <span class="where">ID ENT-###</span></h3>
       <p>One row per canonical entity: Name, Experience Domain, <b>Business Application</b> (the subgraph it belongs to), Business Capability and Description. Everything else hangs off an entity.</p></div>
     <div class="feat" id="sheet-schema"><h3>Schema <span class="where">ID SCH-&lt;EntityID&gt;-###</span></h3>
-      <p>Every GraphQL type under an entity. <b>Kind</b> is <code>Key</code> (an entity with <code>@key</code>), <code>Type</code>, <code>Enum</code>, <code>Input</code>, <code>Interface</code>, <code>Scalar</code>, <code>Reference</code> (a stub of another subgraph's entity) or <code>Extend</code> (adds fields to another subgraph's entity). <b>Definition</b> holds the SDL body.</p></div>
+      <p>Every GraphQL type under an entity. <b>Kind</b> is <code>Key</code> (an entity with <code>@key</code>), <code>Type</code>, <code>Enum</code>, <code>Input</code>, <code>Interface</code>, <code>Scalar</code>, <code>Reference</code> (a stub of another subgraph's entity) or <code>Extend</code> (adds fields to another subgraph's entity). <b>Definition</b> holds the SDL body. <b>Description</b> documents the type; use ✎ to describe each field.</p></div>
     <div class="feat" id="sheet-queries"><h3>Queries <span class="where">ID QRY-&lt;EntityID&gt;-###</span></h3>
       <p>Root <code>Query</code> fields. Parameters are edited one per line as <code>name: Type</code>. Return Type is a combo box listing the registry's types, and you can still type wrappers like <code>[T!]!</code>. Auth Scopes is a comma-separated list.</p></div>
     <div class="feat" id="sheet-mutations"><h3>Mutations <span class="where">ID MUT-&lt;EntityID&gt;-###</span></h3>
@@ -189,8 +192,15 @@
     <div class="feat" id="row-ids"><h3>Row IDs</h3>
       <p>Entities use <code>ENT-###</code>. Rows that belong to an entity include its ID in their own: <code>SCH-</code>, <code>QRY-</code>, <code>MUT-</code> and <code>SCP-&lt;EntityID&gt;-&lt;seq&gt;</code>, for example <code>QRY-ENT-003-002</code>. The migration tool generates IDs the same way. A new row starts as <code>…-ENT-000-###</code> (no entity yet); when you pick its Entity, the ID is renumbered under that entity. IDs you typed yourself are never changed.</p></div>
     <div class="feat" id="links"><h3>Links &amp; References and governance columns</h3>
-      <p>Every sheet ends with <b>Contacts</b> (Domain Architect / Technical Service Owner), <b>Approval Status</b> (Draft → Proposed → Approved → Deprecated), <b>Comments</b>, <b>Current Reference</b> (the legacy REST or MonoGraph operation this row replaces) and <b>Links &amp; References</b>.</p>
-      <p>In <b>Links &amp; References</b>, each line has a type from the dropdown (<b>LeanIX</b>, <b>Confluence</b>, <b>ER</b> or <b>Other</b>) and a URL or text. ↗ opens the URL. Lines without a type are treated as Other.</p></div>
+      <p>Every sheet ends with <b>Contacts</b> (Domain Architect / Technical Service Owner), <b>Approval Status</b> (Draft → Proposed → Approved → Deprecated), <b>Comments</b> and <b>Links &amp; References</b>.</p>
+      <p><b>Links &amp; References</b> holds both the documentation for a row and the legacy operation it replaces. Each line has a type from the dropdown and a value:</p>
+      <ul>
+        <li><b>LeanIX</b>, <b>Confluence</b> or <b>ER</b>: a URL;</li>
+        <li><b>REST</b>: the endpoint the row replaces, e.g. <code>GET /carts/{id}</code>;</li>
+        <li><b>monograph</b>: the MonoGraph operation it replaces, e.g. <code>Query.cart</code>;</li>
+        <li><b>Other</b>: any other URL or text.</li>
+      </ul>
+      <p>↗ opens URLs, and lines without a type are treated as Other. The ✎ row dialog has the same editor. Code migration pairs each GraphQL operation with the REST endpoint named in its <b>REST</b> line.</p></div>
     <div class="feat" id="wb-standards"><h3>Standards ⓘ and issue flags</h3>
       <p>Schema, Queries and Mutations rows are checked as you edit against the <i>GQL Federation — Schema Standards and Patterns</i> rules (<code>standards.json</code>). Flagged cells are outlined. A ⚠ badge on a row lists its issues with a fix and a link to the relevant section of the standards document. The toolbar chip filters the grid to rows with issues. Issues are advisory in the registry and never block saving.</p></div>
 
@@ -198,6 +208,9 @@
       <p>A Mermaid diagram: router → one subgraph per Business Application (or per Business Capability) → its entities, with <code>@key</code> fields and operation counts. Entities with the same name in different subgraphs are joined by a dashed federation edge. <span class="ui">Copy Mermaid source</span> copies the diagram source for docs.</p></div>
     <div class="feat" id="wb-explorer"><h3>Explorer</h3>
       <p>A GraphiQL-style browser for the registry's operations. Search, or filter by Queries / Mutations, then open an operation to see its auth scopes, parameters, signature, a sample operation document and the entity's SDL, each with a Copy button.</p></div>
+    <div class="feat" id="wb-er"><h3>ER diagram <span class="where">Explorer → ER diagram</span></h3>
+      <p>An entity-relationship view of the types in each subgraph. When a subgraph adds fields to another subgraph's entity (an <b>Extend</b> row), those fields get their own box, <i>(extends)</i>, joined to the owning type by <code>extends @key(…)</code>. A key-only <b>Reference</b> stub is joined by <code>references @key(…)</code>. Fields typed with another type become relations: a list is one-to-many, a nullable field is zero-or-one. <b>PK</b> marks <code>@key</code> fields, <b>FK</b> marks fields that point at another type, and each field shows its full type, arguments, directives and description.</p>
+      <p>Pick a <b>Subgraph</b> to focus on it. That view also shows the entities it extends or references, and other subgraphs extending its entities. Tick <b>Include value &amp; input types</b> to add plain types and inputs. <span class="ui">Copy Mermaid source</span> copies the diagram for docs.</p></div>
     <div class="feat" id="wb-subgraph-sdl"><h3>Subgraph SDL</h3>
       <p>The complete SDL a subgraph contributes for an entity: every type registered under it plus its root operations. <span class="ui">Copy SDL</span> copies it.</p></div>
     <div class="feat" id="wb-borrow"><h3>＋ Borrow / extend entity</h3>
@@ -253,7 +266,7 @@
     <div class="feat" id="code-modes"><h3>Mode</h3>
       <p><b>Single op</b> maps one REST operation to one FedGQL operation. <b>BFF composite</b> maps one BFF endpoint to a set of FedGQL queries and mutations from different subgraphs.</p></div>
     <div class="feat" id="code-single"><h3>Single op</h3>
-      <p>Pick the REST operation and the GraphQL operation; they are paired automatically when an operation's <b>Current Reference</b> matches the REST method and path. Choose <b>Client</b> (JavaScript, Java, Android/Kotlin, iOS/Swift) or <b>Server</b> (Java Spring for GraphQL, .NET Hot Chocolate, Node.js Apollo Server). You get the REST and FedGQL versions side by side, with renamed fields and types highlighted, plus a sample response.</p>
+      <p>Pick the REST operation and the GraphQL operation; they are paired automatically when an operation's <b>REST</b> line in <b>Links &amp; References</b> matches the REST method and path. Choose <b>Client</b> (JavaScript, Java, Android/Kotlin, iOS/Swift) or <b>Server</b> (Java Spring for GraphQL, .NET Hot Chocolate, Node.js Apollo Server). You get the REST and FedGQL versions side by side, with renamed fields and types highlighted, plus a sample response.</p>
       <p>A <b>sequence trace</b> (Mermaid, rendered and copyable) shows how the router serves the operation: it calls the owning subgraph, then sends <code>_entities</code> calls by <code>@key</code> to every subgraph that owns an entity selected in the response. For example, <code>cart</code> → cart subgraph, then the product subgraph for each line's product fields. Mutations get the same trace.</p></div>
     <div class="feat" id="code-bff"><h3>BFF composite</h3>
       <p>Pick the BFF REST endpoint, then click <span class="ui">＋ Add FedGQL op</span> for each operation it composes, and set an alias and arguments for each. The page generates:</p>

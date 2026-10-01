@@ -167,11 +167,11 @@ function markDiffs(s, tokens){
   return s;
 }
 function restRefOf(op){ return `${op.method||""} ${op.path||""}`.trim(); }
-// A registry row's Current Reference lines ("REST: GET /x" as saved by the workbench, or a bare "GET /x").
-function restRefsOf(reg){ return String((reg&&reg.CurrentReference)||"").split(/[\n\r]+/).map(l=>l.trim().replace(/^(REST|monograph|Other)\s*:\s*/i,"")).filter(Boolean); }
+// The legacy REST endpoint(s) a registry op replaces: its "REST: GET /x" lines in Links & References.
+function restRefsOf(reg){ return linkValues(reg&&reg.Links, "REST"); }
 function refMatches(reg, restOp){ return !!restOp && restRefsOf(reg).includes(restRefOf(restOp)); }
 function parseGqlParams(str){
-  return String(str||"").split(",").map(s=>s.trim()).filter(Boolean).map(s=>{
+  return stripDescriptions(str).split(/[,\n\r]+/).map(s=>s.trim()).filter(Boolean).map(s=>{
     const i=s.indexOf(":"); return i<0 ? {name:s, type:"String"} : {name:s.slice(0,i).trim(), type:s.slice(i+1).trim()||"String"};
   });
 }
@@ -183,7 +183,7 @@ function parseDefBody(kind, name, def){
   const extMode = k==="Reference" ? "reference" : (k==="Extend" ? "extend"
                 : (/^extend\s+type/.test(def.trim()) ? "extend" : (/resolvable:\s*false/.test(def) ? "reference" : "")));
   const isEntity = k==="Key" || !!extMode || /@key/.test(def);
-  const inner=(def.match(/\{([\s\S]*)\}/)||[,""])[1];
+  const inner=stripDescriptions((def.match(/\{([\s\S]*)\}/)||[,""])[1]);
   const lines=inner.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).filter(s=>!s.startsWith("#"));
   if(kind==="Enum") return { name, kind:"enum", isEntity:false, key:"", fields:[], values:lines };
   // "name(args): Type @directive" → { name, args, type, external } (args/directives kept out of the type)
@@ -413,8 +413,8 @@ function buildGqlModel(){
   const schema=M.reg.Schema||[], queries=M.reg.Queries||[], muts=M.reg.Mutations||[];
   M.entities = M.reg.Entities||[];
   M.regTypes = schema.map(r=>parseDefBody(r.Kind, r.TypeName, r.Definition)).filter(t=>t&&t.name);
-  M.gqlOps = queries.map(r=>({id:r.QueryID||("q:"+r.Name), EntityID:String(r.EntityID||""), kind:"query", Name:r.Name, Parameters:r.Parameters, ReturnType:r.ReturnType, CurrentReference:r.CurrentReference}))
-    .concat(muts.map(r=>({id:r.MutationID||("m:"+r.Name), EntityID:String(r.EntityID||""), kind:"mutation", Name:r.Name, Parameters:r.Parameters, ReturnType:r.ReturnType, CurrentReference:r.CurrentReference})));
+  M.gqlOps = queries.map(r=>({id:r.QueryID||("q:"+r.Name), EntityID:String(r.EntityID||""), kind:"query", Name:r.Name, Parameters:r.Parameters, ReturnType:r.ReturnType, Links:r.Links}))
+    .concat(muts.map(r=>({id:r.MutationID||("m:"+r.Name), EntityID:String(r.EntityID||""), kind:"mutation", Name:r.Name, Parameters:r.Parameters, ReturnType:r.ReturnType, Links:r.Links})));
 }
 // GraphQL ops scoped to the selected subgraph/entity (all when none picked).
 function scopedGqlOps(){ return selEntity ? M.gqlOps.filter(o=>o.EntityID===selEntity) : M.gqlOps; }
@@ -488,7 +488,7 @@ function renderDomain(){
     ["EntityID", r.EntityID], ["Name", r.Name], ["Experience Domain", r.ExperienceDomain],
     ["Business Application", r.BusinessApplication], ["Business Capability", r.BusinessCapability],
     ["Approval", r.ApprovalStatus],
-    ["Comments", r.Comments], ["Current Reference", r.CurrentReference],
+    ["Comments", r.Comments],
     ["Links & References", linksHTML(r.Links), true],
   ];
   html += `<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${
@@ -545,7 +545,7 @@ function buildOpCtx(gqlSel, restSel, sgReg){
     : `<p class="hint" style="margin:2px 0 10px">No name/type changes between the REST source and the FedGQL target.</p>`;
   const mapNote = matched
     ? '<span class="hint">(matched by REST reference)</span>'
-    : `<span class="hint" style="color:#b45309">(manual cross-map — this GraphQL op's REST reference is ${esc(gqlSel.CurrentReference||"—")})</span>`;
+    : `<span class="hint" style="color:#b45309">(manual cross-map — this GraphQL op's REST reference is ${esc(restRefsOf(gqlSel).join(", ")||"—")})</span>`;
   return { gqlOp, retEnt, origRet, varName, p, restReqLine, matched, diffTokens, changes, fieldRows, changesHtml, fieldRowsHtml, mapNote };
 }
 

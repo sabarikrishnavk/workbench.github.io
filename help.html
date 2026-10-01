@@ -135,7 +135,7 @@
     </ol>
 
     <h3 id="try-samples">Try it with the samples</h3>
-    <p>The <code>samples/</code> folder holds a complete retail example with seven subgraphs: <b>product</b>, <b>pnp</b> (pricing), <b>inventory</b>, <b>search</b>, <b>cart</b>, <b>payments</b> and <b>checkout</b>.</p>
+    <p>Fastest route: click <span class="ui">Load example</span> in GQL migration or Code migration. It loads these files for you when the pages are served over http(s). The <code>samples/</code> folder holds a complete retail example with seven subgraphs: <b>product</b>, <b>pnp</b> (pricing), <b>inventory</b>, <b>search</b>, <b>cart</b>, <b>payments</b> and <b>checkout</b>.</p>
     <ol class="steps">
       <li><b class="t">Registry</b>In the workbench click <span class="ui">Load example</span>, or <span class="ui">Load .xlsx</span> → <code>samples/GQLRegistry-sample.xlsx</code>.</li>
       <li><b class="t">MonoGraph</b>In GQL migration, go to <b>MonoGraph schema</b> → <span class="ui">Choose file…</span> → <code>samples/mono-graph.gql</code>.</li>
@@ -213,6 +213,8 @@
 
     <div class="feat" id="mig-load"><h3>Load data <span class="where">tab</span></h3>
       <p>Load <code>GQLRegistry.xlsx</code> with <span class="ui">Choose file…</span>. When the pages are served over http(s), the workbook and MonoGraph schema load automatically from the same folder. Then, under <b>Domain details</b>, pick the <b>GQL Registry entity</b> you are migrating; its EntityID and domain details become the target for everything generated.</p></div>
+    <div class="feat" id="mig-example"><h3>Load example <span class="where">header</span></h3>
+      <p>Loads the retail sample from <code>samples/</code> in one click: the registry, the MonoGraph schema, and the OpenAPI spec of the subgraph picked in the dropdown (checkout, cart, payments, product, pnp, inventory or search). It selects that subgraph's registry entity as the migration target, so the <b>Subgraphs</b> and <b>FedGQL subgraph</b> tabs are ready to explore. It replaces the cached data and mapping, and asks first. Needs the pages served over http(s); on <code>file://</code> use the Choose file… buttons with the files in <code>samples/</code>.</p></div>
     <div class="feat" id="mig-resume"><h3>Subgraph migration (.xlsx)</h3>
       <p>Optional. Reloads a <code>…-subgraph.xlsx</code> you exported earlier, so you can continue where you left off.</p></div>
     <div class="feat" id="mig-clear"><h3>Clear cached data &amp; mapping</h3>
@@ -246,6 +248,8 @@
     <p>Generates the code that moves callers from REST to FedGQL. It opens on its own, or embedded in the <b>Code migration</b> tab of GQL migration.</p>
     <div class="feat" id="code-inputs"><h3>Inputs</h3>
       <p>Load <code>GQLRegistry.xlsx</code>, which supplies the FedGQL operations and types, and the REST spec (OpenAPI or Swagger, in YAML or JSON). Pick the registry entity (subgraph) to limit the list to that subgraph's operations.</p></div>
+    <div class="feat" id="code-example"><h3>Load example <span class="where">header</span></h3>
+      <p>Loads <code>samples/GQLRegistry-sample.xlsx</code> (including its pre-mapped BFF endpoints) with the REST spec picked in the dropdown. <b>BFF</b> opens BFF composite mode on <code>POST /bff/checkout</code>, the orchestrated checkout. A subgraph (e.g. <b>cart</b>) opens single-op mode on that subgraph, with REST and GraphQL operations already paired. Needs the pages served over http(s); on <code>file://</code> use the Choose… buttons.</p></div>
     <div class="feat" id="code-modes"><h3>Mode</h3>
       <p><b>Single op</b> maps one REST operation to one FedGQL operation. <b>BFF composite</b> maps one BFF endpoint to a set of FedGQL queries and mutations from different subgraphs.</p></div>
     <div class="feat" id="code-single"><h3>Single op</h3>

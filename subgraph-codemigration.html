@@ -64,6 +64,12 @@
   <h1><a href="index.html" target="_top" style="color:inherit;text-decoration:none" title="Workbench home">GQL -FedGQL/SubGraph Code Migration</a></h1>
   <span class="hint">REST → FedGQL · client &amp; server code</span>
   <span class="spacer"></span>
+  <select id="exampleSpec" title="Which sample REST spec to load with the sample registry">
+    <option value="bff">BFF (composite · checkout)</option>
+    <option value="cart">cart (single op)</option><option value="checkout">checkout (single op)</option><option value="payments">payments (single op)</option>
+    <option value="product">product (single op)</option><option value="pnp">pnp (single op)</option><option value="inventory">inventory (single op)</option><option value="search">search (single op)</option>
+  </select>
+  <button onclick="loadExample(document.getElementById('exampleSpec').value)" title="Load samples/GQLRegistry-sample.xlsx and the chosen sample REST spec" data-help="code-example">Load example</button>
   <a class="btn help-link" href="help.html#code-migration" target="_blank" rel="noopener" title="How to generate migration code">❓ Help</a>
   <a class="btn help-link" href="demo.html#code" target="_blank" rel="noopener" title="Slide walkthrough of the features">▶ Demo</a>
   <span class="status" id="status">load a registry and a REST spec to begin</span>
@@ -423,6 +429,28 @@ function onRest(input){
   const f=input.files[0]; if(!f) return; M.restName=f.name;
   const r=new FileReader(); r.onload=e=>{ try{ const sg=parseOpenAPI(e.target.result, f.name); M.restOps=sg.ops; M.restTypes=sg.types; }catch(err){ toast(err.message||"Could not parse spec"); } renderStatus(); render(); };
   r.readAsText(f); input.value="";
+}
+/* ----------------------------- Load example ------------------------------
+   samples/GQLRegistry-sample.xlsx (with its BffMappings sheet) + one sample REST spec: the BFF spec
+   opens BFF composite mode on the orchestrated checkout; a subgraph spec opens single-op mode.
+   Needs http(s) — browsers block fetch on file://. */
+async function loadExample(which){
+  const bff=which==="bff", specPath=bff ? "samples/bff-openapi.yaml" : `samples/subgraph/${which}/openapi.yaml`;
+  let reg, spec;
+  try{
+    const get=async (u,bin)=>{ const res=await fetch(u); if(!res.ok) throw new Error(u+" — HTTP "+res.status); return bin?res.arrayBuffer():res.text(); };
+    [reg, spec]=await Promise.all([get("samples/GQLRegistry-sample.xlsx",true), get(specPath,false)]);
+  }catch(e){
+    alert("Couldn't load the example files ("+(e.message||e)+").\n\nLoad example needs the pages served over http(s) — e.g. GitHub Pages, or run  python3 -m http.server  in this folder. When opened from disk (file://), pick samples/GQLRegistry-sample.xlsx and a samples/ spec with the Choose… buttons instead.");
+    return;
+  }
+  M.bff={}; loadRegWB(XLSX.read(reg,{type:"array"})); M.sgName="GQLRegistry-sample";
+  const sg=parseOpenAPI(spec, specPath); M.restOps=sg.ops; M.restTypes=sg.types; M.restName=specPath.split("/").slice(-2).join("/");
+  selEntity=""; selRest=""; selGql=""; openMenu=false;
+  if(bff){ mode="bff"; bffRef="POST /bff/checkout"; }
+  else { mode="single"; const own=(M.entities||[]).find(e=>String(e.BusinessApplication||"").trim()===which); selEntity=own?String(own.EntityID):""; }
+  renderStatus(); render();
+  toast(bff ? "Loaded the example — BFF composite · POST /bff/checkout" : `Loaded the example — ${which} REST spec (single op)`);
 }
 async function tryAutoFetch(){
   for(const url of ["GQLRegistry.xlsx","../documents/GQLRegistry.xlsx"]){

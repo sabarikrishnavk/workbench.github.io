@@ -110,6 +110,11 @@
   <h1><a href="index.html" style="color:inherit;text-decoration:none" title="Workbench home">FedGQL Migration Workbench</a></h1>
   <button onclick="exportSubgraph()" title="Export the selected subgraph's types/queries/mutations into GQLRegistry.xlsx" data-help="mig-export">Export subgraph</button>
   <span class="spacer"></span>
+  <select id="exampleSg" title="Which sample subgraph to migrate">
+    <option value="checkout">checkout</option><option value="cart">cart</option><option value="payments">payments</option>
+    <option value="product">product</option><option value="pnp">pnp</option><option value="inventory">inventory</option><option value="search">search</option>
+  </select>
+  <button onclick="loadExample(document.getElementById('exampleSg').value)" title="Load the samples/ registry and MonoGraph, and import the chosen subgraph's OpenAPI spec" data-help="mig-example">Load example</button>
   <a class="btn help-link" href="help.html#migration" target="_blank" rel="noopener" title="How to migrate a subgraph">❓ Help</a>
   <a class="btn help-link" href="demo.html#mig" target="_blank" rel="noopener" title="Slide walkthrough of the features">▶ Demo</a>
   <span class="status" id="status">No data loaded.</span>
@@ -913,7 +918,13 @@ function importOpenAPI(file){
     let defName=stem;
     try{ const j=(file.name||"").match(/\.ya?ml$/i)?jsyaml.load(e.target.result):JSON.parse(e.target.result); if(j&&j.info&&j.info.title) defName=slug(j.info.title).toLowerCase().replace(/ /g,"-"); }catch(_){}
     let sgName=prompt("Subgraph / platform name for this spec:", defName); if(sgName===null) return; sgName=sgName.trim()||defName;
-    const sg=parseOpenAPI(e.target.result, sgName); sg.spec=file.name||"";
+    importOpenAPIText(e.target.result, file.name||"", sgName);
+  }catch(err){ alert(err.message||"Failed to parse OpenAPI spec."); } };
+  r.readAsText(file);
+}
+// Import one OpenAPI spec (text) as subgraph `sgName` and focus the migration on its entity.
+function importOpenAPIText(text, fileName, sgName){
+    const sg=parseOpenAPI(text, sgName); sg.spec=fileName||"";
     if(!sg.ops.length && !sg.types.length){ alert("No operations or component schemas found in that spec."); return; }
     const existing=mapping.subgraphs.find(s=>s.name===sgName);
     let target;
@@ -925,8 +936,32 @@ function importOpenAPI(file){
     persist(); afterLoad();
     document.getElementById("openapiState").textContent=`imported "${sgName}" — ${sg.types.length} types, ${sg.ops.length} ops`;
     toast(`Imported subgraph ${sgName}`);
-  }catch(err){ alert(err.message||"Failed to parse OpenAPI spec."); } };
-  r.readAsText(file);
+}
+/* ----------------------------- Load example ------------------------------
+   Loads the retail sample from samples/: the registry, the MonoGraph SDL, and one subgraph's
+   OpenAPI spec mapped onto its registry entity. Needs http(s) — browsers block fetch on file://. */
+const EXAMPLE_ENTITY={ product:"ENT-001", pnp:"ENT-002", inventory:"ENT-003", search:"ENT-004", cart:"ENT-006", payments:"ENT-007", checkout:"ENT-008" };
+async function fetchSample(path, kind){
+  const res=await fetch(path); if(!res.ok) throw new Error(path+" — HTTP "+res.status);
+  return kind==="bin" ? res.arrayBuffer() : res.text();
+}
+async function loadExample(sgName){
+  sgName=EXAMPLE_ENTITY[sgName] ? sgName : "checkout";
+  if((state.entities.length || mapping.subgraphs.length) && !confirm(`Replace the cached data and mapping with the retail example (subgraph "${sgName}")?`)) return;
+  let reg, mono, spec;
+  try{
+    [reg, mono, spec]=await Promise.all([fetchSample("samples/GQLRegistry-sample.xlsx","bin"), fetchSample("samples/mono-graph.gql"), fetchSample(`samples/subgraph/${sgName}/openapi.yaml`)]);
+  }catch(e){
+    alert("Couldn't load the example files ("+(e.message||e)+").\n\nLoad example needs the pages served over http(s) — e.g. GitHub Pages, or run  python3 -m http.server  in this folder. When opened from disk (file://), pick the files in samples/ with the Choose file… buttons instead.");
+    return;
+  }
+  state.monographText=""; state.monograph=null; mapping=defaultMapping(); selmonograph=selRest=null;
+  loadRegWB(XLSX.read(reg,{type:"array"}));
+  loadmonographText(mono);
+  mapping.migrationEntityId=EXAMPLE_ENTITY[sgName];
+  importOpenAPIText(spec, `samples/subgraph/${sgName}/openapi.yaml`, sgName);
+  persist(); afterLoad();
+  toast(`Loaded the retail example — migrating "${sgName}" (${EXAMPLE_ENTITY[sgName]})`);
 }
 function renderRestDetail(){
   const host=document.getElementById("restDetail"); if(!host) return;

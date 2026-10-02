@@ -188,7 +188,7 @@
   /* Modal */
   .modal{ position: fixed; inset: 0; background: rgba(15,23,42,.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
   .modal[hidden]{ display: none; }
-  .gql[hidden], #expEr[hidden]{ display: none; }
+  .gql[hidden], #view-graph .card[hidden]{ display: none; }
   .id-cell{ display: flex; align-items: center; gap: 2px; }
   .id-cell .row-edit{ flex: none; color: var(--accent); }
   .id-cell input{ min-width: 150px; }
@@ -215,8 +215,6 @@
   .exp-tabs button.active{ background: var(--accent); color: #fff; border-color: var(--accent); }
   .er-out{ background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; max-height: 72vh; margin: 8px 0; }
   /* Schema visualization (Apollo GraphOS-style type cards) */
-  .viz-head{ display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  .viz-head h2{ margin: 0; }
   .viz-e{ display: inline-block; background: #2f8a57; color: #fff; font-size: 10px; font-weight: 700; border-radius: 3px; padding: 0 4px; line-height: 15px; }
   .viz-bar{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
   .viz-bar label{ display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 6px; padding: 3px 4px 3px 9px; background: #fff; }
@@ -351,7 +349,12 @@
   </section>
 
   <section class="view" id="view-graph">
-    <div class="card">
+    <div class="exp-tabs" id="graphTabs">
+      <button data-g="graph" class="active" data-help="wb-graph">Subgraphs</button>
+      <button data-g="viz" data-help="wb-er">Visualization</button>
+      <button data-g="mermaid" data-help="wb-er">Mermaid ER</button>
+    </div>
+    <div class="card" id="graphMain">
       <h2>Federated GraphQL graph</h2>
       <p class="desc">Supergraph gateway → one subgraph per domain → entities (with <code>@key</code> + operation counts). Entities sharing a canonical name across domains are joined by a dashed federation edge.</p>
       <div class="toolbar-inline">
@@ -366,19 +369,8 @@
       <div class="code-head"><h3>Mermaid source</h3></div>
       <pre class="code" id="mermaidSrc"></pre>
     </div>
-  </section>
-
-  <section class="view" id="view-explorer">
-    <div class="exp-tabs" id="expTabs">
-      <button data-x="ops" class="active" data-help="wb-explorer">Operations</button>
-      <button data-x="er" data-help="wb-er">ER diagram</button>
-    </div>
-    <div class="card" id="expEr" hidden>
-      <div class="viz-head">
-        <h2>Schema visualization</h2>
-        <div class="seg" id="vizMode"><button data-m="viz" class="active" title="Supergraph types as cards: fields, return types, links, lint">Visualization</button><button data-m="mermaid" title="Per-subgraph entity-relationship diagram (Mermaid)">Mermaid ER</button></div>
-      </div>
-      <div id="vizPane">
+    <div class="card" id="vizPane" hidden>
+      <h2>Schema visualization</h2>
         <p class="desc">The supergraph as Apollo GraphOS shows it: one card per type with its <b>FIELD</b> and <b>RETURN TYPE</b>, starting from the root you are <b>Viewing</b>. <span class="viz-e">E</span> marks an entity (green). Underlined return types link to their card. A coloured dot shows which subgraph contributes each field, and ⚠ marks fields with schema-standards / GraphOS lint issues. Click a card or field for details and to edit it. Drag or scroll to pan; pinch or Ctrl+scroll to zoom.</p>
         <div class="viz-bar">
           <label>Viewing <select id="vizRoot"><option value="Query">Query</option><option value="Mutation">Mutation</option><option value="Both">Query + Mutation</option><option value="All">All types</option></select></label>
@@ -398,8 +390,9 @@
           <div class="viz-legend" id="vizLegend" hidden></div>
           <aside class="viz-side" id="vizSide" hidden></aside>
         </div>
-      </div>
-      <div id="erPane" hidden>
+    </div>
+    <div class="card" id="erPane" hidden>
+      <h2>ER diagram — types across subgraphs</h2>
       <p class="desc">Each box is a type in a subgraph. <b>(extends)</b> boxes are fields a subgraph adds to another subgraph's entity, and <b>(reference)</b> boxes are key-only stubs; both join the owning type by <code>@key</code>. Fields typed with another type become relations (list → one-to-many, nullable → zero-or-one). PK = <code>@key</code> field, FK = field that points at another type.</p>
       <div class="toolbar-inline">
         <span class="hint">Subgraph:</span><select id="erScope"></select>
@@ -409,8 +402,10 @@
       <div id="erOut" class="er-out"></div>
       <div class="code-head"><h3>Mermaid source</h3></div>
       <pre class="code" id="erSrc"></pre>
-      </div>
     </div>
+  </section>
+
+  <section class="view" id="view-explorer">
     <div class="gql" id="expOps">
       <div class="side">
         <div class="filters">
@@ -1403,15 +1398,9 @@ async function renderGraph() {
 }
 
 /* ---------------------------- Explorer (GraphiQL-like) ------------------ */
-let explorerView = "ops";
-function setExplorerView(v) {
-  explorerView = v === "er" ? "er" : "ops";
-  document.querySelectorAll("#expTabs button").forEach(b => b.classList.toggle("active", b.dataset.x === explorerView));
-  document.getElementById("expOps").hidden = explorerView !== "ops"; document.getElementById("expEr").hidden = explorerView !== "er";
-  if (explorerView === "er") renderEr();
-}
+// Explorer = the Queries / Mutations operation browser. (Schema visualization + Mermaid ER live under Federated Graph.)
 function renderExplorer() {
-  if (explorerView === "er") renderEr();
+  renderEr();   // keep the Federated Graph → Visualization / Mermaid ER tab in step with registry edits
   renderOpList();
   if (selectedOp && !allOps().some(o => o.OpID === selectedOp)) selectedOp = null;
   renderOpDetail();
@@ -2042,7 +2031,7 @@ function buildErMermaid(scope, includeValues) {
   }
   return L.concat([...edges]).join("\n");
 }
-function renderEr() { if (erMode === "viz") renderViz(); else renderErMermaid(); }
+function renderEr() { if (graphView === "viz") renderViz(); else if (graphView === "mermaid") renderErMermaid(); }
 async function renderErMermaid() {
   const out = document.getElementById("erOut"), srcEl = document.getElementById("erSrc"), sel = document.getElementById("erScope");
   if (!out) return;
@@ -2063,7 +2052,7 @@ async function renderErMermaid() {
    subgraph merged), with FIELD / RETURN TYPE rows, an E badge on entities, field → type arrows,
    interface implementations (dashed), a coloured dot per contributing subgraph, and ⚠ on fields that
    break the schema standards / GraphOS lint rules (standards.json). Pure SVG so it exports as .svg. */
-let erMode = "viz";
+let graphView = "graph";   // Federated Graph tab: "graph" (subgraphs) | "viz" (schema visualization) | "mermaid" (ER)
 const VIZ = { root: "Query", sg: "", lint: "warn", inputs: false, enums: true, find: "", sel: null, view: null, fitPending: true, layout: null };
 const VIZ_SG_COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#dc2626", "#65a30d", "#9333ea", "#0d9488"];
 const VIZ_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
@@ -2406,17 +2395,18 @@ function vizDownload() {
   const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n` + clone.outerHTML.replace(/<svg class="vz"/, '<svg class="vz" style="background:#f7f8fa"')], { type: "image/svg+xml" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `schema-visualization-${VIZ.root.toLowerCase()}${VIZ.sg ? "-" + VIZ.sg : ""}.svg`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-function setErMode(m) {
-  erMode = m === "mermaid" ? "mermaid" : "viz";
-  document.querySelectorAll("#vizMode button").forEach(b => b.classList.toggle("active", b.dataset.m === erMode));
-  document.getElementById("vizPane").hidden = erMode !== "viz"; document.getElementById("erPane").hidden = erMode !== "mermaid";
-  if (erMode === "viz") VIZ.fitPending = true;
-  renderEr();
+function setGraphView(v) {
+  graphView = ["viz", "mermaid"].includes(v) ? v : "graph";
+  document.querySelectorAll("#graphTabs button").forEach(b => b.classList.toggle("active", b.dataset.g === graphView));
+  document.getElementById("graphMain").hidden = graphView !== "graph";
+  document.getElementById("vizPane").hidden = graphView !== "viz"; document.getElementById("erPane").hidden = graphView !== "mermaid";
+  if (graphView === "viz") VIZ.fitPending = true;
+  if (graphView === "graph") renderGraph(); else renderEr();
 }
 function wireViz() {
   const box = document.getElementById("vizCanvas"); if (!box) return;
   const refit = () => { VIZ.fitPending = true; renderViz(); };
-  document.querySelectorAll("#vizMode button").forEach(b => b.onclick = () => setErMode(b.dataset.m));
+  document.getElementById("graphTabs").addEventListener("click", e => { const b = e.target.closest("button[data-g]"); if (b) setGraphView(b.dataset.g); });
   document.getElementById("vizRoot").onchange = e => { VIZ.root = e.target.value; VIZ.sel = null; refit(); };
   document.getElementById("vizSg").onchange = e => { VIZ.sg = e.target.value; VIZ.sel = null; refit(); };
   document.getElementById("vizLint").onchange = e => { VIZ.lint = e.target.value; renderViz(); };
@@ -2576,8 +2566,7 @@ document.getElementById("nav").addEventListener("click", (e) => {
   document.querySelectorAll("#nav button").forEach(x => x.classList.toggle("active", x === b));
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById("view-" + b.dataset.view).classList.add("active");
-  if (b.dataset.view === "graph") renderGraph();
-  if (b.dataset.view === "explorer" && explorerView === "er" && erMode === "viz" && VIZ.fitPending) renderViz();
+  if (b.dataset.view === "graph") { if (graphView === "graph") renderGraph(); else if (graphView === "viz" && VIZ.fitPending) renderViz(); }
 });
 document.getElementById("fileInput").addEventListener("change", (e) => { if (e.target.files[0]) importWorkbook(e.target.files[0]); e.target.value = ""; });
 document.getElementById("exportBtn").onclick = exportWorkbook;
@@ -2587,7 +2576,6 @@ document.getElementById("clearBtn").onclick = () => { if (!confirm("Clear all da
 document.getElementById("groupSeg").addEventListener("click", (e) => { const b = e.target.closest("button[data-group]"); if (!b) return; groupBy = b.dataset.group; document.querySelectorAll("#groupSeg button").forEach(x=>x.classList.toggle("active", x===b)); renderGraph(); });
 document.getElementById("copyMermaid").onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById("mermaidSrc").textContent);
 document.getElementById("optypeTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-t]"); if (!b) return; opFilter = b.dataset.t; document.querySelectorAll("#optypeTabs button").forEach(x=>x.classList.toggle("active", x===b)); renderOpList(); });
-document.getElementById("expTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-x]"); if (b) setExplorerView(b.dataset.x); });
 document.getElementById("erScope").addEventListener("change", (e) => { erScope = e.target.value; renderEr(); });
 document.getElementById("erValues").addEventListener("change", (e) => { erValues = e.target.checked; renderEr(); });
 document.getElementById("erCopy").onclick = () => navigator.clipboard && navigator.clipboard.writeText(document.getElementById("erSrc").textContent);

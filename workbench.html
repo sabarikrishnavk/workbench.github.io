@@ -71,6 +71,12 @@
   .std-rule-t{ font-weight: 600; font-size: 13px; margin: 3px 0 1px; }
   .std-rule-m{ font-size: 12px; }
   .std-rule-f{ font-size: 12px; color: #2e7d32; margin-top: 3px; }
+  .std-rule.std-ext{ opacity: .72; border-left-style: dashed; }
+  .std-rule-a{ font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .std-rule-a code{ font-size: 10.5px; }
+  .std-src{ font-size: 10px; padding: 0 5px; border-radius: 3px; border: 1px solid; white-space: nowrap; }
+  .std-src.apollo{ color: #3f20ba; border-color: #c9bcf6; background: #f4f0ff; }
+  .std-src.graphos{ color: var(--muted); border-color: var(--line); background: #f6f7f9; }
   .icon-btn{ border: none; background: transparent; padding: 2px 6px; color: var(--muted); cursor: pointer; }
   .icon-btn:hover{ color: var(--bad); }
   .table-wrap{ overflow: auto; max-height: 60vh; border: 1px solid var(--line); border-radius: 8px; }
@@ -208,6 +214,38 @@
   .exp-tabs{ display: flex; gap: 6px; margin-bottom: 10px; }
   .exp-tabs button.active{ background: var(--accent); color: #fff; border-color: var(--accent); }
   .er-out{ background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; max-height: 72vh; margin: 8px 0; }
+  /* Schema visualization (Apollo GraphOS-style type cards) */
+  .viz-head{ display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .viz-head h2{ margin: 0; }
+  .viz-e{ display: inline-block; background: #2f8a57; color: #fff; font-size: 10px; font-weight: 700; border-radius: 3px; padding: 0 4px; line-height: 15px; }
+  .viz-bar{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+  .viz-bar label{ display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 6px; padding: 3px 4px 3px 9px; background: #fff; }
+  .viz-bar label.chk{ padding-right: 9px; }
+  .viz-bar select{ border: none; font: inherit; font-weight: 600; background: transparent; }
+  .viz-bar input[type=search]{ padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12.5px; min-width: 200px; }
+  .viz-wrap{ position: relative; border: 1px solid var(--line); border-radius: 10px; background: #f7f8fa; height: calc(100vh - 330px); min-height: 460px; overflow: hidden;
+    background-image: radial-gradient(#dfe3e8 1px, transparent 1px); background-size: 18px 18px; }
+  .viz-canvas{ position: absolute; inset: 0; cursor: grab; touch-action: none; }
+  .viz-canvas.panning{ cursor: grabbing; }
+  .viz-canvas svg{ display: block; width: 100%; height: 100%; user-select: none; }
+  .viz-zoom{ position: absolute; left: 10px; bottom: 10px; display: flex; gap: 4px; align-items: center; }
+  .viz-zoom button{ width: 30px; height: 30px; padding: 0; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  .viz-zoom span{ min-width: 46px; text-align: center; font-size: 12px; background: #fff; border: 1px solid var(--line); border-radius: 6px; line-height: 28px; }
+  .viz-legend{ position: absolute; left: 10px; bottom: 48px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.08); max-width: 330px; }
+  .viz-legend div{ display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .viz-legend .sw{ width: 16px; height: 12px; border-radius: 3px; border: 1px solid #d6dae0; flex: none; }
+  .viz-legend .dot{ width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .viz-side{ position: absolute; top: 0; right: 0; bottom: 0; width: 360px; max-width: 85%; background: #fff; border-left: 1px solid var(--line); overflow: auto; padding: 12px 14px; box-shadow: -4px 0 14px rgba(0,0,0,.06); font-size: 13px; }
+  .viz-side h3{ margin: 0 0 2px; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+  .viz-side .x{ position: absolute; top: 8px; right: 8px; }
+  .viz-side table{ width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12px; }
+  .viz-side td{ border-top: 1px solid var(--line); padding: 4px 4px; vertical-align: top; }
+  .viz-side td.t{ text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+  .viz-side .d{ color: var(--muted); font-size: 11.5px; }
+  .viz-side .sgdot{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .viz-side .acts{ display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .viz-side .val-item{ font-size: 12px; margin: 4px 0; }
+  .viz-side .lnk{ color: var(--accent); cursor: pointer; text-decoration: underline; }
   .modal-card ol{ margin: 0 0 12px; padding-left: 20px; }
   .modal-card li{ margin: 6px 0; }
   .modal-card label.field{ display: block; margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
@@ -336,7 +374,32 @@
       <button data-x="er" data-help="wb-er">ER diagram</button>
     </div>
     <div class="card" id="expEr" hidden>
-      <h2>ER diagram — types across subgraphs</h2>
+      <div class="viz-head">
+        <h2>Schema visualization</h2>
+        <div class="seg" id="vizMode"><button data-m="viz" class="active" title="Supergraph types as cards: fields, return types, links, lint">Visualization</button><button data-m="mermaid" title="Per-subgraph entity-relationship diagram (Mermaid)">Mermaid ER</button></div>
+      </div>
+      <div id="vizPane">
+        <p class="desc">The supergraph as Apollo GraphOS shows it: one card per type with its <b>FIELD</b> and <b>RETURN TYPE</b>, starting from the root you are <b>Viewing</b>. <span class="viz-e">E</span> marks an entity (green). Underlined return types link to their card. A coloured dot shows which subgraph contributes each field, and ⚠ marks fields with schema-standards / GraphOS lint issues. Click a card or field for details and to edit it. Drag or scroll to pan; pinch or Ctrl+scroll to zoom.</p>
+        <div class="viz-bar">
+          <label>Viewing <select id="vizRoot"><option value="Query">Query</option><option value="Mutation">Mutation</option><option value="Both">Query + Mutation</option><option value="All">All types</option></select></label>
+          <label>Subgraph <select id="vizSg"></select></label>
+          <label>Lint <select id="vizLint"><option value="warn">Errors &amp; warnings</option><option value="all">+ suggestions</option><option value="off">Off</option></select></label>
+          <label class="chk"><input type="checkbox" id="vizInputs" /> Inputs &amp; args</label>
+          <label class="chk"><input type="checkbox" id="vizEnums" checked /> Enums</label>
+          <input type="search" id="vizFind" placeholder="Highlight type or field…" />
+          <button id="vizClear" title="Reset filters, highlight and zoom">⟲ Clear</button>
+          <span class="hint" id="vizStats"></span>
+        </div>
+        <div class="viz-wrap" id="vizWrap">
+          <div class="viz-canvas" id="vizCanvas"></div>
+          <div class="viz-zoom">
+            <button id="vizOut" title="Zoom out">−</button><span id="vizPct">100%</span><button id="vizIn" title="Zoom in">+</button><button id="vizFit" title="Fit to view">⤢</button><button id="vizSvg" title="Download as SVG">⤓</button><button id="vizInfo" title="Legend">ⓘ</button>
+          </div>
+          <div class="viz-legend" id="vizLegend" hidden></div>
+          <aside class="viz-side" id="vizSide" hidden></aside>
+        </div>
+      </div>
+      <div id="erPane" hidden>
       <p class="desc">Each box is a type in a subgraph. <b>(extends)</b> boxes are fields a subgraph adds to another subgraph's entity, and <b>(reference)</b> boxes are key-only stubs; both join the owning type by <code>@key</code>. Fields typed with another type become relations (list → one-to-many, nullable → zero-or-one). PK = <code>@key</code> field, FK = field that points at another type.</p>
       <div class="toolbar-inline">
         <span class="hint">Subgraph:</span><select id="erScope"></select>
@@ -346,6 +409,7 @@
       <div id="erOut" class="er-out"></div>
       <div class="code-head"><h3>Mermaid source</h3></div>
       <pre class="code" id="erSrc"></pre>
+      </div>
     </div>
     <div class="gql" id="expOps">
       <div class="side">
@@ -542,25 +606,29 @@ function sheetIssueCount(sheet) {
 function tryLoadStandards() {
   if (typeof fetch !== "function") return;
   fetch("standards.json").then(r => r.ok ? r.json() : Promise.reject()).then(j => {
-    if (j && Array.isArray(j.rules)) { STANDARDS = j; for (const k in __reCache) delete __reCache[k]; renderSheet(); renderStandardsDrawer(); }
+    if (j && Array.isArray(j.rules)) { STANDARDS = j; for (const k in __reCache) delete __reCache[k]; renderSheet(); renderStandardsDrawer(); renderExplorer(); }
   }).catch(() => {});
 }
 // Help drawer: list the active rules grouped by schema section.
-const STD_GROUP_ORDER = ["Type names", "Fields", "Input types", "Enums", "Scalars", "Queries", "Mutations", "Operations", "Nullability", "Anti-patterns"];
+const STD_GROUP_ORDER = ["Type names", "Fields", "Arguments", "Input types", "Enums", "Scalars", "Queries", "Mutations", "Operations", "Nullability", "Directives", "Documentation", "Schema hygiene", "Anti-patterns", "Composition"];
 function renderStandardsDrawer() {
   const body = document.getElementById("stdBody"); if (!body) return;
   const note = document.getElementById("stdNote");
   const m = STANDARDS.meta || {};
   if (note) note.innerHTML = "Rules from <strong>" + esc(m.title || "schema standards") + "</strong>" +
-    (m.version ? " v" + esc(m.version) : "") + ". Flagged inline as you edit the Schema, Queries and Mutations sheets (advisory — never blocks saving).";
+    (m.version ? " v" + esc(m.version) : "") + ", with the <a href=\"" + esc(m.apolloDoc || "") + "\" target=\"_blank\" rel=\"noopener\">Apollo GraphOS schema linter rules</a>" +
+    ". Flagged inline as you edit the Schema, Queries and Mutations sheets (advisory — never blocks saving). " +
+    "<span class=\"std-src apollo\">GraphOS</span> marks a GraphOS linter rule; <span class=\"std-src graphos\">GraphOS only</span> rules need data the registry does not model and are checked by GraphOS when the subgraph is published.";
   const rules = (STANDARDS.rules || []).filter(r => r.enabled !== false);
   const groups = {}; for (const r of rules) (groups[r.category] = groups[r.category] || []).push(r);
   const order = [...STD_GROUP_ORDER.filter(g => groups[g]), ...Object.keys(groups).filter(g => !STD_GROUP_ORDER.includes(g))];
   body.innerHTML = order.map(cat => {
     const items = groups[cat].map(r =>
-      '<div class="std-rule sev-' + (r.severity || "warning") + '">' +
+      '<div class="std-rule sev-' + (r.severity || "warning") + (r.enforcedBy === "graphos" ? ' std-ext' : '') + '">' +
         '<div class="std-rule-h"><span class="sev-dot"></span><code>' + esc(r.id) + '</code>' +
+        (r.enforcedBy === "graphos" ? '<span class="std-src graphos" title="Checked by GraphOS on publish, not in the workbench">GraphOS only</span>' : apolloIds(r).length ? '<span class="std-src apollo" title="GraphOS linter rule">GraphOS</span>' : '') +
         '<span class="std-sev">' + esc(r.severity || "warning") + '</span></div>' +
+        (r.source !== "apollo" && apolloIds(r).length ? '<div class="std-rule-a">Apollo: ' + apolloIds(r).map(id => '<code>' + esc(id) + '</code>').join(" ") + '</div>' : '') +
         '<div class="std-rule-t">' + esc(r.title) + '</div>' +
         '<div class="std-rule-m">' + esc(r.message) + '</div>' +
         (r.fix ? '<div class="std-rule-f">✔ ' + esc(r.fix) + '</div>' : '') +
@@ -637,7 +705,7 @@ function nextId(sheet, entityId) {
 }
 // True when `id` has the generated <PRE>-ENT-###-### shape (safe to re-number when the entity changes).
 function isGeneratedChildId(sheet, id) { return !id || new RegExp("^" + ID_PREFIX[sheet] + "-ENT-\\d+-\\d+$").test(id); }
-function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch(e){} setStatus(); }
+function save() { invalidateStandardsContext(); try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch(e){} setStatus(); }
 function load() { try { const raw = localStorage.getItem(LS_KEY); if (raw) { DB = { ...emptyDB(), ...JSON.parse(raw) }; return; } } catch(e){} DB = emptyDB(); }
 function setStatus() { const n = SHEET_ORDER.reduce((a,s)=>a+DB[s].length,0); document.getElementById("status").textContent = n ? `${DB.Entities.length} entities · ${DB.Queries.length} queries · ${DB.Mutations.length} mutations` : "Empty registry"; }
 function index(sheet) { const k = SCHEMA[sheet].id, m = {}; for (const r of DB[sheet]) m[r[k]] = r; return m; }
@@ -884,7 +952,7 @@ function showReport(title, rep, note) {
 }
 
 /* -------------------------------- Render -------------------------------- */
-function renderAll() { renderSheetTabs(); renderSheet(); renderGraph(); renderExplorer(); renderSubgraph(); renderSummary(); renderSyncBar(); setStatus(); renderFileName(); }
+function renderAll() { invalidateStandardsContext(); renderSheetTabs(); renderSheet(); renderGraph(); renderExplorer(); renderSubgraph(); renderSummary(); renderSyncBar(); setStatus(); renderFileName(); }
 
 function renderSheetTabs() {
   const el = document.getElementById("sheetTabs"); el.innerHTML = "";
@@ -970,6 +1038,7 @@ function openFilterPopup(sheet, col, btn) {
 }
 
 function renderSheet() {
+  invalidateStandardsContext();   // cross-row rules (unused types, composition) see the latest registry
   const card = document.getElementById("sheetCard"); const def = SCHEMA[activeSheet]; card.innerHTML = "";
   const view = colView(activeSheet); const hidden = new Set(view.hidden), wide = new Set(view.wide);
   const h = document.createElement("h2"); h.textContent = activeSheet; card.appendChild(h);
@@ -1973,7 +2042,8 @@ function buildErMermaid(scope, includeValues) {
   }
   return L.concat([...edges]).join("\n");
 }
-async function renderEr() {
+function renderEr() { if (erMode === "viz") renderViz(); else renderErMermaid(); }
+async function renderErMermaid() {
   const out = document.getElementById("erOut"), srcEl = document.getElementById("erSrc"), sel = document.getElementById("erScope");
   if (!out) return;
   const sgs = allSubgraphs();
@@ -1986,6 +2056,399 @@ async function renderEr() {
   if (!window.mermaid) { out.innerHTML = '<div class="empty">Mermaid failed to load (offline?). The source below is still valid.</div>'; return; }
   try { const { svg } = await mermaid.render("erGraph_" + Date.now(), src); out.innerHTML = svg; }
   catch (e) { out.innerHTML = '<div class="empty">Could not render diagram: ' + esc(e.message) + '</div>'; }
+}
+
+/* -------------- Schema visualization (Explorer → ER diagram) -------------
+   Apollo GraphOS Studio-style "Visualization": the supergraph as one card per type (fields from every
+   subgraph merged), with FIELD / RETURN TYPE rows, an E badge on entities, field → type arrows,
+   interface implementations (dashed), a coloured dot per contributing subgraph, and ⚠ on fields that
+   break the schema standards / GraphOS lint rules (standards.json). Pure SVG so it exports as .svg. */
+let erMode = "viz";
+const VIZ = { root: "Query", sg: "", lint: "warn", inputs: false, enums: true, find: "", sel: null, view: null, fitPending: true, layout: null };
+const VIZ_SG_COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2", "#dc2626", "#65a30d", "#9333ea", "#0d9488"];
+const VIZ_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+const VIZ_CSS = `
+.vz text{ font-family: ${VIZ_FONT}; fill: #1f2933; }
+.vz .card{ fill: #fff; stroke: #d6dae0; }
+.vz .card.ent{ fill: #effaf2; stroke: #3d9f69; }
+.vz .card.root{ stroke: #9aa3ae; }
+.vz .card.inp{ fill: #fffaf0; stroke: #e3c27a; }
+.vz .card.sel{ stroke: #7048e8; stroke-width: 2; }
+.vz .rule{ stroke: #e6e9ed; }
+.vz .ent .rule, .vz .rule.ent{ stroke: #cfe8d9; }
+.vz .tname{ font-size: 13px; font-weight: 700; }
+.vz .kind{ font-size: 11px; fill: #6b7280; }
+.vz .colh{ font-size: 9.5px; font-weight: 700; letter-spacing: .04em; fill: #4b5563; }
+.vz .fname{ font-size: 12px; }
+.vz .ftype{ font-size: 12px; fill: #374151; }
+.vz .ftype.link{ text-decoration: underline; cursor: pointer; fill: #111827; font-weight: 600; }
+.vz .row{ fill: transparent; cursor: pointer; }
+.vz .row:hover{ fill: rgba(112,72,232,.06); }
+.vz .row.hit{ fill: #fff3bf; }
+.vz .hdr{ fill: transparent; cursor: pointer; }
+.vz .badge{ fill: #2f8a57; }
+.vz .badge-t{ fill: #fff; font-size: 10px; font-weight: 700; }
+.vz .edge{ fill: none; stroke: #5b6472; stroke-width: 1.4; }
+.vz .edge.impl{ stroke-dasharray: 5 4; }
+.vz .edge.hot{ stroke: #7048e8; stroke-width: 2; }
+.vz .dim{ opacity: .22; }
+.vz .warn-error{ fill: #d33; } .vz .warn-warning{ fill: #e0a800; } .vz .warn-info{ fill: #3b82c4; }
+.vz .warn-t{ fill: #fff; font-size: 8px; font-weight: 700; }
+`;
+let vizMeasureCtx = null;
+function vizText(s, px, bold) {
+  if (!vizMeasureCtx) vizMeasureCtx = document.createElement("canvas").getContext("2d");
+  vizMeasureCtx.font = (bold ? "700 " : "") + px + "px " + VIZ_FONT;
+  return vizMeasureCtx.measureText(String(s)).width;
+}
+function vizSgColor(sg) { const all = allSubgraphs(); const i = all.indexOf(sg); return VIZ_SG_COLORS[(i < 0 ? 0 : i) % VIZ_SG_COLORS.length]; }
+
+// Attach each violation to the field / enum value it names (subject tokens), else to the type itself.
+function vizAttach(T, items, viols) {
+  for (const v of viols) {
+    const subj = (String(v.subject).match(/"([^"]*)"/) || [, ""])[1];
+    const toks = new Set(subj.split(/[^A-Za-z0-9_]+/).filter(Boolean));
+    const hits = v.col === "Definition" || v.col === "Parameters" ? items.filter(it => toks.has(it.name)) : [];
+    if (hits.length) hits.forEach(it => it.issues.push(v)); else T.issues.push(v);
+  }
+}
+// Supergraph model: types merged across subgraphs + synthetic Query / Mutation root cards.
+function vizModel() {
+  const ctx = buildStandardsContext(DB), types = {};
+  const lintOn = VIZ.lint !== "off", keep = v => VIZ.lint === "all" || v.severity !== "info";
+  for (const t of ctx.types) {
+    if (t.kind === "Scalar") continue;
+    const T = types[t.name] || (types[t.name] = { name: t.name, kinds: new Set(), entity: false, sgs: new Set(), desc: "", items: [], impl: new Set(), rows: [], issues: [], key: "" });
+    T.kinds.add(t.kind); T.rows.push(t.row); T.sgs.add(t.sg);
+    if (ENTITY_KINDS.has(t.kind)) { T.entity = true; T.key = T.key || t.key; }
+    if (t.desc && (!T.desc || t.kind === "Key")) T.desc = t.desc;
+    t.impl.forEach(i => T.impl.add(i));
+    const own = [];
+    const list = t.kind === "Enum" ? t.values.map(v => ({ name: v.name, type: "", dirs: v.dirs, desc: v.desc, args: [] }))
+      : t.fields.filter(f => f.name).map(f => ({ name: f.name, type: f.rawType, base: f.base, dirs: f.dirs, desc: f.desc, args: f.args }));
+    for (const f of list) {
+      const ext = /@external\b/.test(f.dirs);
+      let it = T.items.find(x => x.name === f.name);
+      if (!it) { it = { name: f.name, type: f.type, base: f.base || "", dirs: ext ? "" : f.dirs, desc: f.desc, args: f.args, sgs: new Set(), issues: [], rows: [] }; T.items.push(it); }
+      else { if (!it.desc && f.desc) it.desc = f.desc; if (!ext && !it.dirs) it.dirs = f.dirs; if (!it.args.length && f.args.length) it.args = f.args; }
+      if (!ext) it.sgs.add(t.sg);
+      it.rows.push(t.row); own.push(it);
+    }
+    if (lintOn) vizAttach(T, own, validateRow("Schema", t.row, ctx).filter(keep));
+  }
+  for (const T of Object.values(types)) {
+    T.kind = T.entity || T.kinds.has("Type") ? "Object" : T.kinds.has("Interface") ? "Interface" : T.kinds.has("Input") ? "Input" : T.kinds.has("Enum") ? "Enum" : "Object";
+    T.items.forEach(it => { if (!it.sgs.size) T.sgs.forEach(s => it.sgs.add(s)); });   // key-only stubs
+  }
+  for (const [sheet, root] of [["Queries", "Query"], ["Mutations", "Mutation"]]) {
+    const T = { name: root, kind: "Root", root: true, kinds: new Set(), entity: false, sgs: new Set(), desc: "", items: [], impl: new Set(), rows: [], issues: [], sheet };
+    for (const r of DB[sheet]) {
+      const name = String(r.Name || "").trim(); if (!name) continue;
+      const sg = subgraphOfEntity(r.EntityID); T.sgs.add(sg);
+      const it = { name, type: String(r.ReturnType || "").trim() || "Boolean", base: baseTypeName(r.ReturnType), dirs: "", desc: String(r.Description || "").trim(), args: opParams(r.Parameters), sgs: new Set([sg]), issues: [], rows: [r], op: { sheet, row: r } };
+      if (lintOn) it.issues = validateRow(sheet, r, ctx).filter(keep);
+      T.items.push(it);
+    }
+    if (T.items.length) types[root] = T;
+  }
+  for (const T of Object.values(types)) if (T.kind === "Interface") T.implementers = Object.values(types).filter(o => o.impl.has(T.name)).map(o => o.name);
+  return types;
+}
+// Which cards (and which of their rows) the current filters show, plus each card's BFS depth.
+function vizSelect(types) {
+  const sg = VIZ.sg, allow = T => T && (T.kind !== "Input" || VIZ.inputs) && (T.kind !== "Enum" || VIZ.enums);
+  const rowsOf = T => sg ? T.items.filter(it => it.sgs.has(sg)) : T.items;
+  const visible = T => allow(T) && (!sg || rowsOf(T).length || (T.kind === "Enum" && T.sgs.has(sg)) || (!T.items.length && T.sgs.has(sg)));
+  const next = T => {
+    const out = [];
+    for (const it of (T.kind === "Enum" ? [] : rowsOf(T))) {
+      out.push(it.base);
+      if (VIZ.inputs) for (const a of it.args || []) out.push(a.base);
+    }
+    return out.concat(T.implementers || []);
+  };
+  const roots = VIZ.root === "All" ? ["Query", "Mutation"] : VIZ.root === "Both" ? ["Query", "Mutation"] : [VIZ.root];
+  const depth = {}, order = [];
+  const bfs = starts => {
+    const q = starts.filter(n => types[n] && visible(types[n]) && depth[n] == null);
+    q.forEach(n => { depth[n] = 0; order.push(n); });
+    while (q.length) {
+      const n = q.shift();
+      for (const m of next(types[n])) if (m && types[m] && depth[m] == null && visible(types[m])) { depth[m] = depth[n] + 1; order.push(m); q.push(m); }
+    }
+  };
+  bfs(roots);
+  if (VIZ.root === "All") for (const n of Object.keys(types).sort()) if (depth[n] == null && visible(types[n])) bfs([n]);
+  return { depth, order, rowsOf };
+}
+// Card geometry + layered left-to-right layout (columns = BFS depth, rows aligned to their parents).
+const VZ = { head: 48, colh: 22, row: 26, implh: 22, impl: 24, gapX: 110, gapY: 26, pad: 10 };
+function vizLayout(types, sel) {
+  const cards = {};
+  for (const n of sel.order) {
+    const T = types[n], rows = T.kind === "Enum" ? T.items.filter(it => !VIZ.sg || T.sgs.has(VIZ.sg)) : sel.rowsOf(T);
+    const impl = (T.implementers || []).filter(m => sel.depth[m] != null);
+    const kindLabel = (T.root ? "Root type" : T.entity ? "Entity · object type" : T.kind === "Object" ? "Object type" : T.kind === "Input" ? "Input type" : T.kind === "Enum" ? "Enum" : "Interface")
+      + " · " + [...T.sgs].join(", ");
+    let w = Math.max(200, vizText(T.name, 13, true) + (T.entity ? 30 : 0) + 24, vizText(kindLabel, 11) + 24);
+    for (const it of rows) w = Math.max(w, 18 + vizText(it.name, 12) + (it.issues.length ? 18 : 0) + 24 + vizText(it.type, 12, !!types[it.base]) + 12);
+    for (const m of impl) w = Math.max(w, vizText(m, 12, true) + 24);
+    w = Math.min(Math.ceil(w), 440);
+    const h = VZ.head + VZ.colh + Math.max(rows.length, 1) * VZ.row + (impl.length ? VZ.implh + impl.length * VZ.impl : 0) + 4;
+    cards[n] = { T, rows, impl, kindLabel, w, h, x: 0, y: 0, depth: sel.depth[n] };
+  }
+  // columns
+  const cols = []; for (const n of sel.order) (cols[cards[n].depth] = cols[cards[n].depth] || []).push(n);
+  let x = 0;
+  const rowY = (c, i) => c.y + VZ.head + VZ.colh + i * VZ.row + VZ.row / 2;
+  cols.forEach((col, d) => {
+    if (!col) return;
+    const colW = Math.max(...col.map(n => cards[n].w));
+    // target y = mean y of the rows (in earlier columns) pointing at this card
+    const want = n => {
+      const ys = [];
+      for (const m of cols.slice(0, d).flat()) { const c = cards[m]; c.rows.forEach((it, i) => { if (it.base === n) ys.push(rowY(c, i)); }); c.impl.forEach((im, i) => { if (im === n) ys.push(c.y + c.h - (c.impl.length - i) * VZ.impl); }); }
+      return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length - VZ.head / 2 : null;
+    };
+    const tgt = {}; col.forEach((n, i) => { const t = want(n); tgt[n] = t == null ? 1e9 + i : t; });
+    if (d > 0) col.sort((a, b) => tgt[a] - tgt[b]);
+    let y = 0;
+    for (const n of col) { const c = cards[n]; c.x = x; c.y = d > 0 && tgt[n] < 1e9 ? Math.max(y, tgt[n]) : y; y = c.y + c.h + VZ.gapY; }
+    x += colW + VZ.gapX;
+  });
+  // edges
+  const edges = [];
+  for (const n of sel.order) {
+    const c = cards[n];
+    c.rows.forEach((it, i) => {
+      const targets = [it.base].concat(VIZ.inputs ? (it.args || []).map(a => a.base) : []);
+      targets.forEach((b, k) => { if (b && cards[b] && c.T.kind !== "Enum") edges.push({ from: n, to: b, sx: c.x + c.w, sy: rowY(c, i), arg: k > 0, field: it.name }); });
+    });
+    c.impl.forEach((m, i) => edges.push({ from: n, to: m, sx: c.x + c.w, sy: c.y + c.h - 4 - (c.impl.length - i - 0.5) * VZ.impl, impl: true }));
+  }
+  return { cards, edges };
+}
+function vizEdgePath(e, cards) {
+  const t = cards[e.to], tx = t.x, ty = t.y + 22;
+  if (e.from === e.to) { const c = cards[e.from]; return `M${e.sx},${e.sy} C${e.sx + 60},${e.sy} ${c.x + c.w + 60},${ty} ${c.x + c.w + 2},${ty}`; }
+  if (tx < e.sx) { const rx = t.x + t.w; return `M${e.sx},${e.sy} C${e.sx + 50},${e.sy} ${rx + 50},${ty} ${rx + 2},${ty}`; }   // same / earlier column: enter from the right
+  const dx = Math.max(50, Math.abs(tx - e.sx) / 2);
+  return `M${e.sx},${e.sy} C${e.sx + dx},${e.sy} ${tx - dx},${ty} ${tx - 2},${ty}`;
+}
+function vizWarnIcon(x, y, issues) {
+  const sev = worstSeverity(issues);
+  const tip = issues.map(v => `[${v.ruleId}] ${String(v.subject).trim()} ${v.message}`).join("\n");
+  return `<g class="warn"><title>${esc(tip)}</title><path class="warn-${sev}" d="M${x + 6},${y - 6} L${x + 12.5},${y + 5.5} L${x - 0.5},${y + 5.5} Z"/><text class="warn-t" x="${x + 6}" y="${y + 4.2}" text-anchor="middle">!</text></g>`;
+}
+function vizSvg(L) {
+  const { cards, edges } = L, out = [];
+  out.push(`<defs><style>${VIZ_CSS}</style><marker id="vzArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/></marker><marker id="vzArrowHot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7048e8"/></marker></defs>`);
+  out.push(`<g id="vzView">`);
+  out.push(`<g class="edges">` + edges.map((e, i) => `<path class="edge${e.impl ? " impl" : ""}" data-e="${i}" data-from="${esc(e.from)}" data-to="${esc(e.to)}" d="${vizEdgePath(e, cards)}" marker-end="url(#vzArrow)"/>`).join("") + `</g>`);
+  for (const [n, c] of Object.entries(cards)) {
+    const T = c.T, cls = "card" + (T.entity ? " ent" : "") + (T.root ? " root" : "") + (T.kind === "Input" ? " inp" : "");
+    const g = [`<g class="node${T.entity ? " ent" : ""}" data-t="${esc(n)}" transform="translate(${c.x},${c.y})">`];
+    g.push(`<rect class="${cls}" width="${c.w}" height="${c.h}" rx="8"/>`);
+    g.push(`<rect class="hdr" width="${c.w}" height="${VZ.head}" rx="8"><title>${esc(T.desc || T.name)}</title></rect>`);
+    g.push(`<text class="tname" x="${VZ.pad}" y="21">${esc(T.name)}</text>`);
+    let hx = VZ.pad + vizText(T.name, 13, true) + 7;
+    if (T.entity) { g.push(`<g><title>Entity — @key(fields: "${esc(T.key)}")</title><rect class="badge" x="${hx}" y="9" width="15" height="15" rx="3"/><text class="badge-t" x="${hx + 7.5}" y="20.5" text-anchor="middle">E</text></g>`); hx += 21; }
+    if (T.issues.length) g.push(vizWarnIcon(hx, 16, T.issues));
+    g.push(`<text class="kind" x="${VZ.pad}" y="39">${esc(c.kindLabel)}</text>`);
+    g.push(`<line class="rule" x1="0" x2="${c.w}" y1="${VZ.head}" y2="${VZ.head}"/>`);
+    g.push(`<text class="colh" x="${VZ.pad}" y="${VZ.head + 15}">${T.kind === "Enum" ? "VALUE" : "FIELD"}</text>`);
+    if (T.kind !== "Enum") g.push(`<text class="colh" x="${c.w - VZ.pad}" y="${VZ.head + 15}" text-anchor="end">RETURN TYPE</text>`);
+    let y = VZ.head + VZ.colh;
+    if (!c.rows.length) g.push(`<text class="kind" x="${VZ.pad}" y="${y + 17}">no fields${VIZ.sg ? " in " + esc(VIZ.sg) : ""}</text>`);
+    c.rows.forEach((it, i) => {
+      g.push(`<line class="rule" x1="0" x2="${c.w}" y1="${y}" y2="${y}"/>`);
+      const tip = [it.name + (it.args && it.args.length ? "(" + it.args.map(a => a.name + ": " + a.type).join(", ") + ")" : "") + (it.type ? ": " + it.type : "") + (it.dirs ? " " + it.dirs : ""), it.desc, "Subgraph: " + [...it.sgs].join(", ")].filter(Boolean).join("\n");
+      g.push(`<rect class="row" data-i="${i}" x="1" y="${y + 1}" width="${c.w - 2}" height="${VZ.row - 1}"><title>${esc(tip)}</title></rect>`);
+      const dots = [...it.sgs].slice(0, 3);
+      dots.forEach((s, k) => g.push(`<circle cx="${VZ.pad - 1 + k * 3}" cy="${y + VZ.row / 2}" r="3" fill="${vizSgColor(s)}" stroke="#fff" stroke-width=".8"/>`));
+      const nx = VZ.pad + 8 + (dots.length - 1) * 3;
+      g.push(`<text class="fname" x="${nx}" y="${y + 17}"${/@deprecated\b/.test(it.dirs) ? ' text-decoration="line-through"' : ""}>${esc(it.name)}</text>`);
+      if (it.issues.length) g.push(vizWarnIcon(nx + vizText(it.name, 12) + 5, y + 13, it.issues));
+      if (it.type) g.push(`<text class="ftype${cards[it.base] ? " link" : ""}" data-go="${cards[it.base] ? esc(it.base) : ""}" x="${c.w - VZ.pad}" y="${y + 17}" text-anchor="end">${esc(it.type)}</text>`);
+      y += VZ.row;
+    });
+    if (!c.rows.length) y += VZ.row;
+    if (c.impl.length) {
+      g.push(`<line class="rule" x1="0" x2="${c.w}" y1="${y}" y2="${y}"/><text class="colh" x="${VZ.pad}" y="${y + 15}">IMPLEMENTATIONS</text>`);
+      y += VZ.implh;
+      c.impl.forEach(m => { g.push(`<line class="rule" x1="0" x2="${c.w}" y1="${y}" y2="${y}"/><text class="ftype link" data-go="${esc(m)}" x="${VZ.pad}" y="${y + 16}">${esc(m)}</text>`); y += VZ.impl; });
+    }
+    g.push(`</g>`);
+    out.push(g.join(""));
+  }
+  out.push(`</g>`);
+  return out.join("");
+}
+// Pan / zoom
+function vizApply() {
+  const v = VIZ.view, g = document.getElementById("vzView"); if (!g || !v) return;
+  g.setAttribute("transform", `translate(${v.x},${v.y}) scale(${v.k})`);
+  const p = document.getElementById("vizPct"); if (p) p.textContent = Math.round(v.k * 100) + "%";
+}
+function vizBounds() { const cs = Object.values((VIZ.layout || {}).cards || {}); if (!cs.length) return { x: 0, y: 0, w: 1, h: 1 }; const x0 = Math.min(...cs.map(c => c.x)), y0 = Math.min(...cs.map(c => c.y)); return { x: x0, y: y0, w: Math.max(...cs.map(c => c.x + c.w)) - x0 + 70, h: Math.max(...cs.map(c => c.y + c.h)) - y0 }; }
+function vizFit() {
+  const box = document.getElementById("vizCanvas"); if (!box) return;
+  const b = vizBounds(), W = box.clientWidth - (VIZ.sel ? 360 : 0), H = box.clientHeight;
+  if (W <= 0 || H <= 0) return;
+  const k = Math.max(0.7, Math.min(1, (W - 40) / b.w, (H - 70) / b.h));   // stay readable; tall graphs pan vertically
+  VIZ.view = { k, x: 20 - b.x * k + Math.max(0, (W - 40 - b.w * k) / 2), y: 20 - b.y * k };
+  vizApply();
+}
+function vizZoom(f, cx, cy) {
+  const v = VIZ.view, box = document.getElementById("vizCanvas"); if (!v || !box) return;
+  if (cx == null) { cx = box.clientWidth / 2; cy = box.clientHeight / 2; }
+  const k = Math.max(0.1, Math.min(2.5, v.k * f)); v.x = cx - (cx - v.x) * (k / v.k); v.y = cy - (cy - v.y) * (k / v.k); v.k = k; vizApply();
+}
+function vizCenterOn(n) {
+  const c = VIZ.layout && VIZ.layout.cards[n], box = document.getElementById("vizCanvas"); if (!c || !box) return;
+  const v = VIZ.view, W = box.clientWidth - 360;
+  v.x = W / 2 - (c.x + c.w / 2) * v.k; v.y = Math.min(40, box.clientHeight / 2 - (c.y + Math.min(c.h, 300) / 2) * v.k); vizApply();
+}
+// Highlight (search) + selection (card and its neighbours) dimming
+function vizPaint() {
+  const svg = document.querySelector("#vizCanvas svg"); if (!svg || !VIZ.layout) return;
+  const { cards, edges } = VIZ.layout, f = VIZ.find.trim().toLowerCase(), sel = VIZ.sel && cards[VIZ.sel.t] ? VIZ.sel.t : null;
+  const near = new Set(sel ? [sel] : []);
+  if (sel) edges.forEach(e => { if (e.from === sel) near.add(e.to); if (e.to === sel) near.add(e.from); });
+  let hits = 0;
+  svg.querySelectorAll("g.node").forEach(g => {
+    const n = g.dataset.t, c = cards[n];
+    let any = f && n.toLowerCase().includes(f);
+    g.querySelectorAll("rect.row").forEach(r => { const it = c.rows[+r.dataset.i]; const h = !!f && !!it && it.name.toLowerCase().includes(f); r.classList.toggle("hit", h); if (h) { any = true; hits++; } });
+    if (f && n.toLowerCase().includes(f)) hits++;
+    g.classList.toggle("dim", (!!f && !any) || (!!sel && !near.has(n)));
+    g.querySelector("rect.card").classList.toggle("sel", n === sel);
+  });
+  svg.querySelectorAll("path.edge").forEach(p => {
+    const hot = !!sel && (p.dataset.from === sel || p.dataset.to === sel);
+    p.classList.toggle("hot", hot); p.setAttribute("marker-end", hot ? "url(#vzArrowHot)" : "url(#vzArrow)");
+    p.classList.toggle("dim", (!!sel && !hot) || (!!f && !(cards[p.dataset.from] && cards[p.dataset.to] && [p.dataset.from, p.dataset.to].some(n => !svg.querySelector(`g.node[data-t="${CSS.escape(n)}"]`).classList.contains("dim")))));
+  });
+  const st = document.getElementById("vizStats");
+  if (st) st.textContent = `${Object.keys(cards).length} types · ${edges.length} links` + (f ? ` · ${hits} highlighted` : "");
+}
+function vizIssueHTML(list) {
+  return list.map(v => `<div class="val-item sev-${v.severity}"><span class="sev-dot"></span><code>${esc(v.ruleId)}</code>${(v.apollo || []).filter(a => a !== v.ruleId).map(a => `<code title="Apollo GraphOS rule">${esc(a)}</code>`).join("")} ${esc(String(v.subject))}${esc(v.message)}${v.fix ? ` <span class="val-fix">${esc(v.fix)}</span>` : ""}${v.doc ? ` <a class="val-ref" href="${esc(v.doc)}" target="_blank" rel="noopener">docs ↗</a>` : ""}</div>`).join("");
+}
+function vizSideRender() {
+  const side = document.getElementById("vizSide"), cards = VIZ.layout && VIZ.layout.cards, s = VIZ.sel;
+  if (!side) return;
+  if (!s || !cards || !cards[s.t]) { side.hidden = true; return; }
+  const c = cards[s.t], T = c.T, it = s.i != null ? c.rows[s.i] : null, dot = sg => `<span class="sgdot" style="background:${vizSgColor(sg)}"></span>${esc(sg)}`;
+  let h = `<button class="icon-btn x" id="vizSideX" title="Close">✕</button>`;
+  if (it) {
+    h += `<div class="d">${esc(T.name)}${T.kind === "Enum" ? " value" : " field"}</div><h3>${esc(it.name)}${it.type ? `<span class="mono">: ${cards[it.base] ? `<span class="lnk" data-go="${esc(it.base)}">${esc(it.type)}</span>` : esc(it.type)}</span>` : ""}</h3>`;
+    h += `<div class="d">${[...it.sgs].map(dot).join(" &nbsp; ")}</div>`;
+    if (it.desc) h += `<p>${esc(it.desc)}</p>`;
+    if (it.args && it.args.length) h += `<div class="kv">Arguments</div><table>${it.args.map(a => `<tr><td>${esc(a.name)}${a.desc ? `<div class="d">${esc(a.desc)}</div>` : ""}</td><td class="t">${types_link(a)}${a.defVal != null ? " = " + esc(a.defVal) : ""}</td></tr>`).join("")}</table>`;
+    if (it.dirs) h += `<div class="kv">Directives</div><div class="mono">${esc(it.dirs)}</div>`;
+    h += `<div class="kv">Lint (${it.issues.length})</div>` + (it.issues.length ? vizIssueHTML(it.issues) : `<div class="d">No issues ✓</div>`);
+    h += `<div class="acts">` + (it.op ? `<button data-edit-op="1">✎ Edit ${esc(it.op.sheet === "Queries" ? "query" : "mutation")}</button>` : it.rows.map((r, k) => `<button data-edit-row="${k}">✎ Edit in ${esc(subgraphOfEntity(r.EntityID))} (${esc(r.Kind)})</button>`).join("")) + `</div>`;
+  } else {
+    h += `<h3>${esc(T.name)}${T.entity ? ` <span class="viz-e">E</span>` : ""}</h3><div class="d">${esc(c.kindLabel)}${T.entity && T.key ? ` · @key(fields: "${esc(T.key)}")` : ""}</div>`;
+    if (T.desc) h += `<p>${esc(T.desc)}</p>`;
+    h += `<div class="kv">Subgraphs</div><div>${[...T.sgs].map(dot).join(" &nbsp; ")}</div>`;
+    const all = T.issues.concat(...c.rows.map(r => r.issues));
+    h += `<div class="kv">Lint (${all.length})</div>` + (all.length ? vizIssueHTML(all) : `<div class="d">No issues ✓</div>`);
+    h += `<div class="kv">${T.kind === "Enum" ? "Values" : "Fields"} (${c.rows.length})</div><table>${c.rows.map((r, i) => `<tr><td><span class="lnk" data-row="${i}">${esc(r.name)}</span>${r.issues.length ? ` <span title="${r.issues.length} issue(s)">⚠</span>` : ""}${r.desc ? `<div class="d">${esc(r.desc)}</div>` : ""}</td><td class="t">${r.type ? (cards[r.base] ? `<span class="lnk" data-go="${esc(r.base)}">${esc(r.type)}</span>` : esc(r.type)) : ""}</td></tr>`).join("")}</table>`;
+    if (!T.root) h += `<div class="acts">${T.rows.map((r, k) => `<button data-edit-row="${k}">✎ Edit in ${esc(subgraphOfEntity(r.EntityID))} (${esc(r.Kind)})</button>`).join("")}</div>`;
+  }
+  side.innerHTML = h; side.hidden = false;
+  function types_link(a) { return cards[a.base] ? `<span class="lnk" data-go="${esc(a.base)}">${esc(a.type)}</span>` : esc(a.type); }
+  side.querySelector("#vizSideX").onclick = () => { VIZ.sel = null; vizPaint(); vizSideRender(); };
+  side.querySelectorAll("[data-go]").forEach(el => el.onclick = () => vizGo(el.dataset.go));
+  side.querySelectorAll("[data-row]").forEach(el => el.onclick = () => { VIZ.sel = { t: s.t, i: +el.dataset.row }; vizSideRender(); });
+  side.querySelectorAll("[data-edit-row]").forEach(el => el.onclick = () => openRowEditor("Schema", (it ? it.rows : T.rows)[+el.dataset.editRow]));
+  const eo = side.querySelector("[data-edit-op]"); if (eo) eo.onclick = () => openRowEditor(it.op.sheet, it.op.row);
+}
+function vizGo(n) { VIZ.sel = { t: n, i: null }; vizPaint(); vizSideRender(); vizCenterOn(n); }
+function renderViz() {
+  const box = document.getElementById("vizCanvas"); if (!box) return;
+  const sgs = allSubgraphs(); if (VIZ.sg && !sgs.includes(VIZ.sg)) VIZ.sg = "";
+  const sgSel = document.getElementById("vizSg");
+  sgSel.innerHTML = `<option value="">All</option>` + sgs.map(s => `<option value="${esc(s)}"${s === VIZ.sg ? " selected" : ""}>${esc(s)}</option>`).join("");
+  document.getElementById("vizRoot").value = VIZ.root; document.getElementById("vizLint").value = VIZ.lint;
+  document.getElementById("vizInputs").checked = VIZ.inputs; document.getElementById("vizEnums").checked = VIZ.enums;
+  const types = vizModel(), sel = vizSelect(types);
+  if (!sel.order.length) { VIZ.layout = null; box.innerHTML = `<div class="empty" style="padding:30px">Nothing to show for <b>${esc(VIZ.root)}</b>${VIZ.sg ? " in " + esc(VIZ.sg) : ""} — add Queries / Mutations, or pick <b>Viewing: All types</b>.</div>`; vizSideRender(); return; }
+  VIZ.layout = vizLayout(types, sel);
+  box.innerHTML = `<svg class="vz" xmlns="http://www.w3.org/2000/svg">${vizSvg(VIZ.layout)}</svg>`;
+  VIZ.view = VIZ.view || { k: 1, x: 20, y: 20 };
+  if (VIZ.fitPending && box.clientWidth) { VIZ.fitPending = false; requestAnimationFrame(vizFit); }   // hidden tab: fit when first shown
+  vizApply(); vizPaint(); vizSideRender();
+  const svg = box.querySelector("svg");
+  svg.querySelectorAll("g.node").forEach(g => {
+    const n = g.dataset.t;
+    g.querySelector("rect.hdr").addEventListener("click", ev => { if (VIZ.dragged) return; VIZ.sel = VIZ.sel && VIZ.sel.t === n && VIZ.sel.i == null ? null : { t: n, i: null }; vizPaint(); vizSideRender(); });
+    g.querySelectorAll("rect.row").forEach(r => r.addEventListener("click", () => { if (VIZ.dragged) return; VIZ.sel = { t: n, i: +r.dataset.i }; vizPaint(); vizSideRender(); }));
+    g.querySelectorAll("[data-go]").forEach(t => { if (t.dataset.go) t.addEventListener("click", ev => { ev.stopPropagation(); if (!VIZ.dragged) vizGo(t.dataset.go); }); });
+  });
+}
+function vizLegendHTML() {
+  const sw = (cls, label) => `<div><span class="sw" style="${cls}"></span>${label}</div>`;
+  return `<b>Legend</b>` + sw("background:#effaf2;border-color:#3d9f69", `Entity (<span class="viz-e">E</span> — has <code>@key</code>)`) + sw("background:#fff", "Object / interface / enum / root type") + sw("background:#fffaf0;border-color:#e3c27a", "Input type (Inputs &amp; args)") +
+    `<div><svg width="34" height="10"><path d="M0,5 L28,5" stroke="#5b6472" stroke-width="1.4"/><path d="M26,1 L34,5 L26,9 z" fill="#5b6472"/></svg>field returns type</div>` +
+    `<div><svg width="34" height="10"><path d="M0,5 L28,5" stroke="#5b6472" stroke-width="1.4" stroke-dasharray="5 4"/><path d="M26,1 L34,5 L26,9 z" fill="#5b6472"/></svg>interface implementation</div>` +
+    `<div><span style="color:#d33">▲</span><span style="color:#e0a800">▲</span><span style="color:#3b82c4">▲</span> lint error / warning / suggestion — hover for rules</div>` +
+    `<div style="margin-top:6px"><b>Subgraphs</b></div>` + allSubgraphs().map(s => `<div><span class="dot" style="background:${vizSgColor(s)}"></span>${esc(s)}</div>`).join("");
+}
+function vizDownload() {
+  const svg = document.querySelector("#vizCanvas svg"); if (!svg || !VIZ.layout) return;
+  const b = vizBounds(), clone = svg.cloneNode(true);
+  clone.querySelectorAll(".dim").forEach(e => e.classList.remove("dim"));
+  clone.setAttribute("width", b.w + 40); clone.setAttribute("height", b.h + 40); clone.setAttribute("viewBox", `0 0 ${b.w + 40} ${b.h + 40}`);
+  clone.querySelector("#vzView").setAttribute("transform", `translate(${20 - b.x},${20 - b.y})`);
+  const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n` + clone.outerHTML.replace(/<svg class="vz"/, '<svg class="vz" style="background:#f7f8fa"')], { type: "image/svg+xml" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `schema-visualization-${VIZ.root.toLowerCase()}${VIZ.sg ? "-" + VIZ.sg : ""}.svg`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function setErMode(m) {
+  erMode = m === "mermaid" ? "mermaid" : "viz";
+  document.querySelectorAll("#vizMode button").forEach(b => b.classList.toggle("active", b.dataset.m === erMode));
+  document.getElementById("vizPane").hidden = erMode !== "viz"; document.getElementById("erPane").hidden = erMode !== "mermaid";
+  if (erMode === "viz") VIZ.fitPending = true;
+  renderEr();
+}
+function wireViz() {
+  const box = document.getElementById("vizCanvas"); if (!box) return;
+  const refit = () => { VIZ.fitPending = true; renderViz(); };
+  document.querySelectorAll("#vizMode button").forEach(b => b.onclick = () => setErMode(b.dataset.m));
+  document.getElementById("vizRoot").onchange = e => { VIZ.root = e.target.value; VIZ.sel = null; refit(); };
+  document.getElementById("vizSg").onchange = e => { VIZ.sg = e.target.value; VIZ.sel = null; refit(); };
+  document.getElementById("vizLint").onchange = e => { VIZ.lint = e.target.value; renderViz(); };
+  document.getElementById("vizInputs").onchange = e => { VIZ.inputs = e.target.checked; refit(); };
+  document.getElementById("vizEnums").onchange = e => { VIZ.enums = e.target.checked; refit(); };
+  document.getElementById("vizFind").oninput = e => { VIZ.find = e.target.value; vizPaint(); };
+  document.getElementById("vizClear").onclick = () => { Object.assign(VIZ, { root: "Query", sg: "", lint: "warn", inputs: false, enums: true, find: "", sel: null }); document.getElementById("vizFind").value = ""; refit(); };
+  document.getElementById("vizIn").onclick = () => vizZoom(1.2);
+  document.getElementById("vizOut").onclick = () => vizZoom(1 / 1.2);
+  document.getElementById("vizFit").onclick = vizFit;
+  document.getElementById("vizSvg").onclick = vizDownload;
+  document.getElementById("vizInfo").onclick = () => { const l = document.getElementById("vizLegend"); l.innerHTML = vizLegendHTML(); l.hidden = !l.hidden; };
+  // Drag to pan; scroll pans, pinch / Ctrl+scroll zooms.
+  let drag = null;
+  box.addEventListener("pointerdown", e => { if (e.button !== 0 || !VIZ.view) return; drag = { x: e.clientX, y: e.clientY, vx: VIZ.view.x, vy: VIZ.view.y, id: e.pointerId }; VIZ.dragged = false; });
+  box.addEventListener("pointermove", e => {
+    if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!VIZ.dragged && Math.hypot(dx, dy) > 4) { VIZ.dragged = true; box.classList.add("panning"); box.setPointerCapture(drag.id); }
+    if (VIZ.dragged) { VIZ.view.x = drag.vx + dx; VIZ.view.y = drag.vy + dy; vizApply(); }
+  });
+  const end = e => {
+    if (!drag) return;
+    const wasDrag = VIZ.dragged; drag = null; box.classList.remove("panning");
+    if (!wasDrag && e.target.closest && !e.target.closest("g.node") && VIZ.sel) { VIZ.sel = null; vizPaint(); vizSideRender(); }
+    setTimeout(() => { VIZ.dragged = false; }, 0);
+  };
+  box.addEventListener("pointerup", end); box.addEventListener("pointercancel", end);
+  box.addEventListener("wheel", e => {
+    if (!VIZ.view) return; e.preventDefault();
+    if (e.ctrlKey || e.metaKey) { const r = box.getBoundingClientRect(); vizZoom(Math.exp(-e.deltaY * 0.01), e.clientX - r.left, e.clientY - r.top); }
+    else { VIZ.view.x -= e.deltaX; VIZ.view.y -= e.deltaY; vizApply(); }
+  }, { passive: false });
 }
 
 /* ------------------------------ Seed ------------------------------------ */
@@ -2114,6 +2577,7 @@ document.getElementById("nav").addEventListener("click", (e) => {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById("view-" + b.dataset.view).classList.add("active");
   if (b.dataset.view === "graph") renderGraph();
+  if (b.dataset.view === "explorer" && explorerView === "er" && erMode === "viz" && VIZ.fitPending) renderViz();
 });
 document.getElementById("fileInput").addEventListener("change", (e) => { if (e.target.files[0]) importWorkbook(e.target.files[0]); e.target.value = ""; });
 document.getElementById("exportBtn").onclick = exportWorkbook;
@@ -2150,6 +2614,8 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeStand
 
 load();
 renderAll();
+setStandardsSource(() => DB);
+wireViz();   // registry-wide context for cross-row / cross-subgraph rules
 tryLoadStandards();
 
 // Receive subgraph rows copied from the FedGQL Migration Workbench (parent frame).

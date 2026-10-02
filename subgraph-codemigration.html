@@ -348,51 +348,245 @@ function sdlForType(t){
   if(t.isEntity) return `type ${t.name} @key(fields: "${t.key||keyOf(t.fields)}") {\n${body}\n}`;
   return `type ${t.name} {\n${body}\n}`;
 }
-function opFieldSDL(op){ const a=(op.args||[]).map(x=>`${x.name}: ${x.type}`).join(", "); return `${op.name}${a?`(${a})`:""}: ${op.returns}`; }
-function serverSchema(op, retEnt){
-  const root = op.opKind==="mutation" ? "type Mutation" : "type Query";
-  const typeBlock = retEnt && (retEnt.fields||[]).length ? "\n\n"+sdlForType(retEnt) : "";
-  return `${root} {\n  ${opFieldSDL(op)}\n}${typeBlock}`;
+/* ---------- Server: a federation SUBGRAPH implementing the registry's Query / Mutation ops ----------
+   For the subgraph that owns the selected op (Entities.BusinessApplication) we generate:
+     • the subgraph schema (federation SDL with descriptions),
+     • a REST client wrapping the CURRENT service — one method per op, bound by its "REST:" link,
+     • Query + Mutation resolvers for every op of the subgraph (the selected op is marked),
+     • entity reference resolvers for the @key types it owns, and resolvers for fields it
+       contributes to other subgraphs' entities (Extend rows, e.g. pnp → Product.storeContext),
+     • the server bootstrap.
+   REST responses are returned as-is; adapt any renamed/added fields (see the Field mapping table). */
+const DESC3=/"""([\s\S]*?)"""/;
+function subgraphModel(entityId){
+  const sgName=subgraphOf(entityId);
+  const entIds=new Set((M.entities||[]).filter(e=>String(e.BusinessApplication||"").trim()===sgName).map(e=>String(e.EntityID)));
+  if(!entIds.size) entIds.add(String(entityId||""));
+  const rows=(M.reg.Schema||[]).filter(r=>entIds.has(String(r.EntityID||"")) && r.Kind!=="Scalar");
+  const types=rows.map(r=>({ row:r, kind:r.Kind, name:String(r.TypeName||"").trim(), t:parseDefBody(r.Kind, r.TypeName, r.Definition) })).filter(x=>x.name);
+  const ops=M.gqlOps.filter(o=>entIds.has(String(o.EntityID||""))).map(o=>({ ...o, args:parseGqlParams(o.Parameters), rest:restBinding(o) }));
+  return { sgName, entIds, types, ops, Sg:cap(sgName.replace(/[^A-Za-z0-9]+(.)?/g,(m,c)=>c?c.toUpperCase():"")) || "Subgraph" };
 }
-function javaType(t){ const b=baseType(t), isList=/^\s*\[/.test(String(t)); const m={ID:"String",String:"String",Int:"Integer",Long:"Long",Float:"Double",Boolean:"Boolean"}; const jt=m[b]||cap(b); return isList?`List<${jt}>`:jt; }
-function csType(t){ const b=baseType(t), isList=/^\s*\[/.test(String(t)); const m={ID:"string",String:"string",Int:"int",Long:"long",Float:"double",Boolean:"bool"}; const ct=m[b]||cap(b); return isList?`List<${ct}>`:ct; }
-const SERVER_LANGS={
-  "Java (Spring for GraphQL)": (op,p,ctx,rest)=>{
-    const Ret=cap(ctx.entity), pp=pathParams(rest.path), wm={GET:"get",POST:"post",PUT:"put",PATCH:"patch",DELETE:"delete"}[rest.method]||"get";
-    const mapping=op.opKind==="mutation"?"@MutationMapping":"@QueryMapping";
-    const args=(op.args||[]).map(a=>`@Argument ${javaType(a.type)} ${a.name}`).join(", ");
-    const uriArgs=pp.length?`, ${pp.join(", ")}`:"";
-    const bodyArg=(op.args||[]).find(a=>!pp.includes(a.name));
-    const body = op.opKind==="mutation"
-      ? `    return rest.${wm}()\n        .uri("${rest.path}"${uriArgs})\n        .bodyValue(${bodyArg?bodyArg.name:"request"})\n        .retrieve()\n        .bodyToMono(${Ret}.class)\n        .block();`
-      : `    return rest.get()\n        .uri("${rest.path}"${uriArgs})\n        .retrieve()\n        .bodyToMono(${Ret}.class)\n        .block();`;
-    const code = `// FedGQL server — Spring for GraphQL controller fronting REST ${rest.method} ${rest.path}\n@Controller\npublic class ${Ret}Controller {\n  private final WebClient rest = WebClient.create(System.getenv("REST_BASE_URL"));\n\n  ${mapping}\n  public ${Ret} ${op.name}(${args}) {\n${body}\n  }\n}`;
-    return { schemaTitle:"GraphQL schema (SDL)", schema:serverSchema(op, ctx.retEnt), codeTitle:"Spring for GraphQL @Controller", code };
-  },
-  ".NET (Hot Chocolate)": (op,p,ctx,rest)=>{
-    const Ret=cap(ctx.entity), cls=op.opKind==="mutation"?"Mutation":"Query", pp=pathParams(rest.path);
-    const csArgs=(op.args||[]).map(a=>`${csType(a.type)} ${a.name}`).join(", ");
-    const uri="$\""+String(rest.path)+"\"";
-    const bodyArg=(op.args||[]).find(a=>!pp.includes(a.name));
-    const body = op.opKind==="mutation"
-      ? `        var res = await client.PostAsJsonAsync(${uri}, ${bodyArg?bodyArg.name:"request"});\n        res.EnsureSuccessStatusCode();\n        return await res.Content.ReadFromJsonAsync<${Ret}>();`
-      : `        return await client.GetFromJsonAsync<${Ret}>(${uri});`;
-    const sep=csArgs?csArgs+", ":"";
-    const code = `// FedGQL server — Hot Chocolate resolver fronting REST ${rest.method} ${rest.path}\npublic class ${cls} {\n    [GraphQLName("${op.name}")]\n    public async Task<${Ret}> ${cap(op.name)}(${sep}[Service] IHttpClientFactory httpFactory) {\n        var client = httpFactory.CreateClient("rest");\n${body}\n    }\n}`;
-    return { schemaTitle:"GraphQL schema (SDL)", schema:serverSchema(op, ctx.retEnt), codeTitle:"Hot Chocolate resolver", code };
-  },
-  "Node.js (Apollo Server)": (op,p,ctx,rest)=>{
-    const root=op.opKind==="mutation"?"Mutation":"Query", pp=pathParams(rest.path);
-    const destructure=(op.args||[]).map(a=>a.name).join(", ");
-    const url="`${process.env.REST_BASE_URL}"+String(rest.path).replace(/\{(\w+)\}/g,"${$1}")+"`";
-    const bodyArg=(op.args||[]).find(a=>!pp.includes(a.name));
-    const fetchCall = op.opKind==="mutation"
-      ? `      const res = await fetch(${url}, {\n        method: "${rest.method}",\n        headers: { "Content-Type": "application/json" },\n        body: JSON.stringify(${bodyArg?bodyArg.name:"input"})\n      });`
-      : `      const res = await fetch(${url});`;
-    const code = `// FedGQL server — Apollo Server resolver fronting REST ${rest.method} ${rest.path}\nexport const resolvers = {\n  ${root}: {\n    ${op.name}: async (_parent, {${destructure?" "+destructure+" ":""}}, _ctx) => {\n${fetchCall}\n      if (!res.ok) throw new Error(\`REST ${rest.method} ${rest.path} -> \${res.status}\`);\n      return res.json();\n    }\n  }\n};`;
-    return { schemaTitle:"GraphQL schema (typeDefs)", schema:serverSchema(op, ctx.retEnt), codeTitle:"Apollo Server resolver", code };
-  },
-};
+// REST endpoint backing an op: the loaded spec's matching operation, else the op's own "REST:" link.
+function restBinding(op){
+  const r=M.restOps.find(o=>refMatches(op,o));
+  if(r) return { method:String(r.method||"GET").toUpperCase(), path:r.path };
+  const m=(restRefsOf(op)[0]||"").match(/^(\S+)\s+(\S+)/);
+  return m ? { method:m[1].toUpperCase(), path:m[2] } : null;
+}
+const isInputType=t=>M.regTypes.some(x=>x.name===baseType(t) && x.kind==="input");
+const inputFields=t=>((M.regTypes.find(x=>x.name===baseType(t) && x.kind==="input")||{}).fields||[]).map(f=>f.name);
+// How each REST path param / query param / body is filled from the GraphQL args.
+function restCall(op){
+  const b=op.rest; if(!b) return null;
+  const pp=pathParams(b.path), inArg=op.args.find(a=>isInputType(a.type));
+  const src=p=>{ if(op.args.some(a=>a.name===p)) return { expr:p, via:"" }; if(inArg && inputFields(inArg.type).includes(p)) return { expr:`${inArg.name}.${p}`, via:inArg.name }; return { expr:null, via:"" }; };
+  const path=pp.map(p=>({ name:p, ...src(p) }));
+  const rest=op.args.filter(a=>!pp.includes(a.name));
+  const body= ["POST","PUT","PATCH"].includes(b.method) ? (inArg ? inArg.name : (rest.length ? "{ "+rest.map(a=>a.name).join(", ")+" }" : null)) : null;
+  const query= b.method==="GET" ? rest.filter(a=>!isInputType(a.type)) : [];
+  return { ...b, pp:path, body, query, inArg };
+}
+function regDescOf(op){ const r=(op.kind==="mutation"?(M.reg.Mutations||[]):(M.reg.Queries||[])).find(x=>x.Name===op.Name && String(x.EntityID||"")===String(op.EntityID||"")); return (r&&r.Description)||""; }
+// Subgraph SDL — owned types with their descriptions, borrowed entities as @key stubs, then the roots.
+function subgraphSDL(sg){
+  const used=new Set(["@key"]), blocks=[];
+  for(const x of sg.types){
+    const def=String(x.row.Definition||"").trim(), doc=x.row.Description?descLine(x.row.Description)+"\n":"";
+    if(/@external/.test(def)) used.add("@external"); if(/@requires/.test(def)) used.add("@requires"); if(/@shareable/.test(def)) used.add("@shareable");
+    if(x.kind==="Enum"){ const vals=def.replace(/^[^{]*\{|\}\s*$/g,"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean); blocks.push(`${doc}enum ${x.name} {\n${vals.map(v=>"  "+v).join("\n")}\n}`); continue; }
+    const kw=x.kind==="Input"?"input":x.kind==="Interface"?"interface":"type";
+    const bi=def.indexOf("{"), head=bi>=0?def.slice(0,bi).trim():def, body=bi>=0?def.slice(bi):"{\n}";
+    const tag=x.kind==="Extend"?"# contributes fields to an entity owned by another subgraph\n":x.kind==="Reference"?"# reference stub — owned by another subgraph\n":"";
+    blocks.push(`${tag}${doc}${kw} ${x.name}${head?" "+head:""} ${body}`);
+  }
+  const root=(kind, title)=>{ const list=sg.ops.filter(o=>o.kind===kind); if(!list.length) return null;
+    return `type ${title} {\n${list.map(o=>{ const ps=describedLines(o.Parameters,true), d=regDescOf(o); const anyDesc=ps.some(p=>p.desc);
+      const args=!ps.length?"":anyDesc?"(\n"+ps.map(p=>(p.desc?"    "+descLine(p.desc)+"\n":"")+"    "+p.line).join("\n")+"\n  )":"("+ps.map(p=>p.line).join(", ")+")";
+      return (d?"  "+descLine(d)+"\n":"")+`  ${o.Name}${args}: ${o.ReturnType||"Boolean"}`; }).join("\n")}\n}`; };
+  const q=root("query","Query"), m=root("mutation","Mutation");
+  const scalars=customScalars(sg);
+  return [`extend schema\n  @link(url: "https://specs.apollo.dev/federation/v2.3", import: [${[...used].map(d=>`"${d}"`).join(", ")}])`,
+    ...[...scalars].map(s=>`scalar ${s}`), ...blocks, q, m].filter(Boolean).join("\n\n");
+}
+// Custom scalars (registry Scalar rows, e.g. Money) used by the subgraph's types and ops.
+function customScalars(sg){
+  const out=new Set(), std=new Set(["ID","String","Int","Float","Boolean"]);
+  const scan=t=>{ const b=baseType(t); if(b && !std.has(b) && !sg.types.some(x=>x.name===b) && (M.reg.Schema||[]).some(r=>r.Kind==="Scalar"&&r.TypeName===b)) out.add(b); };
+  sg.types.forEach(x=>(x.t.fields||[]).forEach(f=>scan(f.type))); sg.ops.forEach(o=>{ scan(o.ReturnType); o.args.forEach(a=>scan(a.type)); });
+  return out;
+}
+// Reference resolver for an owned @key type: the subgraph query returning it whose args are the key fields.
+function lookupQueryFor(sg, typeName, keyFields, extraArgs){
+  const allowed=new Set([...(keyFields||[]), ...(extraArgs||[])]);
+  return sg.ops.find(o=>o.kind==="query" && baseType(o.ReturnType)===typeName && !/^\s*\[/.test(o.ReturnType||"") && o.args.length && o.args.every(a=>allowed.has(a.name)) && o.rest) || null;
+}
+const keyList=t=>String(t.key||"").split(/[\s,]+/).filter(Boolean);
+// Fields this subgraph adds to another subgraph's entity, with the op (if any) that can resolve them.
+function extensionResolvers(sg){
+  const out=[];
+  for(const x of sg.types.filter(x=>x.kind==="Extend")){
+    const keys=keyList(x.t);
+    for(const f of (x.t.fields||[]).filter(f=>!f.external && !keys.includes(f.name))){   // keys identify the entity — not contributed
+      const fArgs=parseGqlParams(f.args||"").map(a=>a.name);
+      const req=(String(x.row.Definition||"").match(new RegExp("\\b"+f.name+"\\b[^\\n]*@requires\\(fields:\\s*\"([^\"]*)\"\\)"))||[])[1]||"";
+      const op=lookupQueryFor(sg, baseType(f.type), keys, fArgs) || sg.ops.find(o=>o.kind==="query" && baseType(o.ReturnType)===baseType(f.type) && o.rest && o.args.every(a=>keys.includes(a.name)||fArgs.includes(a.name))) || null;
+      out.push({ type:x.name, keys, field:f, fArgs, op, requires:req });
+    }
+  }
+  return out;
+}
+const MARK=(op, sel)=>op.id===sel.id ? "   // ← selected op" : "";
+const restLabel=op=>op.rest?`${op.rest.method} ${op.rest.path}`:"no REST link — add a REST: line in Links & References";
+function camel(s){ s=String(s||""); return s.charAt(0).toLowerCase()+s.slice(1); }
+
+/* ------------------------------ Node.js (Apollo) ------------------------------ */
+function nodeSubgraph(sg, sel){
+  const Api=sg.Sg+"Api", api=camel(Api);
+  const methods=sg.ops.map(o=>{
+    const c=restCall(o), params=o.args.map(a=>a.name).join(", ");
+    if(!c) return `  // ${o.Name}: ${restLabel(o)}\n  ${o.Name}(${params}) { throw new Error("${o.Name}: not bound to a REST endpoint yet"); }`;
+    const path=c.path.replace(/^\//,"").replace(/\{(\w+)\}/g,(m,p)=>{ const s=c.pp.find(x=>x.name===p); return "${encodeURIComponent("+(s&&s.expr||p)+")}"; });
+    const opts=[];
+    if(c.query.length) opts.push(`params: { ${c.query.map(a=>`...(${a.name} != null && { ${a.name}: String(${a.name}) })`).join(", ")} }`);
+    if(c.body) opts.push(`body: ${c.body}`);
+    const verb=c.method.toLowerCase()==="delete"?"delete":c.method.toLowerCase();
+    return `  // ${c.method} ${c.path} — backs ${o.kind==="mutation"?"Mutation":"Query"}.${o.Name}\n  ${o.Name}(${params}) {\n    return this.${verb}(\`${path}\`${opts.length?`, { ${opts.join(", ")} }`:""});\n  }`;
+  });
+  const res=(kind)=>sg.ops.filter(o=>o.kind===kind).map(o=>{ const d=regDescOf(o); return `${d?`    // ${d}\n`:""}    ${o.Name}: (_parent, ${o.args.length?`{ ${o.args.map(a=>a.name).join(", ")} }`:"_args"}, { dataSources }) =>\n      dataSources.${api}.${o.Name}(${o.args.map(a=>a.name).join(", ")}),${MARK(o,sel)}`; }).join("\n");
+  const ent=[];
+  for(const x of sg.types.filter(x=>x.kind==="Key")){
+    const keys=keyList(x.t), lq=lookupQueryFor(sg, x.name, keys);
+    ent.push(`  ${x.name}: {\n    // _entities: the router sends { __typename: "${x.name}", ${keys.join(", ")} }\n    __resolveReference: (ref, { dataSources }) =>\n      ${lq?`dataSources.${api}.${lq.Name}(${lq.args.map(a=>"ref."+a.name).join(", ")})`:`/* TODO: load ${x.name} by ${keys.join(" + ")} */ ref`},\n  },`);
+  }
+  const byType={};
+  for(const e of extensionResolvers(sg)) (byType[e.type]=byType[e.type]||[]).push(e);
+  for(const [t,list] of Object.entries(byType)){
+    const fields=list.map(e=>{
+      const call=e.op ? `dataSources.${api}.${e.op.Name}(${e.op.args.map(a=>e.keys.includes(a.name)?"parent."+a.name:a.name).join(", ")})` : `/* TODO: resolve ${e.field.name}: ${e.field.type}${e.requires?` — @requires(${e.requires}) gives you parent.${e.requires.split(/\s+/).join(", parent.")}`:""} */ null`;
+      return `    ${e.field.name}: (parent, ${e.fArgs.length?`{ ${e.fArgs.join(", ")} }`:"_args"}, { dataSources }) =>\n      ${call},`;
+    }).join("\n");
+    ent.push(`  // ${t} is owned by another subgraph; this subgraph adds fields to it (@key ${list[0].keys.join(" ")})\n  ${t}: {\n    __resolveReference: (ref) => ref,\n${fields}\n  },`);
+  }
+  return [
+    { title:"schema.graphql — subgraph SDL", sdl:true, code:subgraphSDL(sg) },
+    { title:`src/datasources/${Api}.js — the current REST service`, code:`import { RESTDataSource } from "@apollo/datasource-rest";\n\n// Wraps the existing ${sg.sgName} REST service; each method backs one Query / Mutation resolver.\nexport class ${Api} extends RESTDataSource {\n  baseURL = process.env.${sg.sgName.toUpperCase().replace(/[^A-Z0-9]+/g,"_")}_REST_URL;\n\n${methods.join("\n\n")}\n}` },
+    { title:"src/resolvers.js — Query / Mutation / entity resolvers", code:`// ${sg.sgName} subgraph resolvers — each delegates to the REST data source.\nexport const resolvers = {\n${sg.ops.some(o=>o.kind==="query")?`  Query: {\n${res("query")}\n  },\n`:""}${sg.ops.some(o=>o.kind==="mutation")?`  Mutation: {\n${res("mutation")}\n  },\n`:""}${ent.join("\n")}\n};` },
+    { title:"src/index.js — subgraph server", code:`import { readFileSync } from "node:fs";\nimport gql from "graphql-tag";\nimport { ApolloServer } from "@apollo/server";\nimport { startStandaloneServer } from "@apollo/server/standalone";\nimport { buildSubgraphSchema } from "@apollo/subgraph";\nimport { resolvers } from "./resolvers.js";\nimport { ${Api} } from "./datasources/${Api}.js";\n\nconst typeDefs = gql(readFileSync(new URL("../schema.graphql", import.meta.url), "utf8"));\nconst server = new ApolloServer({ schema: buildSubgraphSchema([{ typeDefs, resolvers }]) });\n\nconst { url } = await startStandaloneServer(server, {\n  listen: { port: Number(process.env.PORT || 4001) },\n  context: async () => ({ dataSources: { ${api}: new ${Api}() } }),\n});\nconsole.log(\`${sg.sgName} subgraph ready at \${url}\`);` },
+  ];
+}
+
+/* ------------------------- Java (Spring for GraphQL 1.3+) ------------------------- */
+function jType(t){ if(isInputType(t)) return "Map<String, Object>"; const b=baseType(t), list=/^\s*\[/.test(String(t||"")); const m={ID:"String",String:"String",Int:"Integer",Long:"Long",Float:"Double",Boolean:"Boolean"}; const inner=m[b]||(M.regTypes.some(x=>x.name===b&&x.kind==="enum")?"String":"Map<String, Object>"); return list?`List<${inner}>`:inner; }
+function jRet(t){ const b=baseType(t); if(b==="Boolean") return /^\s*\[/.test(String(t||""))?"List<Boolean>":"Boolean"; return /^\s*\[/.test(String(t||""))?"List<Map<String, Object>>":"Map<String, Object>"; }
+function javaSubgraph(sg, sel){
+  const Client=sg.Sg+"RestClient", Ctl=sg.Sg+"Controller", pkg="com.example."+sg.sgName.toLowerCase().replace(/[^a-z0-9]/g,"");
+  const tref=t=>jRet(t)==="Boolean"?"Boolean.class":/^List</.test(jRet(t))?"LIST":"MAP";
+  const methods=sg.ops.map(o=>{
+    const c=restCall(o), sig=`public ${jRet(o.ReturnType)} ${o.Name}(${o.args.map(a=>`${jType(a.type)} ${a.name}`).join(", ")})`;
+    if(!c) return `  // ${o.Name}: ${restLabel(o)}\n  ${sig} {\n    throw new UnsupportedOperationException("${o.Name}: not bound to a REST endpoint yet");\n  }`;
+    const vars=c.pp.map(p=>p.expr&&p.via?`${p.via}.get("${p.name}")`:(p.expr||`null /* ${p.name} */`));
+    const uri=c.query.length ? `b -> b.path("${c.path}")${c.query.map(a=>`.queryParamIfPresent("${a.name}", Optional.ofNullable(${a.name}))`).join("")}.build(${vars.join(", ")})` : `"${c.path}"${vars.length?", "+vars.join(", "):""}`;
+    const verb=c.method.toLowerCase();
+    return `  /** ${c.method} ${c.path} — backs ${o.kind==="mutation"?"Mutation":"Query"}.${o.Name} */\n  ${sig} {\n    return rest.${verb}().uri(${uri})${c.body?`\n        .body(${c.body.startsWith("{")?"Map.of("+o.args.filter(a=>!c.pp.some(p=>p.name===a.name)).map(a=>`"${a.name}", ${a.name}`).join(", ")+")":c.body})`:""}\n        .retrieve().body(${tref(o.ReturnType)});\n  }`;
+  });
+  const mapping=o=>{ const d=regDescOf(o); return `${d?`  /** ${d} */\n`:""}  @${o.kind==="mutation"?"MutationMapping":"QueryMapping"}${MARK(o,sel)}\n  public ${jRet(o.ReturnType)} ${o.Name}(${o.args.map(a=>`@Argument ${jType(a.type)} ${a.name}`).join(", ")}) {\n    return api.${o.Name}(${o.args.map(a=>a.name).join(", ")});\n  }`; };
+  const ents=[];
+  for(const x of sg.types.filter(x=>x.kind==="Key")){
+    const keys=keyList(x.t), lq=lookupQueryFor(sg, x.name, keys);
+    ents.push(`  /** _entities → ${x.name} by @key(${keys.join(" ")}) */\n  @EntityMapping("${x.name}")\n  public Map<String, Object> ${camel(x.name)}Entity(${keys.map(k=>`@Argument String ${k}`).join(", ")}) {\n    return typed("${x.name}", ${lq?`api.${lq.Name}(${lq.args.map(a=>a.name).join(", ")})`:`Map.of(${keys.map(k=>`"${k}", ${k}`).join(", ")}) /* TODO: load ${x.name} */`});\n  }`);
+  }
+  const ext=extensionResolvers(sg); const extTypes=[...new Set(ext.map(e=>e.type))];
+  for(const t of extTypes){ const keys=ext.find(e=>e.type===t).keys;
+    ents.push(`  /** ${t} is owned by another subgraph — return the key so the fields below can resolve */\n  @EntityMapping("${t}")\n  public Map<String, Object> ${camel(t)}Entity(${keys.map(k=>`@Argument String ${k}`).join(", ")}) {\n    return typed("${t}", Map.of(${keys.map(k=>`"${k}", ${k}`).join(", ")}));\n  }`); }
+  for(const e of ext){
+    const call=e.op ? `api.${e.op.Name}(${e.op.args.map(a=>e.keys.includes(a.name)?`(String) parent.get("${a.name}")`:a.name).join(", ")})` : `null /* TODO: resolve ${e.field.name}${e.requires?` — @requires(${e.requires}) is on parent`:""} */`;
+    ents.push(`  @SchemaMapping(typeName = "${e.type}", field = "${e.field.name}")\n  public ${jRet(e.field.type)==="Boolean"?"Boolean":jRet(e.field.type)} ${e.field.name}(Map<String, Object> parent${e.fArgs.map(a=>`, @Argument String ${a}`).join("")}) {\n    return ${call};\n  }`);
+  }
+  return [
+    { title:"src/main/resources/graphql/schema.graphqls — subgraph SDL", sdl:true, code:subgraphSDL(sg) },
+    { title:`${Client}.java — the current REST service`, code:`package ${pkg};\n\nimport java.util.*;\nimport org.springframework.beans.factory.annotation.Value;\nimport org.springframework.core.ParameterizedTypeReference;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.client.RestClient;\n\n// Wraps the existing ${sg.sgName} REST service; each method backs one Query / Mutation.\n@Component\npublic class ${Client} {\n  private static final ParameterizedTypeReference<Map<String, Object>> MAP = new ParameterizedTypeReference<>() {};\n  private static final ParameterizedTypeReference<List<Map<String, Object>>> LIST = new ParameterizedTypeReference<>() {};\n  private final RestClient rest;\n\n  public ${Client}(RestClient.Builder builder, @Value("\${rest.${sg.sgName}.base-url}") String baseUrl) {\n    this.rest = builder.baseUrl(baseUrl).build();\n  }\n\n${methods.join("\n\n")}\n}` },
+    { title:`${Ctl}.java — @QueryMapping / @MutationMapping / @EntityMapping`, code:`package ${pkg};\n\nimport java.util.*;\nimport org.springframework.graphql.data.federation.EntityMapping;\nimport org.springframework.graphql.data.method.annotation.*;\nimport org.springframework.stereotype.Controller;\n\n// ${sg.sgName} subgraph — resolvers delegate to the REST client.\n@Controller\npublic class ${Ctl} {\n  private final ${Client} api;\n  public ${Ctl}(${Client} api) { this.api = api; }\n\n${sg.ops.filter(o=>o.kind==="query").map(mapping).join("\n\n")}${sg.ops.some(o=>o.kind==="mutation")?"\n\n"+sg.ops.filter(o=>o.kind==="mutation").map(mapping).join("\n\n"):""}${ents.length?"\n\n"+ents.join("\n\n")+"\n\n  // Entities are plain Maps: tag them with __typename so _entities can resolve the GraphQL type.\n  private static Map<String, Object> typed(String type, Map<String, Object> m) {\n    if (m == null) return null;\n    Map<String, Object> out = new HashMap<>(m);\n    out.put(\"__typename\", type);\n    return out;\n  }":""}\n}` },
+    { title:`${sg.Sg}SubgraphApplication.java — bootstrap + federation`, code:`package ${pkg};\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\nimport org.springframework.boot.autoconfigure.graphql.GraphQlSourceBuilderCustomizer;\nimport org.springframework.context.annotation.*;\nimport org.springframework.graphql.data.federation.FederationSchemaFactory;\n\n@SpringBootApplication\npublic class ${sg.Sg}SubgraphApplication {\n  public static void main(String[] args) { SpringApplication.run(${sg.Sg}SubgraphApplication.class, args); }\n}\n\n// Apollo Federation subgraph support (Spring for GraphQL 1.3+; needs com.apollographql.federation:\n// federation-graphql-java-support): adds _service / _entities and routes _entities to @EntityMapping.\n@Configuration\nclass FederationConfig {\n  @Bean\n  FederationSchemaFactory schemaFactory() {\n    FederationSchemaFactory factory = new FederationSchemaFactory();\n    // entities are returned as Maps tagged with __typename (see the controller's typed(...))\n    factory.setTypeResolver(env -> env.getObject() instanceof java.util.Map<?, ?> m && m.get("__typename") instanceof String t\n        ? env.getSchema().getObjectType(t) : null);\n    return factory;\n  }\n\n  @Bean\n  GraphQlSourceBuilderCustomizer federation(FederationSchemaFactory factory) {\n    return builder -> builder.schemaFactory(factory::createGraphQLSchema);\n  }\n}\n\n${scalarConfigJava(sg)}// application.yml\n// rest:\n//   ${sg.sgName}:\n//     base-url: https://${sg.sgName}.internal.example.com` },
+  ];
+}
+
+// Spring for GraphQL needs a runtime implementation for every custom scalar in the schema (Apollo
+// Server doesn't). Pass-through coercing: the REST JSON value is served as-is.
+function scalarConfigJava(sg){
+  const sc=[...customScalars(sg)]; if(!sc.length) return "";
+  return `// Custom scalars must be wired at runtime — pass-through coercing (values flow as the REST JSON gives them).\n@Configuration\nclass ScalarConfig {\n  @Bean\n  org.springframework.graphql.execution.RuntimeWiringConfigurer customScalars() {\n    return wiring -> wiring\n${sc.map(n=>`        .scalar(passThrough("${n}"))`).join("\n")};\n  }\n\n  @SuppressWarnings("deprecation")\n  private static graphql.schema.GraphQLScalarType passThrough(String name) {\n    return graphql.schema.GraphQLScalarType.newScalar().name(name).coercing(new graphql.schema.Coercing<Object, Object>() {\n      public Object serialize(Object v) { return v; }\n      public Object parseValue(Object v) { return v; }\n      public Object parseLiteral(Object v) {\n        if (v instanceof graphql.language.FloatValue f) return f.getValue();\n        if (v instanceof graphql.language.IntValue i) return i.getValue();\n        if (v instanceof graphql.language.StringValue s) return s.getValue();\n        if (v instanceof graphql.language.BooleanValue b) return b.isValue();\n        return null;\n      }\n    }).build();\n  }\n}\n\n`;
+}
+
+/* ---------------------------- .NET (Hot Chocolate) ---------------------------- */
+function csT(t, forArg){
+  const b=baseType(t), list=/^\s*\[/.test(String(t||"")), nn=/!\s*$/.test(String(t||""));
+  const m={ID:"string",String:"string",Int:"int",Long:"long",Float:"double",Boolean:"bool",Money:"decimal",Decimal:"decimal",BigDecimal:"decimal",DateTime:"DateTimeOffset",DateTimeISO:"DateTimeOffset",Date:"DateOnly"};
+  let inner=m[b]||(M.regTypes.some(x=>x.name===b)?b:"string");
+  if(list) inner=`List<${inner}>`;
+  return nn ? inner : inner+"?";
+}
+const Pascal=s=>cap(String(s||""));
+const CS_DECIMAL_SCALARS=["Money","BigDecimal"];   // custom scalars served by a named DecimalType
+// GraphQL-type attributes so Hot Chocolate's inferred SDL matches the registry (ID, Money, …) — the
+// router rejects composition when subgraphs disagree on a shared field's type.
+function csTypeAttrs(t, target){
+  const b=baseType(t), out=[], p=target==="property"?"property: ":"";
+  if(b==="ID") out.push(`[${p}ID]`);
+  else if(CS_DECIMAL_SCALARS.includes(b)) out.push(`[${p}GraphQLType("${String(t).replace(/\s+/g,"")}")]`);
+  return out;
+}
+const csStr=s=>String(s||"").replace(/\\/g,"\\\\").replace(/"/g,'\\"');
+// field name → description, from the """…""" lines in a Schema Definition
+function fieldDescs(def){ const m={}; const b=String(def||""), i=b.indexOf("{"); for(const e of describedLines(i>=0?b.slice(i+1,b.lastIndexOf("}")):b)){ const n=(e.line.match(/^(\w+)/)||[])[1]; if(n&&e.desc) m[n]=e.desc; } return m; }
+function dotnetSubgraph(sg, sel){
+  const Api=sg.Sg+"Api";
+  const methods=sg.ops.map(o=>{
+    const c=restCall(o), ret=csT(o.ReturnType).replace(/\?$/,""), sig=`public async Task<${ret}?> ${Pascal(o.Name)}(${o.args.map(a=>`${csT(a.type,true)} ${a.name}`).join(", ")})`;
+    if(!c) return `    // ${o.Name}: ${restLabel(o)}\n    ${sig} => throw new NotImplementedException("${o.Name}: not bound to a REST endpoint yet");`;
+    const path=c.path.replace(/^\//,"").replace(/\{(\w+)\}/g,(m,p)=>{ const s=c.pp.find(x=>x.name===p); return "{Uri.EscapeDataString("+(s&&s.expr?s.expr.replace(/\.(\w+)$/,(mm,f)=>"."+Pascal(f)):p)+")}"; });
+    const qs=c.query.length ? `{QueryString(${c.query.map(a=>`("${a.name}", ${a.name})`).join(", ")})}` : "";
+    const url=`$"${path}${qs}"`;
+    const body=c.body?(c.body.startsWith("{")?"new "+c.body:c.body):null;
+    const call = c.method==="GET" ? `return await http.GetFromJsonAsync<${ret}>(${url});`
+      : `var res = await http.SendAsync(new HttpRequestMessage(HttpMethod.${Pascal(c.method.toLowerCase())}, ${url})${body?` { Content = JsonContent.Create(${body}) }`:""});\n        res.EnsureSuccessStatusCode();\n        return await res.Content.ReadFromJsonAsync<${ret}>();`;
+    return `    // ${c.method} ${c.path} — backs ${o.kind==="mutation"?"Mutation":"Query"}.${o.Name}\n    ${sig}\n    {\n        ${call}\n    }`;
+  });
+  const recs=[];
+  for(const x of sg.types){
+    if(x.kind==="Enum"){ const vals=splitEnum(x.row.Definition); recs.push(`public enum ${x.name} { ${vals.map(v=>Pascal(v.toLowerCase().replace(/_(\w)/g,(m,c)=>c.toUpperCase()))).join(", ")} }`); continue; }
+    const keys=keyList(x.t), fields=(x.t.fields||[]).filter(f=>!f.args), fd=fieldDescs(x.row.Definition);
+    const props=fields.filter(f=>x.kind!=="Extend"||keys.includes(f.name)).map(f=>[...csTypeAttrs(f.type,"property"), ...(fd[f.name]?[`[property: GraphQLDescription("${csStr(fd[f.name])}")]`]:[]), `${csT(f.type)} ${Pascal(f.name)}`].join(" ")).join(", ");
+    const doc=x.row.Description?`[GraphQLDescription("${String(x.row.Description).replace(/"/g,'\\"')}")]\n`:"";
+    if(x.kind==="Input"){ recs.push(`${doc}public record ${x.name}(${props});`); continue; }
+    if(x.kind==="Key"){
+      const lq=lookupQueryFor(sg, x.name, keys);
+      recs.push(`${doc}[Key("${keys.join(" ")}")]\npublic record ${x.name}(${props})\n{\n    // _entities: the router asks for ${x.name} by @key(${keys.join(" ")})\n    [ReferenceResolver]\n    public static Task<${x.name}?> ResolveReference(${keys.map(k=>{ const t=(fields.find(f=>f.name===k)||{}).type||"ID!"; return [...csTypeAttrs(t,"param"), `${csT(t)} ${k}`].join(" "); }).join(", ")}, ${Api} api)\n        => ${lq?`api.${Pascal(lq.Name)}(${lq.args.map(a=>a.name).join(", ")})`:`Task.FromResult<${x.name}?>(null) /* TODO: load ${x.name} */`};\n}`);
+      continue;
+    }
+    if(x.kind==="Extend"){
+      const ext=extensionResolvers(sg).filter(e=>e.type===x.name);
+      const fieldsCs=ext.map(e=>`${e.requires?`    [Requires("${e.requires}")]\n`:""}    public ${e.op?`Task<${csT(e.field.type).replace(/\?$/,"")}?>`:csT(e.field.type)} ${Pascal(e.field.name)}(${e.fArgs.map(a=>`string ${a}`).concat(e.op?[`${Api} api`]:[]).join(", ")})\n        => ${e.op?`api.${Pascal(e.op.Name)}(${e.op.args.map(a=>e.keys.includes(a.name)?Pascal(a.name):a.name).join(", ")})`:`default! /* TODO: resolve ${e.field.name}${e.requires?` from ${e.requires.split(/\s+/).map(Pascal).join(", ")} (provided via @requires)`:""} */`};`).join("\n\n");
+      // keys + the @external fields other fields @require (the router sends them in the representation)
+      const ext2=(x.t.fields||[]).filter(f=>f.external && !keys.includes(f.name)), carry=[...keys.map(k=>fields.find(f=>f.name===k)||{name:k,type:"ID!"}), ...ext2];
+      const extProps=carry.map(f=>[...(ext2.includes(f)?["[property: External]"]:[]), ...csTypeAttrs(f.type,"property"), `${csT(f.type)} ${Pascal(f.name)}`].join(" ")).join(", ");
+      recs.push(`// ${x.name} is owned by another subgraph; this subgraph adds fields to it\n[Key("${keys.join(" ")}")]\npublic record ${x.name}(${extProps})\n{\n    [ReferenceResolver]\n    public static ${x.name} ResolveReference(${carry.map(f=>[...csTypeAttrs(f.type,"param"), `${csT(f.type)} ${f.name}`].join(" ")).join(", ")}) => new(${carry.map(f=>f.name).join(", ")});\n\n${fieldsCs}\n}`);
+      continue;
+    }
+    if(x.kind==="Reference"){ recs.push(`// reference stub — ${x.name} is resolved by its owning subgraph (resolvable: false)\n[Key("${keys.join(" ")}", resolvable: false)]\npublic record ${x.name}(${props});`); continue; }
+    recs.push(`${doc}public record ${x.name}(${props});`);
+  }
+  const res=(kind)=>sg.ops.filter(o=>o.kind===kind).map(o=>{ const d=regDescOf(o); return `${d?`    [GraphQLDescription("${d.replace(/"/g,'\\"')}")]\n`:""}    public static Task<${csT(o.ReturnType).replace(/\?$/,"")}?> ${Pascal(o.Name)}(${o.args.map(a=>[...csTypeAttrs(a.type,"param"), `${csT(a.type,true)} ${a.name}`].join(" ")).concat([`${Api} api`]).join(", ")})${MARK(o,sel)}\n        => api.${Pascal(o.Name)}(${o.args.map(a=>a.name).join(", ")});`; }).join("\n\n");
+  return [
+    { title:"schema.graphql — subgraph SDL (Hot Chocolate generates this from the code)", sdl:true, code:subgraphSDL(sg) },
+    { title:`${Api}.cs — the current REST service`, code:`using System.Net.Http.Json;\n\n// Typed HttpClient over the existing ${sg.sgName} REST service; each method backs one Query / Mutation.\npublic class ${Api}(HttpClient http)\n{\n${methods.join("\n\n")}\n\n    static string QueryString(params (string Key, object? Value)[] ps)\n    {\n        var q = string.Join("&", ps.Where(p => p.Value is not null).Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value!.ToString()!)}"));\n        return q.Length > 0 ? "?" + q : "";\n    }\n}` },
+    { title:"Resolvers.cs — [QueryType] / [MutationType] / entities", code:`using HotChocolate.ApolloFederation.Types;\nusing HotChocolate.ApolloFederation.Resolvers;\n\n// Names the source-generated registration: builder.Add${sg.Sg}Types()\n[assembly: Module("${sg.Sg}Types")]\n\n// ${sg.sgName} subgraph — resolvers delegate to ${Api}.\n${sg.ops.some(o=>o.kind==="query")?`[QueryType]\npublic static class ${sg.Sg}Queries\n{\n${res("query")}\n}\n\n`:""}${sg.ops.some(o=>o.kind==="mutation")?`[MutationType]\npublic static class ${sg.Sg}Mutations\n{\n${res("mutation")}\n}\n\n`:""}${recs.join("\n\n")}` },
+    { title:`${sg.Sg}Subgraph.csproj — packages`, code:`<Project Sdk="Microsoft.NET.Sdk.Web">\n  <PropertyGroup>\n    <TargetFramework>net9.0</TargetFramework>\n    <Nullable>enable</Nullable>\n    <ImplicitUsings>enable</ImplicitUsings>\n  </PropertyGroup>\n  <ItemGroup>\n    <PackageReference Include="HotChocolate.AspNetCore" Version="14.1.0" />\n    <PackageReference Include="HotChocolate.ApolloFederation" Version="14.1.0" />\n    <PackageReference Include="HotChocolate.Types.Analyzers" Version="14.1.0" />\n  </ItemGroup>\n</Project>` },
+    { title:"Program.cs — subgraph bootstrap", code:`var builder = WebApplication.CreateBuilder(args);\n\nbuilder.Services.AddHttpClient<${Api}>(c =>\n    c.BaseAddress = new Uri(builder.Configuration["Rest:${Pascal(sg.sgName)}"]!));   // the current REST service\n\nbuilder.Services\n    .AddGraphQLServer()\n    .AddApolloFederation()      // _service / _entities, [Key], [ReferenceResolver]\n${[...customScalars(sg)].filter(n=>CS_DECIMAL_SCALARS.includes(n)).map(n=>`    .AddType(new DecimalType("${n}"))   // custom scalar ${n} (decimal at runtime)\n`).join("")}    .Add${sg.Sg}Types();     // source-generated (HotChocolate.Types.Analyzers) from [QueryType] / [MutationType] / records\n\nvar app = builder.Build();\napp.MapGraphQL();\napp.Run();` },
+  ];
+}
+function splitEnum(def){ return String(def||"").replace(/^[^{]*\{|\}\s*$/g,"").replace(/"""[\s\S]*?"""/g,"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
+const SUBGRAPH_SERVERS={ "Node.js (Apollo Server)":nodeSubgraph, "Java (Spring for GraphQL)":javaSubgraph, ".NET (Hot Chocolate)":dotnetSubgraph };
 
 /* ------------------------------ model / state --------------------------- */
 const M = { reg:{}, entities:[], regTypes:[], gqlOps:[], restOps:[], restTypes:[], sgName:"", restName:"", wb:null, bff:{} };
@@ -589,13 +783,13 @@ function render(){
   // Generated code section (client or server).
   let codeSection;
   if(outKind==="Server"){
-    const gen=SERVER_LANGS[lang]||SERVER_LANGS["Java (Spring for GraphQL)"];
-    const s=gen(gqlOp, p, {entity:retEnt.name, varName, retEnt}, restSel);
-    codeSection = `<div class="code-head"><h3>${esc(lang)} server — expose <span class="mono">${esc(restReqLine)}</span> as GraphQL <span class="mono">${esc(gqlOp.opKind)} ${esc(gqlOp.name)}</span></h3></div>
-      <div class="grid2">
-        <div><div class="code-head"><h3>${esc(s.schemaTitle)}</h3></div><pre class="code">${highlightSDL(s.schema)}</pre></div>
-        <div><div class="code-head"><h3>${esc(s.codeTitle)}</h3><button class="copy-btn" onclick='copyText(${attrJson(s.code)})'>Copy</button></div><pre class="code">${esc(s.code)}</pre></div>
-      </div>`;
+    // A federation subgraph implementing the registry ops of the selected op's subgraph.
+    const sgm=subgraphModel(gqlSel.EntityID), gen=SUBGRAPH_SERVERS[lang]||SUBGRAPH_SERVERS["Node.js (Apollo Server)"];
+    const files=gen(sgm, gqlSel);
+    const nQ=sgm.ops.filter(o=>o.kind==="query").length, nM=sgm.ops.filter(o=>o.kind==="mutation").length, unbound=sgm.ops.filter(o=>!o.rest).map(o=>o.Name);
+    codeSection = `<div class="code-head"><h3>${esc(lang)} — <span class="mono">${esc(sgm.sgName)}</span> subgraph · ${nQ} ${nQ===1?"query":"queries"} · ${nM} ${nM===1?"mutation":"mutations"} <span class="hint">(resolvers delegate to the current REST service · <span class="mono">${esc(gqlOp.name)}</span> marked “← selected op”)</span></h3></div>
+      ${unbound.length?`<p class="hint" style="color:#b45309;margin:0 0 6px">No REST: link for ${unbound.map(n=>`<span class="mono">${esc(n)}</span>`).join(", ")} — add one in Links &amp; References (registry) to generate its REST call.</p>`:""}
+      ${files.map(f=>`<div class="code-head"><h3 class="mono" style="font-size:12.5px">${esc(f.title)}</h3><button class="copy-btn" onclick='copyText(${attrJson(f.code)})'>Copy</button></div><pre class="code">${f.sdl?highlightSDL(f.code):esc(f.code)}</pre>`).join("")}`;
   } else {
     const gen=CODE_LANGS[lang]||CODE_LANGS.JavaScript;
     const c=gen(gqlOp, p, {entity:retEnt.name, varName});

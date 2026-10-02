@@ -64,52 +64,208 @@ function linksHTML(v){
 /* -------- FedGQL schema-standards engine (index + gql-migration) ------- */
 const DEFAULT_STANDARDS = {
   meta: {
-    version: "1.2",
-    title: "GQL Federation — Schema Standards and Patterns",
-    source: "GQL Federation - Schema Standards and Patterns.md",
-    docBase: ""
+    "version": "2.0",
+    "title": "GQL Federation — Schema Standards and Patterns",
+    "source": "GQL Federation - Schema Standards and Patterns + Apollo GraphOS schema linter rules",
+    "docBase": "",
+    "apolloDoc": "https://www.apollographql.com/docs/graphos/platform/schema-management/linting/rules",
+    "notes": "House rules (source: house) come from the FedGQL standards document. Apollo GraphOS linter rules (source: apollo) use their GraphOS rule IDs; a house rule that enforces the same thing lists the GraphOS ID under 'apollo' instead of being duplicated. Rules with enforcedBy: graphos need data the registry does not model (directive definitions, unions, schema-level @contact) — they are listed for reference and checked by GraphOS at publish time."
   },
   patterns: {
-    PascalCase: "^[A-Z][A-Za-z0-9]*$",
-    camelCase: "^[a-z][A-Za-z0-9]*$",
-    SCREAMING_SNAKE_CASE: "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$",
-    versioned: "[Vv][0-9]+$",
-    arrayNonNull: "^\\[.+!\\]!$"
+    "PascalCase": "^[A-Z][A-Za-z0-9]*$",
+    "camelCase": "^[a-z][A-Za-z0-9]*$",
+    "SCREAMING_SNAKE_CASE": "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$",
+    "versioned": "[Vv][0-9]+$",
+    "arrayNonNull": "^\\[.+!\\]!$"
   },
   scalars: {
-    standard: ["ID", "String", "Int", "Float", "Boolean", "CountryCode", "Currency", "Date",
-      "DateTimeISO", "Decimal", "LocalDateTime", "LocalDate", "LocalTime", "JSON", "HexColorCode",
-      "Latitude", "Longitude", "Money", "PhoneNumber", "Postcode", "TimeZone", "URL", "UUID"],
-    discouraged: {
-      DateTime: "Prefer DateTimeISO — a timestamp with a mandatory time-zone offset.",
-      LocalDateTime: "Prefer DateTimeISO wherever an offset applies; LocalDateTime has no offset."
+    "standard": [
+      "ID",
+      "String",
+      "Int",
+      "Float",
+      "Boolean",
+      "CountryCode",
+      "Currency",
+      "Date",
+      "DateTimeISO",
+      "Decimal",
+      "LocalDateTime",
+      "LocalDate",
+      "LocalTime",
+      "JSON",
+      "HexColorCode",
+      "Latitude",
+      "Longitude",
+      "Money",
+      "PhoneNumber",
+      "Postcode",
+      "TimeZone",
+      "URL",
+      "UUID"
+    ],
+    "builtIn": [
+      "ID",
+      "String",
+      "Int",
+      "Float",
+      "Boolean"
+    ],
+    "discouraged": {
+      "DateTime": "Prefer DateTimeISO — a timestamp with a mandatory time-zone offset.",
+      "LocalDateTime": "Prefer DateTimeISO wherever an offset applies; LocalDateTime has no offset."
     },
-    monetaryHints: ["price", "cost", "amount", "total", "fee", "charge", "balance", "rrp"],
-    monetaryScalars: ["Decimal", "Float"],
-    monetaryExclude: ["percent", "percentage", "pct", "rate", "ratio", "factor", "count", "qty", "quantity", "index", "score", "weight"]
+    "monetaryHints": [
+      "price",
+      "cost",
+      "amount",
+      "total",
+      "fee",
+      "charge",
+      "balance",
+      "rrp"
+    ],
+    "monetaryScalars": [
+      "Decimal",
+      "Float"
+    ],
+    "monetaryExclude": [
+      "percent",
+      "percentage",
+      "pct",
+      "rate",
+      "ratio",
+      "factor",
+      "count",
+      "qty",
+      "quantity",
+      "index",
+      "score",
+      "weight"
+    ]
   },
-  abbreviations: { agreed: ["CTA", "Org", "Promo"], allCapsAllowed: ["ID", "URL", "URI", "UUID", "JSON", "GST"] },
-  verbHints: ["create", "update", "delete", "apply", "generate", "add", "remove", "set", "cancel",
-    "submit", "assign", "link", "unlink", "enable", "disable", "approve", "reject", "send", "start",
-    "stop", "activate", "deactivate", "confirm", "decline", "move", "copy", "share", "sync"],
+  abbreviations: {
+    "agreed": [
+      "CTA",
+      "Org",
+      "Promo"
+    ],
+    "allCapsAllowed": [
+      "ID",
+      "URL",
+      "URI",
+      "UUID",
+      "JSON",
+      "GST"
+    ]
+  },
+  verbHints: [
+    "create",
+    "update",
+    "delete",
+    "apply",
+    "generate",
+    "add",
+    "remove",
+    "set",
+    "cancel",
+    "submit",
+    "assign",
+    "link",
+    "unlink",
+    "enable",
+    "disable",
+    "approve",
+    "reject",
+    "send",
+    "start",
+    "stop",
+    "activate",
+    "deactivate",
+    "confirm",
+    "decline",
+    "move",
+    "copy",
+    "share",
+    "sync"
+  ],
+  naming: {
+    "restrictedFieldPrefixes": [
+      "get",
+      "list",
+      "post",
+      "put",
+      "patch"
+    ]
+  },
+  tags: {
+    "approved": []
+  },
   rules: [
-    { id: "NAME-TYPE-PASCAL", title: "Type names must be PascalCase", category: "Type names", section: "Naming Rules", severity: "error", message: "type/enum/input/interface names must be PascalCase (e.g. ProductAvailability).", fix: "Rename to PascalCase, namespaced by the owning subgraph where applicable." },
-    { id: "NAME-ABBREV-CASE", title: "Avoid all-uppercase abbreviations", category: "Type names", section: "Agreed Naming Abbreviations", severity: "warning", message: "avoid all-uppercase names/abbreviations unless agreed (agreed: CTA, Org, Promo).", fix: "Use PascalCase; abbreviations are title-cased (Org, Promo) unless on the agreed all-caps list." },
-    { id: "NAME-INPUT-SUFFIX", title: "Input types end with 'Input'", category: "Input types", section: "Naming Rules", severity: "warning", message: "input type names should follow <Operation>Input (end with 'Input'), e.g. ApplyPromoInput.", fix: "Name the input after the query/mutation it serves and suffix it with 'Input'." },
-    { id: "NAME-FIELD-CAMEL", title: "Object/input fields must be camelCase", category: "Fields", section: "Naming Rules", severity: "error", message: "field names must be camelCase (e.g. phoneNumber).", fix: "Rename the field to camelCase." },
-    { id: "NAME-BOOL-PREFIX", title: "Boolean fields avoid is/has/can prefixes", category: "Fields", section: "Naming Rules", severity: "warning", message: "Boolean fields should avoid is/has/can prefixes and negative names (prefer 'active' over 'isActive').", fix: "Drop the prefix unless it genuinely adds clarity; avoid negative names like 'inactive'." },
-    { id: "NULL-KEY-NONNULL", title: "Entity @key fields must be non-null", category: "Nullability", section: "Field Nullability Rules", severity: "error", message: "entity @key fields must be non-null (end with !).", fix: "Mark every field named in @key(fields: \"…\") as non-null, e.g. sku: ID!." },
-    { id: "NULL-ARRAY-NONNULL", title: "Array fields must be non-null with non-null elements", category: "Nullability", section: "Field Nullability Rules", severity: "error", message: "array fields must be non-null with non-null elements: [Type!]! (no data = empty array).", fix: "Write the type as [Type!]! so consumers only check for emptiness, never null." },
-    { id: "NAME-ENUMVALUE-SCREAMING", title: "Enum values must be SCREAMING_SNAKE_CASE", category: "Enums", section: "Naming Rules", severity: "error", message: "enum values must be SCREAMING_SNAKE_CASE (e.g. NEXT_DAY).", fix: "Uppercase the value and separate words with underscores." },
-    { id: "ENUM-UNKNOWN-VALUE", title: "Consider an UNKNOWN enum value", category: "Enums", section: "Enum Value Additions", severity: "info", message: "consider adding an UNKNOWN value so consumers implement catch-all handling and enum additions stay safe.", fix: "Add UNKNOWN as a catch-all value to the enum." },
-    { id: "SCALAR-STANDARD", title: "Use a standardized custom scalar", category: "Scalars", section: "Custom Scalars", severity: "warning", message: "is not in the approved custom-scalar list — confirm it is a standardized scalar before use.", fix: "Use one of the curated scalars (DateTimeISO, Money, URL, UUID, …) or propose the new scalar in a schema review." },
-    { id: "SCALAR-PREFER-DATETIMEISO", title: "Prefer DateTimeISO for timestamps", category: "Scalars", section: "Custom Scalars", severity: "warning", message: "prefer DateTimeISO for timestamps (it mandates a time-zone offset).", fix: "Replace DateTime/LocalDateTime with DateTimeISO where an offset applies." },
-    { id: "SCALAR-MONEY-NOT-DECIMAL", title: "Use Money for monetary values", category: "Scalars", section: "Custom Scalars", severity: "warning", message: "monetary fields should use the Money scalar, not Decimal/Float (percentages/ratios/counts are exempt).", fix: "Change the field type to Money to signal monetary intent. Fields that are percentages, ratios, rates or counts (e.g. meatYieldCostPercent) may keep Decimal." },
-    { id: "NAME-QUERY-CAMEL", title: "Query names must be camelCase", category: "Queries", section: "Naming Rules", severity: "error", message: "query names must be camelCase and namespaced (e.g. product, loyaltyPlans).", fix: "Rename to camelCase; use the singular for 0/1 result and plural for many." },
-    { id: "NAME-MUTATION-CAMEL", title: "Mutation names must be camelCase", category: "Mutations", section: "Naming Rules", severity: "error", message: "mutation names must be camelCase (e.g. applyDiscountCodesPromo).", fix: "Rename to camelCase." },
-    { id: "NAME-MUTATION-VERB", title: "Mutations start with a domain verb", category: "Mutations", section: "Use Business/Domain Language", severity: "info", message: "mutation names should start with a domain verb (e.g. applyPromo, createSubscription).", fix: "Lead with a verb in business/domain language; prefer domain terms over CRUD." },
-    { id: "OP-SINGLE-INPUT", title: "Use a single input type argument", category: "Operations", section: "Use a Single Input Type Argument for Queries/Mutations", severity: "warning", message: "queries/mutations should take a single input: <Name>Input argument (exempt: stable lookup-by-id queries).", fix: "Group arguments into one input type, e.g. products(input: ProductsInput)." },
-    { id: "ANTI-FIELD-VERSION", title: "No field/type versioning", category: "Anti-patterns", section: "Field Versioning", severity: "warning", message: "avoid version suffixes like V2 — schema versioning is a GQL anti-pattern.", fix: "Use the 2-stage deprecation approach (@deprecated with a planned deletion date) instead of a versioned name." }
+    {"id":"NAME-TYPE-PASCAL","source":"house","apollo":["TYPE_NAMES_SHOULD_BE_PASCAL_CASE"],"title":"Type names must be PascalCase","category":"Type names","section":"Naming Rules","severity":"error","message":"type/enum/input/interface names must be PascalCase (e.g. ProductAvailability).","fix":"Rename to PascalCase, namespaced by the owning subgraph where applicable."},
+    {"id":"NAME-ABBREV-CASE","source":"house","title":"Avoid all-uppercase abbreviations","category":"Type names","section":"Agreed Naming Abbreviations","severity":"warning","message":"avoid all-uppercase names/abbreviations unless agreed (agreed: CTA, Org, Promo).","fix":"Use PascalCase; abbreviations are title-cased (Org, Promo) unless on the agreed all-caps list."},
+    {"id":"TYPE_PREFIX","source":"apollo","title":"Type names don't start with 'Type'","category":"Type names","section":"Naming rules › Types","severity":"warning","message":"type names should not start with the redundant prefix 'Type' (e.g. TypeBook).","fix":"Drop the prefix: type TypeBook → type Book."},
+    {"id":"TYPE_SUFFIX","source":"apollo","title":"Type names don't end with 'Type'","category":"Type names","section":"Naming rules › Types","severity":"warning","message":"type names should not end with the redundant suffix 'Type' (e.g. BookType).","fix":"Drop the suffix: type BookType → type Book."},
+    {"id":"OBJECT_PREFIX","source":"apollo","title":"Object types don't start with 'Object'","category":"Type names","section":"Naming rules › Objects","severity":"warning","message":"object type names should not start with the redundant prefix 'Object' (e.g. ObjectBook).","fix":"Drop the prefix: type ObjectBook → type Book."},
+    {"id":"OBJECT_SUFFIX","source":"apollo","title":"Object types don't end with 'Object'","category":"Type names","section":"Naming rules › Objects","severity":"warning","message":"object type names should not end with the redundant suffix 'Object' (e.g. BookObject).","fix":"Drop the suffix: type BookObject → type Book."},
+    {"id":"INTERFACE_PREFIX","source":"apollo","title":"Interfaces don't start with 'Interface'","category":"Type names","section":"Naming rules › Interfaces","severity":"warning","message":"interface names should not start with the redundant prefix 'Interface' (e.g. InterfaceBook).","fix":"Drop the prefix: interface InterfaceBook → interface Book."},
+    {"id":"INTERFACE_SUFFIX","source":"apollo","title":"Interfaces don't end with 'Interface'","category":"Type names","section":"Naming rules › Interfaces","severity":"warning","message":"interface names should not end with the redundant suffix 'Interface' (e.g. BookInterface).","fix":"Drop the suffix: interface BookInterface → interface Book."},
+    {"id":"NAME-INPUT-SUFFIX","source":"house","apollo":["INPUT_TYPE_SUFFIX"],"title":"Input types end with 'Input'","category":"Input types","section":"Naming Rules","severity":"warning","message":"input type names should follow <Operation>Input (end with 'Input'), e.g. ApplyPromoInput.","fix":"Name the input after the query/mutation it serves and suffix it with 'Input'."},
+    {"id":"NAME-FIELD-CAMEL","source":"house","apollo":["FIELD_NAMES_SHOULD_BE_CAMEL_CASE"],"title":"Object/input fields must be camelCase","category":"Fields","section":"Naming Rules","severity":"error","message":"field names must be camelCase (e.g. phoneNumber).","fix":"Rename the field to camelCase."},
+    {"id":"RESTY_FIELD_NAMES","source":"apollo","title":"Fields don't start with REST verbs","category":"Fields","section":"Naming rules › Fields","severity":"warning","message":"field and query names should not start with get, list, post, put or patch — only mutations lead with a verb.","fix":"Name the field after what it returns: getUsers → users."},
+    {"id":"NAME-BOOL-PREFIX","source":"house","title":"Boolean fields avoid is/has/can prefixes","category":"Fields","section":"Naming Rules","severity":"warning","message":"Boolean fields should avoid is/has/can prefixes and negative names (prefer 'active' over 'isActive').","fix":"Drop the prefix unless it genuinely adds clarity; avoid negative names like 'inactive'."},
+    {"id":"INPUT_ARGUMENT_NAMES_SHOULD_BE_CAMEL_CASE","source":"apollo","title":"Argument names must be camelCase","category":"Arguments","section":"Naming rules › Inputs and arguments","severity":"error","message":"argument names must be camelCase (e.g. blogPostContent, not BlogPostContent).","fix":"Rename the argument / parameter to camelCase."},
+    {"id":"NULL-KEY-NONNULL","source":"house","title":"Entity @key fields must be non-null","category":"Nullability","section":"Field Nullability Rules","severity":"error","message":"entity @key fields must be non-null (end with !).","fix":"Mark every field named in @key(fields: \"…\") as non-null, e.g. sku: ID!."},
+    {"id":"NULL-ARRAY-NONNULL","source":"house","title":"Array fields must be non-null with non-null elements","category":"Nullability","section":"Field Nullability Rules","severity":"error","message":"array fields must be non-null with non-null elements: [Type!]! (no data = empty array).","fix":"Write the type as [Type!]! so consumers only check for emptiness, never null."},
+    {"id":"NAME-ENUMVALUE-SCREAMING","source":"house","apollo":["ENUM_VALUES_SHOULD_BE_SCREAMING_SNAKE_CASE"],"title":"Enum values must be SCREAMING_SNAKE_CASE","category":"Enums","section":"Naming Rules","severity":"error","message":"enum values must be SCREAMING_SNAKE_CASE (e.g. NEXT_DAY).","fix":"Uppercase the value and separate words with underscores."},
+    {"id":"ENUM_PREFIX","source":"apollo","title":"Enums don't start with 'Enum'","category":"Enums","section":"Naming rules › Enums","severity":"warning","message":"enum names should not start with the redundant prefix 'Enum' (e.g. EnumResidence).","fix":"Drop the prefix: enum EnumResidence → enum Residence."},
+    {"id":"ENUM_SUFFIX","source":"apollo","title":"Enums don't end with 'Enum'","category":"Enums","section":"Naming rules › Enums","severity":"warning","message":"enum names should not end with the redundant suffix 'Enum' (e.g. ResidenceEnum).","fix":"Drop the suffix: enum ResidenceEnum → enum Residence."},
+    {"id":"ENUM_USED_AS_INPUT_WITHOUT_SUFFIX","source":"apollo","title":"Input-only enums end with 'Input'","category":"Enums","section":"Naming rules › Enums","severity":"warning","message":"is only used as an input (argument or input field) — enums used as inputs should end with 'Input'. Enums also returned by a field are exempt here (see ENUM_USED_AS_OUTPUT_DESPITE_SUFFIX).","fix":"Rename the enum with an Input suffix, e.g. enum Role → enum RoleInput."},
+    {"id":"ENUM_USED_AS_OUTPUT_DESPITE_SUFFIX","source":"apollo","title":"Output enums don't end with 'Input'","category":"Enums","section":"Naming rules › Enums","severity":"warning","message":"ends with 'Input' but is returned by a field — output enums should not use the Input suffix.","fix":"Rename the enum without the suffix, e.g. enum RoleInput → enum Role."},
+    {"id":"ENUM-UNKNOWN-VALUE","source":"house","title":"Consider an UNKNOWN enum value","category":"Enums","section":"Enum Value Additions","severity":"info","message":"consider adding an UNKNOWN value so consumers implement catch-all handling and enum additions stay safe.","fix":"Add UNKNOWN as a catch-all value to the enum."},
+    {"id":"SCALAR-STANDARD","source":"house","title":"Use a standardized custom scalar","category":"Scalars","section":"Custom Scalars","severity":"warning","message":"is not in the approved custom-scalar list — confirm it is a standardized scalar before use.","fix":"Use one of the curated scalars (DateTimeISO, Money, URL, UUID, …) or propose the new scalar in a schema review."},
+    {"id":"SCALAR-PREFER-DATETIMEISO","source":"house","title":"Prefer DateTimeISO for timestamps","category":"Scalars","section":"Custom Scalars","severity":"warning","message":"prefer DateTimeISO for timestamps (it mandates a time-zone offset).","fix":"Replace DateTime/LocalDateTime with DateTimeISO where an offset applies."},
+    {"id":"SCALAR-MONEY-NOT-DECIMAL","source":"house","title":"Use Money for monetary values","category":"Scalars","section":"Custom Scalars","severity":"warning","message":"monetary fields should use the Money scalar, not Decimal/Float (percentages/ratios/counts are exempt).","fix":"Change the field type to Money to signal monetary intent. Fields that are percentages, ratios, rates or counts (e.g. meatYieldCostPercent) may keep Decimal."},
+    {"id":"NAME-QUERY-CAMEL","source":"house","apollo":["FIELD_NAMES_SHOULD_BE_CAMEL_CASE"],"title":"Query names must be camelCase","category":"Queries","section":"Naming Rules","severity":"error","message":"query names must be camelCase and namespaced (e.g. product, loyaltyPlans).","fix":"Rename to camelCase; use the singular for 0/1 result and plural for many."},
+    {"id":"NAME-MUTATION-CAMEL","source":"house","apollo":["FIELD_NAMES_SHOULD_BE_CAMEL_CASE"],"title":"Mutation names must be camelCase","category":"Mutations","section":"Naming Rules","severity":"error","message":"mutation names must be camelCase (e.g. applyDiscountCodePromo).","fix":"Rename to camelCase."},
+    {"id":"NAME-MUTATION-VERB","source":"house","title":"Mutations start with a domain verb","category":"Mutations","section":"Use Business/Domain Language","severity":"info","message":"mutation names should start with a domain verb (e.g. applyDiscountCodePromo, createDiscountSubscription).","fix":"Lead with a verb in business/domain language; prefer domain terms over CRUD."},
+    {"id":"OP-SINGLE-INPUT","source":"house","title":"Use a single input type argument","category":"Operations","section":"Use a Single Input Type Argument for Queries/Mutations","severity":"warning","message":"queries/mutations should take a single input: <Name>Input argument (exempt: stable lookup-by-id queries).","fix":"Group arguments into one input type, e.g. products(input: ProductsInput)."},
+    {"id":"DIRECTIVE_NAMES_SHOULD_BE_CAMEL_CASE","source":"apollo","title":"Directive names must be camelCase","category":"Directives","section":"Naming rules › Directives","severity":"error","message":"directive names must be camelCase (e.g. @specialField, not @SpecialField).","fix":"Rename the directive (definition and every usage) to camelCase."},
+    {"id":"DEPRECATED_DIRECTIVE_MISSING_REASON","source":"apollo","title":"@deprecated must give a reason","category":"Directives","section":"Other rules › Directives","severity":"warning","message":"uses @deprecated without a reason argument.","fix":"Add a reason naming the replacement and the planned removal date, e.g. @deprecated(reason: \"Use Product.name instead\")."},
+    {"id":"TAG_DIRECTIVE_USES_UNKNOWN_NAME","source":"apollo","title":"@tag uses an approved name","category":"Directives","section":"Other rules › Directives","severity":"warning","message":"uses a @tag name that is not on the approved list (standards.json → tags.approved).","fix":"Use an approved @tag name, or add the name to tags.approved (and in GraphOS Studio) after review. The check is skipped while tags.approved is empty."},
+    {"id":"CONTACT_DIRECTIVE_MISSING","source":"apollo","enforcedBy":"graphos","title":"Subgraph declares owner @contact","category":"Directives","section":"Other rules › Directives","severity":"warning","message":"subgraph schemas should declare owner contact details with the @contact directive on the schema.","fix":"Add extend schema @contact(name: \"…\", url: \"…\", description: \"…\") to the subgraph SDL."},
+    {"id":"ALL_ELEMENTS_REQUIRE_DESCRIPTION","source":"apollo","title":"Every element has a description","category":"Documentation","section":"Other rules › Schema","severity":"info","message":"is missing a description — every type, field, enum value, operation and argument should be documented.","fix":"Fill the Description column, and add a \"\"\"description\"\"\" line above each field / value / parameter (✎ Edit row)."},
+    {"id":"DEFINED_TYPES_ARE_UNUSED","source":"apollo","title":"Every defined type is used","category":"Schema hygiene","section":"Other rules › Schema","severity":"warning","message":"is not referenced by any field, argument, interface or operation in the registry (entities, enums and scalars are checked separately).","fix":"Reference the type from a field / operation, or remove it once refactored out."},
+    {"id":"QUERY_DOCUMENT_DECLARATION","source":"apollo","title":"Schemas don't declare operations","category":"Schema hygiene","section":"Other rules › Schema","severity":"error","message":"contains an executable operation (query / mutation / subscription / fragment) — operations belong to clients, not schemas.","fix":"Remove the operation document from the Definition; keep only type definitions."},
+    {"id":"DOES_NOT_PARSE","source":"apollo","title":"SDL must parse","category":"Schema hygiene","section":"Other rules › Schema","severity":"error","message":"is malformed SDL (unbalanced brackets/quotes or a line that is not 'name: Type').","fix":"Fix the syntax; each field is name(args): Type @directives on its own line."},
+    {"id":"ANTI-FIELD-VERSION","source":"house","title":"No field/type versioning","category":"Anti-patterns","section":"Field Versioning","severity":"warning","message":"avoid version suffixes like V2 — schema versioning is a GQL anti-pattern.","fix":"Use the 2-stage deprecation approach (@deprecated with a planned deletion date) instead of a versioned name."},
+    {"id":"INCONSISTENT_ENTITY","source":"apollo","title":"An object is an entity in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"is declared with @key in another subgraph but as a plain type here — the supergraph gets incomplete entity information.","fix":"Declare the type as an entity here too (Kind Key / Extend / Reference with the same @key)."},
+    {"id":"INCONSISTENT_BUT_COMPATIBLE_FIELD_TYPE","source":"apollo","title":"A field has the same type in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"has a different type in another subgraph — field types should be identical across subgraphs.","fix":"Use exactly the same type (including ! and list wrappers) in every subgraph that defines the field."},
+    {"id":"INCONSISTENT_ARGUMENT_PRESENCE","source":"apollo","title":"A field has the same arguments in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"has arguments that are missing in another subgraph that defines the same field — they are dropped from the supergraph.","fix":"Declare the same arguments on the field in every subgraph."},
+    {"id":"INCONSISTENT_BUT_COMPATIBLE_ARGUMENT_TYPE","source":"apollo","title":"An argument has the same type in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"has an argument whose type differs from another subgraph's definition of the same field.","fix":"Use exactly the same argument type (including !) in every subgraph."},
+    {"id":"INCONSISTENT_DEFAULT_VALUE_PRESENCE","source":"apollo","title":"Argument defaults are consistent","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"has an argument with a default value in one subgraph but not in another.","fix":"Give the argument the same default value in every subgraph (or none in all)."},
+    {"id":"INCONSISTENT_DESCRIPTION","source":"apollo","title":"A type has the same description in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"has a different description in another subgraph.","fix":"Use one description for the type in every subgraph (or describe it only in the owning subgraph)."},
+    {"id":"INCONSISTENT_ENUM_VALUE_FOR_INPUT_ENUM","source":"apollo","title":"Input enums have the same values in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"is used as an input and its values differ from another subgraph — only the shared values reach the supergraph.","fix":"Define the same enum values in every subgraph that declares the enum."},
+    {"id":"INCONSISTENT_ENUM_VALUE_FOR_OUTPUT_ENUM","source":"apollo","title":"Output enums have the same values in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"has values that differ from another subgraph — all values are merged into the supergraph.","fix":"Define the same enum values in every subgraph that declares the enum."},
+    {"id":"INCONSISTENT_INPUT_OBJECT_FIELD","source":"apollo","title":"Input types have the same fields in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"has fields that another subgraph's definition of the same input does not — they are dropped from the supergraph.","fix":"Define the same input fields in every subgraph that declares the input type."},
+    {"id":"INCONSISTENT_OBJECT_VALUE_TYPE_FIELD","source":"apollo","title":"Value types have the same fields in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"is a value type (no @key) whose fields differ from another subgraph's definition.","fix":"Define the same fields for the value type in every subgraph, or make it an entity."},
+    {"id":"INCONSISTENT_INTERFACE_VALUE_TYPE_FIELD","source":"apollo","title":"Interfaces have the same fields in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"is an interface whose fields differ from another subgraph's definition.","fix":"Define the same interface fields in every subgraph."},
+    {"id":"OVERRIDE_MIGRATION_IN_PROGRESS","source":"apollo","title":"Finish progressive @override migrations","category":"Composition","section":"Composition rules › Overridden and unused elements","severity":"warning","message":"uses @override with a label — a progressive field migration is still in progress.","fix":"Complete the migration, then remove the label (and later the @override)."},
+    {"id":"OVERRIDE_DIRECTIVE_CAN_BE_REMOVED","source":"apollo","title":"Remove @override once the source field is gone","category":"Composition","section":"Composition rules › Overridden and unused elements","severity":"warning","message":"has @override(from: …) but the source subgraph no longer defines the field.","fix":"Remove the @override directive."},
+    {"id":"OVERRIDDEN_FIELD_CAN_BE_REMOVED","source":"apollo","title":"Remove fields another subgraph overrides","category":"Composition","section":"Composition rules › Overridden and unused elements","severity":"info","message":"is fully overridden by another subgraph (@override without a label), so it is never resolved here.","fix":"Remove the field from this subgraph (keep it only if another field's @requires/@key needs it, then mark it @external)."},
+    {"id":"FROM_SUBGRAPH_DOES_NOT_EXIST","source":"apollo","title":"@override names an existing subgraph","category":"Composition","section":"Composition rules › Directives","severity":"error","message":"has @override(from: …) naming a subgraph that does not exist in the registry.","fix":"Correct the subgraph name (Business Application) or remove the @override."},
+    {"id":"UNUSED_ENUM_TYPE","source":"apollo","title":"Every enum is used","category":"Composition","section":"Composition rules › Overridden and unused elements","severity":"warning","message":"is defined but no field, argument or operation in any subgraph references it.","fix":"Reference the enum or remove it."},
+    {"id":"INCONSISTENT_UNION_MEMBER","source":"apollo","enforcedBy":"graphos","title":"Unions have the same members in every subgraph","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"union member types should be the same in every subgraph that defines the union.","fix":"Define the same union members in every subgraph."},
+    {"id":"INCONSISTENT_RUNTIME_TYPES_FOR_SHAREABLE_RETURN","source":"apollo","enforcedBy":"graphos","title":"@shareable fields return the same runtime types","category":"Composition","section":"Composition rules › Inconsistent elements","severity":"warning","message":"a @shareable field's abstract return type should resolve to the same runtime types in every subgraph.","fix":"Make the interface/union implementations identical across the subgraphs sharing the field."},
+    {"id":"INCONSISTENT_EXECUTABLE_DIRECTIVE_PRESENCE","source":"apollo","enforcedBy":"graphos","title":"Executable directives are defined in every subgraph","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"an executable directive should be defined in every subgraph.","fix":"Add the directive definition to every subgraph."},
+    {"id":"INCONSISTENT_EXECUTABLE_DIRECTIVE_LOCATIONS","source":"apollo","enforcedBy":"graphos","title":"Executable directive locations match","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"an executable directive should declare the same locations in every subgraph.","fix":"Use the same `on …` locations in every definition of the directive."},
+    {"id":"INCONSISTENT_EXECUTABLE_DIRECTIVE_REPEATABLE","source":"apollo","enforcedBy":"graphos","title":"Executable directive repeatability matches","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"an executable directive should be repeatable in all subgraphs or none.","fix":"Make `repeatable` consistent across subgraphs."},
+    {"id":"INCONSISTENT_TYPE_SYSTEM_DIRECTIVE_LOCATIONS","source":"apollo","enforcedBy":"graphos","title":"Type-system directive locations match","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"a type-system directive should declare the same locations in every subgraph.","fix":"Use the same `on …` locations in every definition of the directive."},
+    {"id":"INCONSISTENT_TYPE_SYSTEM_DIRECTIVE_REPEATABLE","source":"apollo","enforcedBy":"graphos","title":"Type-system directive repeatability matches","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"a type-system directive should be repeatable in all subgraphs or none.","fix":"Make `repeatable` consistent across subgraphs."},
+    {"id":"INCONSISTENT_NON_REPEATABLE_DIRECTIVE_ARGUMENTS","source":"apollo","enforcedBy":"graphos","title":"Non-repeatable directive arguments match","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"a non-repeatable directive applied to the same element should use the same arguments in every subgraph.","fix":"Use identical directive arguments across subgraphs."},
+    {"id":"MERGED_NON_REPEATABLE_DIRECTIVE_ARGUMENTS","source":"apollo","enforcedBy":"graphos","title":"Merged non-repeatable directive arguments","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"a non-repeatable directive's differing arguments were merged during composition.","fix":"Align the directive arguments across subgraphs."},
+    {"id":"NO_EXECUTABLE_DIRECTIVE_INTERSECTION","source":"apollo","enforcedBy":"graphos","title":"Executable directive locations overlap","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"an executable directive has no location common to every subgraph, so it is dropped from the supergraph.","fix":"Give the directive at least one shared location in every subgraph."},
+    {"id":"DIRECTIVE_COMPOSITION","source":"apollo","enforcedBy":"graphos","title":"Custom directive composition","category":"Composition","section":"Composition rules › Directives","severity":"warning","message":"a custom directive composed via @composeDirective has an issue.","fix":"Check the @composeDirective / @link declarations in each subgraph."}
   ]
 };
 let STANDARDS = DEFAULT_STANDARDS;
@@ -117,9 +273,20 @@ const VALIDATED_SHEETS = new Set(["Schema", "Queries", "Mutations"]);
 const SEVERITY_RANK = { error: 3, warning: 2, info: 1 };
 const __reCache = {};
 function stdRe(name){ if(__reCache[name]) return __reCache[name]; const src=(STANDARDS.patterns&&STANDARDS.patterns[name])||DEFAULT_STANDARDS.patterns[name]; return (__reCache[name]=new RegExp(src)); }
-function ruleMeta(id){ const r=(STANDARDS.rules||[]).find(x=>x.id===id); return (r&&r.enabled!==false)?r:null; }
-function docUrlFor(rule){ const base=(STANDARDS.meta&&STANDARDS.meta.docBase)||""; if(!base||!rule.section) return base; return base+"#"+rule.section.trim().replace(/[^A-Za-z0-9]+/g,"-"); }
-function mkViol(list,id,col,subject){ const r=ruleMeta(id); if(!r) return; list.push({ ruleId:id, severity:r.severity||"warning", col, subject:subject||"", title:r.title, section:r.section, message:r.message, fix:r.fix, doc:docUrlFor(r) }); }
+// Rules with enforcedBy:"graphos" need data the registry does not model (directive definitions, unions,
+// schema-level @contact): they are listed for reference and checked by GraphOS at publish time.
+function isLocalRule(r){ return r && r.enabled!==false && r.enforcedBy!=="graphos"; }
+function ruleMeta(id){ const r=(STANDARDS.rules||[]).find(x=>x.id===id); return isLocalRule(r)?r:null; }
+// GraphOS linter rule IDs a rule enforces: its own id for an Apollo rule, else its "apollo" mapping.
+function apolloIds(rule){ return rule.source==="apollo" ? [rule.id] : (rule.apollo||[]); }
+function apolloDocUrl(id){ const base=(STANDARDS.meta&&STANDARDS.meta.apolloDoc)||DEFAULT_STANDARDS.meta.apolloDoc; return base+"#"+String(id).toLowerCase(); }
+function docUrlFor(rule){
+  const base=(STANDARDS.meta&&STANDARDS.meta.docBase)||"";
+  if(rule.source==="apollo") return apolloDocUrl(rule.id);
+  if(base&&rule.section) return base+"#"+rule.section.trim().replace(/[^A-Za-z0-9]+/g,"-");
+  return apolloIds(rule).length ? apolloDocUrl(apolloIds(rule)[0]) : base;
+}
+function mkViol(list,id,col,subject){ const r=ruleMeta(id); if(!r) return; if(list.some(v=>v.ruleId===id&&v.col===col&&v.subject===(subject||""))) return; list.push({ ruleId:id, apollo:apolloIds(r), severity:r.severity||"warning", col, subject:subject||"", title:r.title, section:r.section, message:r.message, fix:r.fix, doc:docUrlFor(r) }); }
 function parseDefKey(def){ const m=String(def||"").match(/@key\s*\(\s*fields\s*:\s*"([^"]*)"/i); return m?m[1]:""; }
 /* Descriptions: a """text""" line directly above a field, parameter or enum value documents it (standard
    GraphQL SDL), in a Schema Definition or a Queries/Mutations Parameters cell. Parsers strip them;
@@ -140,61 +307,270 @@ function defBodyLines(def){ let s=stripDescriptions(def); const b=s.indexOf("{")
 function fieldDefs(def){ return defBodyLines(def).map(l=>{ const m=l.match(/^([A-Za-z_]\w*)\s*(?:\([^)]*\))?\s*:\s*(.+)$/); if(!m) return null; const rawType=m[2].split("@")[0].trim(); return { name:m[1], rawType, base:baseType(rawType) }; }).filter(Boolean); }
 function parseArgs(s){ return stripDescriptions(s).split(/[,\n\r]+/).map(x=>x.trim()).filter(Boolean).map(pair=>{ const i=pair.indexOf(":"); return i===-1?{name:pair,type:""}:{name:pair.slice(0,i).trim(), type:pair.slice(i+1).trim()}; }); }
 function keyFieldSet(def){ const raw=parseDefKey(def); return new Set(raw.replace(/[{}]/g," ").split(/\s+/).map(s=>s.trim()).filter(Boolean)); }
-// Validate one generated registry row → array of violation entries (mirrors workbench.html validateRow).
-function validateRow(sheet, row){
+/* ---- SDL parsing used by the standards engine and the schema visualization ---- */
+// Split on top-level commas / newlines, ignoring ones nested in (), [], {} or "strings".
+function splitTop(s){
+  const out=[]; let depth=0, inStr=false, cur="";
+  for(const ch of String(s||"")){
+    if(ch==='"') inStr=!inStr;
+    if(!inStr){ if("([{".includes(ch)) depth++; else if(")]}".includes(ch)) depth--; else if((ch===","||ch==="\n")&&depth===0){ out.push(cur); cur=""; continue; } }
+    cur+=ch;
+  }
+  out.push(cur); return out.map(x=>x.trim()).filter(Boolean);
+}
+// "first: Int = 10 @dir" → { name, type, base, defVal, dirs }
+function parseArgDef(s){
+  const m=String(s).match(/^([A-Za-z_]\w*)\s*:\s*([^=@]+?)\s*(?:=\s*([^@]+?))?\s*((?:@.*)?)$/);
+  return m ? { name:m[1], type:m[2].trim(), base:baseType(m[2]), defVal:m[3]!=null?m[3].trim():null, dirs:(m[4]||"").trim() }
+           : { name:String(s).split(":")[0].trim(), type:"", base:"", defVal:null, dirs:"", bad:true };
+}
+// Queries/Mutations Parameters cell → [{ name, type, base, defVal, dirs, desc }]
+function opParams(s){ return describedLines(s, true).map(e=>Object.assign(parseArgDef(e.line), { desc:e.desc, line:e.line })); }
+// Definition → { head (text before "{", e.g. `implements Node @key(fields: "id")`), entries [{desc,line}] }
+function defParts(def, kind){
+  def=String(def||"");
+  if(kind==="Enum"&&!/\{/.test(def)) return { head:"", entries:describedLines(def) };
+  const b=def.indexOf("{"), e=def.lastIndexOf("}");
+  if(b<0) return { head:def.trim(), entries:[] };
+  return { head:def.slice(0,b).trim(), entries:describedLines(def.slice(b+1, e>b?e:def.length)) };
+}
+const SDL_FIELD_RE=/^([A-Za-z_]\w*)\s*(?:\(([\s\S]*)\))?\s*:\s*([^@#]+?)\s*((?:@.*)?)$/;
+// Fields of an object / interface / input Definition, with args, directives and """descriptions""".
+// A field whose (args) span several lines is joined back into one entry.
+function defFields(def, kind){
+  const out=[]; let acc=null;
+  for(const e of defParts(def, kind).entries){
+    if(!acc && /^[@#]/.test(e.line)) continue;
+    acc = acc ? { desc:acc.desc, line:acc.line+" "+e.line } : { desc:e.desc, line:e.line };
+    if((acc.line.match(/\(/g)||[]).length > (acc.line.match(/\)/g)||[]).length) continue;
+    const m=acc.line.match(SDL_FIELD_RE);
+    out.push(m ? { name:m[1], args:m[2]!=null?splitTop(m[2]).map(parseArgDef):[], rawType:m[3].trim(), base:baseType(m[3]), dirs:(m[4]||"").trim(), desc:acc.desc, line:acc.line }
+               : { name:"", args:[], rawType:"", base:"", dirs:"", desc:acc.desc, line:acc.line, bad:true });
+    acc=null;
+  }
+  if(acc) out.push({ name:"", args:[], rawType:"", base:"", dirs:"", desc:acc.desc, line:acc.line, bad:true });
+  return out;
+}
+// Enum values (first token of each line, so `OLD @deprecated(…)` → OLD) with descriptions.
+function enumValues(def){ return defParts(def, "Enum").entries.filter(e=>!/^[@#]/.test(e.line)).map(e=>({ name:e.line.split(/[\s,]+/)[0], dirs:e.line.slice(e.line.split(/[\s,]+/)[0].length).trim(), desc:e.desc })).filter(v=>v.name); }
+// `implements A & B @key(…)` → ["A","B"]
+function implementsOf(head){ const m=String(head||"").match(/implements\s+([^@{]*)/); return m ? m[1].split(/[\s&,]+/).filter(Boolean) : []; }
+function overrideOf(dirs){ const m=String(dirs||"").match(/@override\s*\(((?:[^()"]|"[^"]*")*)\)/); if(!m) return null; const from=(m[1].match(/from\s*:\s*"([^"]*)"/)||[])[1]||"", label=(m[1].match(/label\s*:\s*"([^"]*)"/)||[])[1]||""; return { from, label }; }
+// First SDL syntax problem in a Definition / Parameters cell, or "".
+function sdlSyntaxIssue(text){
+  let s=String(text||"");
+  if(((s.match(/"""/g)||[]).length)%2) return 'unclosed """description"""';
+  s=s.replace(/"""[\s\S]*?"""/g,"");
+  if(((s.replace(/\\"/g,"").match(/"/g)||[]).length)%2) return "unclosed string quote";
+  s=s.replace(/"(?:[^"\\\n]|\\.)*"/g,'""').replace(/#[^\n]*/g,"");
+  const pair={ ")":"(", "]":"[", "}":"{" }, stack=[];
+  for(const ch of s){ if("([{".includes(ch)) stack.push(ch); else if(pair[ch]){ const top=stack.pop(); if(top!==pair[ch]) return top ? "unclosed "+top+" before "+ch : "unexpected "+ch; } }
+  return stack.length ? "unclosed "+stack[stack.length-1] : "";
+}
+// Directive usages in a cell: camelCase names, @deprecated reason, approved @tag names.
+function checkDirectives(out, text, col){
+  const src=stripDescriptions(text), bare=src.replace(/"(?:[^"\\\n]|\\.)*"/g,'""');
+  for(const m of bare.matchAll(/@([A-Za-z_]\w*)/g)) if(!stdRe("camelCase").test(m[1])) mkViol(out,"DIRECTIVE_NAMES_SHOULD_BE_CAMEL_CASE",col,'"@'+m[1]+'" ');
+  if(/@deprecated\b(?!\s*\([^)]*\breason\s*:)/.test(bare)) mkViol(out,"DEPRECATED_DIRECTIVE_MISSING_REASON",col,"");
+  const approved=(STANDARDS.tags&&STANDARDS.tags.approved)||[];
+  if(approved.length) for(const m of src.matchAll(/@tag\s*\(\s*name\s*:\s*"([^"]*)"/g)) if(!approved.includes(m[1])) mkViol(out,"TAG_DIRECTIVE_USES_UNKNOWN_NAME",col,'"'+m[1]+'" ');
+}
+const OBJECT_KINDS=new Set(["Key","Type","Interface","Input","Extend","Reference"]);
+const ENTITY_KINDS=new Set(["Key","Extend","Reference"]);
+
+/* ---- Registry-wide context: lets rules see other rows (unused types, enum usage, cross-subgraph composition) ---- */
+// db = { Entities, Schema, Queries, Mutations } (a subgraph = an entity's BusinessApplication).
+function buildStandardsContext(db){
+  db=db||{};
+  const ents={}; for(const e of db.Entities||[]) ents[e.EntityID]=e;
+  const sgName=e=>String((e&&e.BusinessApplication)||"").trim()||"—";
+  const sgOf=id=>sgName(ents[id]);
+  const subgraphs=new Set((db.Entities||[]).map(e=>sgName(e).toLowerCase()));
+  const types=[], byName={}, used=new Set(), inputUse=new Set(), outputUse=new Set(), implementers=new Set();
+  const useArgs=args=>{ for(const a of args||[]) if(a.base){ used.add(a.base); inputUse.add(a.base); } };
+  for(const r of db.Schema||[]){
+    const name=String(r.TypeName||"").trim(), kind=String(r.Kind||"").trim(); if(!name) continue;
+    const head=defParts(r.Definition, kind).head;
+    const t={ row:r, id:r.SchemaID, name, kind, sg:sgOf(r.EntityID), head, key:parseDefKey(r.Definition), desc:String(r.Description||"").trim(),
+      fields:OBJECT_KINDS.has(kind)?defFields(r.Definition, kind):[], values:kind==="Enum"?enumValues(r.Definition):[], impl:implementsOf(head) };
+    types.push(t); (byName[name]=byName[name]||[]).push(t);
+    for(const i of t.impl){ used.add(i); implementers.add(name); }
+    for(const f of t.fields){ if(f.base){ used.add(f.base); (kind==="Input"?inputUse:outputUse).add(f.base); } useArgs(f.args); }
+  }
+  for(const sheet of ["Queries","Mutations"]) for(const r of db[sheet]||[]){
+    useArgs(opParams(r.Parameters));
+    const rt=baseType(r.ReturnType); if(rt){ used.add(rt); outputUse.add(rt); }
+  }
+  return { sgOf, subgraphs, types, byName, used, inputUse, outputUse, implementers };
+}
+// Pages register where the registry lives (workbench: () => DB) and invalidate on edit.
+let STD_SOURCE=null, __stdCtx=null;
+function setStandardsSource(fn){ STD_SOURCE=fn; __stdCtx=null; }
+function invalidateStandardsContext(){ __stdCtx=null; }
+function stdContext(){ if(!STD_SOURCE) return null; if(!__stdCtx){ try{ __stdCtx=buildStandardsContext(STD_SOURCE()); }catch(e){ return null; } } return __stdCtx; }
+
+const listNames=(names,max)=>{ max=max||6; return names.slice(0,max).join(", ")+(names.length>max?" +"+(names.length-max)+" more":""); };
+const sameSet=(a,b)=>a.size===b.size&&[...a].every(x=>b.has(x));
+const normText=s=>String(s||"").replace(/\s+/g," ").trim();
+
+// Validate one registry row → array of violation entries. Pure (no DOM).
+// ctx (optional) = buildStandardsContext(...) for rules that look across rows; defaults to the page's registered source.
+function validateRow(sheet, row, ctx){
+  if(ctx===undefined) ctx=stdContext();
   const out=[];
+  const q=s=>'"'+s+'" ';
   const sc=STANDARDS.scalars||DEFAULT_STANDARDS.scalars;
   const standardScalars=new Set(sc.standard), discouraged=sc.discouraged||{};
+  const builtIn=new Set(sc.builtIn||["ID","String","Int","Float","Boolean"]);
   const monetaryHints=sc.monetaryHints||[], monetaryScalars=new Set(sc.monetaryScalars||[]);
   const monetaryExclude=sc.monetaryExclude||[];
   const allCaps=new Set((STANDARDS.abbreviations||{}).allCapsAllowed||[]);
   const verbs=new Set(STANDARDS.verbHints||[]);
+  const prefixes=((STANDARDS.naming||{}).restrictedFieldPrefixes||DEFAULT_STANDARDS.naming.restrictedFieldPrefixes);
+  const restyRe=prefixes.length ? new RegExp("^("+prefixes.join("|")+")([A-Z0-9_]|$)") : null;
   const isVersioned=s=>stdRe("versioned").test(String(s||""));
+  const camel=s=>stdRe("camelCase").test(s);
   if(sheet==="Schema"){
     const kind=String(row.Kind||"").trim();
     const name=String(row.TypeName||"").trim();
     const def=row.Definition||"";
+    const fields=OBJECT_KINDS.has(kind)?defFields(def, kind):[];
+    const syn=sdlSyntaxIssue(def);
+    if(syn) mkViol(out,"DOES_NOT_PARSE","Definition",q(syn));
+    else for(const f of fields) if(f.bad) mkViol(out,"DOES_NOT_PARSE","Definition",q(f.line));
+    if(/^\s*(?:(?:query|mutation|subscription)\b\s*(?:[A-Za-z_]\w*)?\s*(?:\(\s*\$|\{)|fragment\s+\w+\s+on\s+\w+)/m.test(stripDescriptions(def))) mkViol(out,"QUERY_DOCUMENT_DECLARATION","Definition","");
+    checkDirectives(out, def, "Definition");
     if(name){
       if(kind==="Scalar"){
-        if(discouraged[name]) mkViol(out,"SCALAR-PREFER-DATETIMEISO","TypeName",'"'+name+'" ');
-        else if(!standardScalars.has(name)) mkViol(out,"SCALAR-STANDARD","TypeName",'"'+name+'" ');
+        if(discouraged[name]) mkViol(out,"SCALAR-PREFER-DATETIMEISO","TypeName",q(name));
+        else if(!standardScalars.has(name)) mkViol(out,"SCALAR-STANDARD","TypeName",q(name));
       } else {
-        if(!stdRe("PascalCase").test(name)) mkViol(out,"NAME-TYPE-PASCAL","TypeName",'"'+name+'" ');
-        else if(name===name.toUpperCase()&&name.length>1&&!allCaps.has(name)) mkViol(out,"NAME-ABBREV-CASE","TypeName",'"'+name+'" ');
-        if(kind==="Input"&&!/Input$/.test(name)) mkViol(out,"NAME-INPUT-SUFFIX","TypeName",'"'+name+'" ');
-        if(isVersioned(name)) mkViol(out,"ANTI-FIELD-VERSION","TypeName",'"'+name+'" ');
+        if(!stdRe("PascalCase").test(name)) mkViol(out,"NAME-TYPE-PASCAL","TypeName",q(name));
+        else if(name===name.toUpperCase()&&name.length>1&&!allCaps.has(name)) mkViol(out,"NAME-ABBREV-CASE","TypeName",q(name));
+        if(/^Type[A-Z0-9]/.test(name)) mkViol(out,"TYPE_PREFIX","TypeName",q(name));
+        if(/.Type$/.test(name)) mkViol(out,"TYPE_SUFFIX","TypeName",q(name));
+        if(kind==="Interface"){
+          if(/^Interface[A-Z0-9]/.test(name)) mkViol(out,"INTERFACE_PREFIX","TypeName",q(name));
+          if(/.Interface$/.test(name)) mkViol(out,"INTERFACE_SUFFIX","TypeName",q(name));
+        } else if(kind==="Enum"){
+          if(/^Enum[A-Z0-9]/.test(name)) mkViol(out,"ENUM_PREFIX","TypeName",q(name));
+          if(/.Enum$/.test(name)) mkViol(out,"ENUM_SUFFIX","TypeName",q(name));
+        } else if(kind!=="Input"){
+          if(/^Object[A-Z0-9]/.test(name)) mkViol(out,"OBJECT_PREFIX","TypeName",q(name));
+          if(/.Object$/.test(name)) mkViol(out,"OBJECT_SUFFIX","TypeName",q(name));
+        }
+        if(kind==="Input"&&!/Input$/.test(name)) mkViol(out,"NAME-INPUT-SUFFIX","TypeName",q(name));
+        if(isVersioned(name)) mkViol(out,"ANTI-FIELD-VERSION","TypeName",q(name));
       }
+      // Extend / Reference rows borrow another subgraph's type: its description lives with the owner.
+      if(!ENTITY_KINDS.has(kind)||kind==="Key") if(!String(row.Description||"").trim()&&!(kind==="Scalar"&&builtIn.has(name))) mkViol(out,"ALL_ELEMENTS_REQUIRE_DESCRIPTION","Description",q(name));
     }
     if(kind==="Enum"){
-      const vals=defBodyLines(def);
-      for(const v of vals) if(!stdRe("SCREAMING_SNAKE_CASE").test(v)) mkViol(out,"NAME-ENUMVALUE-SCREAMING","Definition",'"'+v+'" ');
-      if(vals.length&&!vals.includes("UNKNOWN")) mkViol(out,"ENUM-UNKNOWN-VALUE","Definition","");
-    } else if(kind==="Key"||kind==="Type"||kind==="Interface"||kind==="Input"){
+      const vals=enumValues(def);
+      for(const v of vals) if(!stdRe("SCREAMING_SNAKE_CASE").test(v.name)) mkViol(out,"NAME-ENUMVALUE-SCREAMING","Definition",q(v.name));
+      if(vals.length&&!vals.some(v=>v.name==="UNKNOWN")) mkViol(out,"ENUM-UNKNOWN-VALUE","Definition","");
+      const undoc=vals.filter(v=>!v.desc).map(v=>v.name);
+      if(undoc.length) mkViol(out,"ALL_ELEMENTS_REQUIRE_DESCRIPTION","Definition","values "+q(listNames(undoc)));
+    } else if(OBJECT_KINDS.has(kind)){
       const keys=keyFieldSet(def);
-      for(const f of fieldDefs(def)){
-        if(!stdRe("camelCase").test(f.name)) mkViol(out,"NAME-FIELD-CAMEL","Definition",'"'+f.name+'" ');
-        if(isVersioned(f.name)) mkViol(out,"ANTI-FIELD-VERSION","Definition",'"'+f.name+'" ');
-        if(f.base==="Boolean"&&/^(is|has|can)[A-Z]/.test(f.name)) mkViol(out,"NAME-BOOL-PREFIX","Definition",'"'+f.name+'" ');
-        if(/^\[/.test(f.rawType)&&!stdRe("arrayNonNull").test(f.rawType)) mkViol(out,"NULL-ARRAY-NONNULL","Definition",'"'+f.name+": "+f.rawType+'" ');
-        if(keys.has(f.name)&&!/!$/.test(f.rawType.trim())) mkViol(out,"NULL-KEY-NONNULL","Definition",'"'+f.name+": "+f.rawType+'" ');
-        if(discouraged[f.base]) mkViol(out,"SCALAR-PREFER-DATETIMEISO","Definition",'"'+f.name+'" ');
+      for(const f of fields){
+        if(f.bad) continue;
+        if(!camel(f.name)) mkViol(out,"NAME-FIELD-CAMEL","Definition",q(f.name));
+        if(restyRe&&restyRe.test(f.name)) mkViol(out,"RESTY_FIELD_NAMES","Definition",q(f.name));
+        if(isVersioned(f.name)) mkViol(out,"ANTI-FIELD-VERSION","Definition",q(f.name));
+        if(f.base==="Boolean"&&/^(is|has|can)[A-Z]/.test(f.name)) mkViol(out,"NAME-BOOL-PREFIX","Definition",q(f.name));
+        if(/^\[/.test(f.rawType)&&!stdRe("arrayNonNull").test(f.rawType)) mkViol(out,"NULL-ARRAY-NONNULL","Definition",q(f.name+": "+f.rawType));
+        if(keys.has(f.name)&&!/!$/.test(f.rawType.trim())) mkViol(out,"NULL-KEY-NONNULL","Definition",q(f.name+": "+f.rawType));
+        if(discouraged[f.base]) mkViol(out,"SCALAR-PREFER-DATETIMEISO","Definition",q(f.name));
         const fn=f.name.toLowerCase();
-        if(monetaryScalars.has(f.base)&&monetaryHints.some(h=>fn.includes(h))&&!monetaryExclude.some(x=>fn.includes(x))) mkViol(out,"SCALAR-MONEY-NOT-DECIMAL","Definition",'"'+f.name+'" ');
+        if(monetaryScalars.has(f.base)&&monetaryHints.some(h=>fn.includes(h))&&!monetaryExclude.some(x=>fn.includes(x))) mkViol(out,"SCALAR-MONEY-NOT-DECIMAL","Definition",q(f.name));
+        for(const a of f.args) if(a.name&&!camel(a.name)) mkViol(out,"INPUT_ARGUMENT_NAMES_SHOULD_BE_CAMEL_CASE","Definition",q(f.name+"("+a.name+")"));
+        const ov=overrideOf(f.dirs);
+        if(ov&&ov.label) mkViol(out,"OVERRIDE_MIGRATION_IN_PROGRESS","Definition",q(f.name+' @override(label: "'+ov.label+'")'));
       }
+      // @external fields only restate another subgraph's field — documented there.
+      const undoc=fields.filter(f=>!f.bad&&!f.desc&&!/@external\b/.test(f.dirs)).map(f=>f.name);
+      if(undoc.length) mkViol(out,"ALL_ELEMENTS_REQUIRE_DESCRIPTION","Definition","fields "+q(listNames(undoc)));
     }
+    if(ctx&&name) crossRowChecks(out, row, kind, name, fields, ctx, q);
   } else if(sheet==="Queries"||sheet==="Mutations"){
     const name=String(row.Name||"").trim();
     const isMut=sheet==="Mutations";
     if(name){
-      if(!stdRe("camelCase").test(name)) mkViol(out,isMut?"NAME-MUTATION-CAMEL":"NAME-QUERY-CAMEL","Name",'"'+name+'" ');
-      if(isVersioned(name)) mkViol(out,"ANTI-FIELD-VERSION","Name",'"'+name+'" ');
-      if(isMut){ const lead=(name.match(/^[a-z]+/)||[""])[0]; if(lead&&!verbs.has(lead)) mkViol(out,"NAME-MUTATION-VERB","Name",'"'+name+'" '); }
+      if(!camel(name)) mkViol(out,isMut?"NAME-MUTATION-CAMEL":"NAME-QUERY-CAMEL","Name",q(name));
+      if(isVersioned(name)) mkViol(out,"ANTI-FIELD-VERSION","Name",q(name));
+      if(isMut){ const lead=(name.match(/^[a-z]+/)||[""])[0]; if(lead&&!verbs.has(lead)) mkViol(out,"NAME-MUTATION-VERB","Name",q(name)); }
+      else if(restyRe&&restyRe.test(name)) mkViol(out,"RESTY_FIELD_NAMES","Name",q(name));
+      if(!String(row.Description||"").trim()) mkViol(out,"ALL_ELEMENTS_REQUIRE_DESCRIPTION","Description",q(name));
     }
-    const args=parseArgs(row.Parameters);
+    const syn=sdlSyntaxIssue(row.Parameters);
+    if(syn) mkViol(out,"DOES_NOT_PARSE","Parameters",q(syn));
+    checkDirectives(out, row.Parameters, "Parameters");
+    const args=opParams(row.Parameters);
+    for(const a of args) if(a.name&&!camel(a.name)) mkViol(out,"INPUT_ARGUMENT_NAMES_SHOULD_BE_CAMEL_CASE","Parameters",q(a.name));
+    const undoc=args.filter(a=>a.name&&!a.desc).map(a=>a.name);
+    if(undoc.length) mkViol(out,"ALL_ELEMENTS_REQUIRE_DESCRIPTION","Parameters","parameters "+q(listNames(undoc)));
     const idLike=a=>/^ID!?$/i.test(a.type||"")||/id$/i.test(a.name||"");
     if(args.length>1&&!args.every(idLike)) mkViol(out,"OP-SINGLE-INPUT","Parameters","");
   }
   return out;
+}
+// Rules that compare a Schema row with the rest of the registry (other rows / other subgraphs).
+function crossRowChecks(out, row, kind, name, fields, ctx, q){
+  const sg=(ctx.sgOf(row.EntityID)||"—"), sgl=sg.toLowerCase();
+  const peers=(ctx.byName[name]||[]).filter(t=>t.sg.toLowerCase()!==sgl);   // same type, other subgraphs
+  // Usage
+  if(kind==="Enum"){
+    if(!ctx.used.has(name)) mkViol(out,"UNUSED_ENUM_TYPE","TypeName",q(name));
+    else {
+      const asIn=ctx.inputUse.has(name), asOut=ctx.outputUse.has(name);
+      if(asIn&&!asOut&&!/Input$/.test(name)) mkViol(out,"ENUM_USED_AS_INPUT_WITHOUT_SUFFIX","TypeName",q(name));
+      if(asOut&&/Input$/.test(name)) mkViol(out,"ENUM_USED_AS_OUTPUT_DESPITE_SUFFIX","TypeName",q(name));
+    }
+  } else if((kind==="Type"||kind==="Interface"||kind==="Input")&&!ctx.used.has(name)&&!ctx.implementers.has(name)) mkViol(out,"DEFINED_TYPES_ARE_UNUSED","TypeName",q(name));
+  // Composition: entity-ness, descriptions, value sets
+  if(kind==="Type"){ const ent=peers.find(t=>ENTITY_KINDS.has(t.kind)); if(ent) mkViol(out,"INCONSISTENT_ENTITY","Kind",q(name+" (entity in "+ent.sg+")")); }
+  const desc=normText(row.Description);
+  if(desc){ const d=peers.find(t=>t.desc&&normText(t.desc)!==desc); if(d) mkViol(out,"INCONSISTENT_DESCRIPTION","Description",q(name+" (vs "+d.sg+")")); }
+  if(kind==="Enum"){
+    const mine=new Set(enumValues(row.Definition).map(v=>v.name));
+    const d=peers.find(t=>t.kind==="Enum"&&!sameSet(mine,new Set(t.values.map(v=>v.name))));
+    if(d) mkViol(out,ctx.inputUse.has(name)?"INCONSISTENT_ENUM_VALUE_FOR_INPUT_ENUM":"INCONSISTENT_ENUM_VALUE_FOR_OUTPUT_ENUM","Definition",q(name+" (vs "+d.sg+")"));
+  }
+  const shapeRule={ Input:"INCONSISTENT_INPUT_OBJECT_FIELD", Type:"INCONSISTENT_OBJECT_VALUE_TYPE_FIELD", Interface:"INCONSISTENT_INTERFACE_VALUE_TYPE_FIELD" }[kind];
+  if(shapeRule){
+    const mine=new Set(fields.filter(f=>f.name).map(f=>f.name));
+    const d=peers.find(t=>t.kind===kind&&!sameSet(mine,new Set(t.fields.filter(f=>f.name).map(f=>f.name))));
+    if(d) mkViol(out,shapeRule,"Definition",q(name+" (vs "+d.sg+")"));
+  }
+  // Composition: per-field types / arguments
+  for(const f of fields){
+    if(f.bad||!f.name) continue;
+    for(const t of peers){
+      const o=t.fields.find(x=>x.name===f.name); if(!o||o.bad) continue;
+      if(o.rawType.replace(/\s+/g,"")!==f.rawType.replace(/\s+/g,"")) mkViol(out,"INCONSISTENT_BUT_COMPATIBLE_FIELD_TYPE","Definition",q(f.name+": "+f.rawType+" vs "+t.sg+" "+o.rawType));
+      if(kind==="Input"||t.kind==="Input") continue;
+      const mineA=new Map(f.args.map(a=>[a.name,a])), theirA=new Map(o.args.map(a=>[a.name,a]));
+      if(!sameSet(new Set(mineA.keys()),new Set(theirA.keys()))) mkViol(out,"INCONSISTENT_ARGUMENT_PRESENCE","Definition",q(f.name+" (vs "+t.sg+")"));
+      for(const [n,a] of mineA){
+        const b=theirA.get(n); if(!b) continue;
+        if(a.type.replace(/\s+/g,"")!==b.type.replace(/\s+/g,"")) mkViol(out,"INCONSISTENT_BUT_COMPATIBLE_ARGUMENT_TYPE","Definition",q(f.name+"("+n+": "+a.type+") vs "+t.sg+" "+b.type));
+        if((a.defVal==null)!==(b.defVal==null)) mkViol(out,"INCONSISTENT_DEFAULT_VALUE_PRESENCE","Definition",q(f.name+"("+n+") vs "+t.sg));
+      }
+    }
+    // @override(from: …) on this field
+    const ov=overrideOf(f.dirs);
+    if(ov&&ov.from){
+      const from=ov.from.toLowerCase();
+      if(!ctx.subgraphs.has(from)) mkViol(out,"FROM_SUBGRAPH_DOES_NOT_EXIST","Definition",q(f.name+' @override(from: "'+ov.from+'")'));
+      else if(!peers.some(t=>t.sg.toLowerCase()===from&&t.fields.some(x=>x.name===f.name&&!/@external\b/.test(x.dirs)))) mkViol(out,"OVERRIDE_DIRECTIVE_CAN_BE_REMOVED","Definition",q(f.name+' @override(from: "'+ov.from+'")'));
+    }
+    // another subgraph fully overrides this field from here
+    if(!/@external\b/.test(f.dirs)){
+      const by=peers.find(t=>t.fields.some(x=>{ if(x.name!==f.name) return false; const o2=overrideOf(x.dirs); return o2&&!o2.label&&o2.from.toLowerCase()===sgl; }));
+      if(by) mkViol(out,"OVERRIDDEN_FIELD_CAN_BE_REMOVED","Definition",q(f.name+" (overridden by "+by.sg+")"));
+    }
+  }
 }
 function worstSeverity(viols){ let w=null,r=0; for(const v of viols){ const k=SEVERITY_RANK[v.severity]||0; if(k>r){ r=k; w=v.severity; } } return w; }
 

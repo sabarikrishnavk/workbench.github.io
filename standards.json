@@ -1,9 +1,11 @@
 {
   "meta": {
-    "version": "1.0",
+    "version": "2.0",
     "title": "GQL Federation — Schema Standards and Patterns",
-    "source": "GQL Federation - Schema Standards  and Patterns",
-    "docBase": ""
+    "source": "GQL Federation - Schema Standards and Patterns + Apollo GraphOS schema linter rules",
+    "docBase": "",
+    "apolloDoc": "https://www.apollographql.com/docs/graphos/platform/schema-management/linting/rules",
+    "notes": "House rules (source: house) come from the FedGQL standards document. Apollo GraphOS linter rules (source: apollo) use their GraphOS rule IDs; a house rule that enforces the same thing lists the GraphOS ID under 'apollo' instead of being duplicated. Rules with enforcedBy: graphos need data the registry does not model (directive definitions, unions, schema-level @contact) — they are listed for reference and checked by GraphOS at publish time."
   },
   "patterns": {
     "PascalCase": "^[A-Z][A-Za-z0-9]*$",
@@ -16,6 +18,7 @@
     "standard": ["ID", "String", "Int", "Float", "Boolean", "CountryCode", "Currency", "Date",
       "DateTimeISO", "Decimal", "LocalDateTime", "LocalDate", "LocalTime", "JSON", "HexColorCode",
       "Latitude", "Longitude", "Money", "PhoneNumber", "Postcode", "TimeZone", "URL", "UUID"],
+    "builtIn": ["ID", "String", "Int", "Float", "Boolean"],
     "discouraged": {
       "DateTime": "Prefer DateTimeISO — a timestamp with a mandatory time-zone offset.",
       "LocalDateTime": "Prefer DateTimeISO wherever an offset applies; LocalDateTime has no offset."
@@ -31,9 +34,17 @@
   "verbHints": ["create", "update", "delete", "apply", "generate", "add", "remove", "set", "cancel",
     "submit", "assign", "link", "unlink", "enable", "disable", "approve", "reject", "send", "start",
     "stop", "activate", "deactivate", "confirm", "decline", "move", "copy", "share", "sync"],
+  "naming": {
+    "restrictedFieldPrefixes": ["get", "list", "post", "put", "patch"]
+  },
+  "tags": {
+    "approved": []
+  },
   "rules": [
     {
       "id": "NAME-TYPE-PASCAL",
+      "source": "house",
+      "apollo": ["TYPE_NAMES_SHOULD_BE_PASCAL_CASE"],
       "title": "Type names must be PascalCase",
       "category": "Type names",
       "section": "Naming Rules",
@@ -43,6 +54,7 @@
     },
     {
       "id": "NAME-ABBREV-CASE",
+      "source": "house",
       "title": "Avoid all-uppercase abbreviations",
       "category": "Type names",
       "section": "Agreed Naming Abbreviations",
@@ -51,7 +63,69 @@
       "fix": "Use PascalCase; abbreviations are title-cased (Org, Promo) unless on the agreed all-caps list."
     },
     {
+      "id": "TYPE_PREFIX",
+      "source": "apollo",
+      "title": "Type names don't start with 'Type'",
+      "category": "Type names",
+      "section": "Naming rules › Types",
+      "severity": "warning",
+      "message": "type names should not start with the redundant prefix 'Type' (e.g. TypeBook).",
+      "fix": "Drop the prefix: type TypeBook → type Book."
+    },
+    {
+      "id": "TYPE_SUFFIX",
+      "source": "apollo",
+      "title": "Type names don't end with 'Type'",
+      "category": "Type names",
+      "section": "Naming rules › Types",
+      "severity": "warning",
+      "message": "type names should not end with the redundant suffix 'Type' (e.g. BookType).",
+      "fix": "Drop the suffix: type BookType → type Book."
+    },
+    {
+      "id": "OBJECT_PREFIX",
+      "source": "apollo",
+      "title": "Object types don't start with 'Object'",
+      "category": "Type names",
+      "section": "Naming rules › Objects",
+      "severity": "warning",
+      "message": "object type names should not start with the redundant prefix 'Object' (e.g. ObjectBook).",
+      "fix": "Drop the prefix: type ObjectBook → type Book."
+    },
+    {
+      "id": "OBJECT_SUFFIX",
+      "source": "apollo",
+      "title": "Object types don't end with 'Object'",
+      "category": "Type names",
+      "section": "Naming rules › Objects",
+      "severity": "warning",
+      "message": "object type names should not end with the redundant suffix 'Object' (e.g. BookObject).",
+      "fix": "Drop the suffix: type BookObject → type Book."
+    },
+    {
+      "id": "INTERFACE_PREFIX",
+      "source": "apollo",
+      "title": "Interfaces don't start with 'Interface'",
+      "category": "Type names",
+      "section": "Naming rules › Interfaces",
+      "severity": "warning",
+      "message": "interface names should not start with the redundant prefix 'Interface' (e.g. InterfaceBook).",
+      "fix": "Drop the prefix: interface InterfaceBook → interface Book."
+    },
+    {
+      "id": "INTERFACE_SUFFIX",
+      "source": "apollo",
+      "title": "Interfaces don't end with 'Interface'",
+      "category": "Type names",
+      "section": "Naming rules › Interfaces",
+      "severity": "warning",
+      "message": "interface names should not end with the redundant suffix 'Interface' (e.g. BookInterface).",
+      "fix": "Drop the suffix: interface BookInterface → interface Book."
+    },
+    {
       "id": "NAME-INPUT-SUFFIX",
+      "source": "house",
+      "apollo": ["INPUT_TYPE_SUFFIX"],
       "title": "Input types end with 'Input'",
       "category": "Input types",
       "section": "Naming Rules",
@@ -61,6 +135,8 @@
     },
     {
       "id": "NAME-FIELD-CAMEL",
+      "source": "house",
+      "apollo": ["FIELD_NAMES_SHOULD_BE_CAMEL_CASE"],
       "title": "Object/input fields must be camelCase",
       "category": "Fields",
       "section": "Naming Rules",
@@ -69,7 +145,18 @@
       "fix": "Rename the field to camelCase."
     },
     {
+      "id": "RESTY_FIELD_NAMES",
+      "source": "apollo",
+      "title": "Fields don't start with REST verbs",
+      "category": "Fields",
+      "section": "Naming rules › Fields",
+      "severity": "warning",
+      "message": "field and query names should not start with get, list, post, put or patch — only mutations lead with a verb.",
+      "fix": "Name the field after what it returns: getUsers → users."
+    },
+    {
       "id": "NAME-BOOL-PREFIX",
+      "source": "house",
       "title": "Boolean fields avoid is/has/can prefixes",
       "category": "Fields",
       "section": "Naming Rules",
@@ -78,7 +165,18 @@
       "fix": "Drop the prefix unless it genuinely adds clarity; avoid negative names like 'inactive'."
     },
     {
+      "id": "INPUT_ARGUMENT_NAMES_SHOULD_BE_CAMEL_CASE",
+      "source": "apollo",
+      "title": "Argument names must be camelCase",
+      "category": "Arguments",
+      "section": "Naming rules › Inputs and arguments",
+      "severity": "error",
+      "message": "argument names must be camelCase (e.g. blogPostContent, not BlogPostContent).",
+      "fix": "Rename the argument / parameter to camelCase."
+    },
+    {
       "id": "NULL-KEY-NONNULL",
+      "source": "house",
       "title": "Entity @key fields must be non-null",
       "category": "Nullability",
       "section": "Field Nullability Rules",
@@ -88,6 +186,7 @@
     },
     {
       "id": "NULL-ARRAY-NONNULL",
+      "source": "house",
       "title": "Array fields must be non-null with non-null elements",
       "category": "Nullability",
       "section": "Field Nullability Rules",
@@ -97,6 +196,8 @@
     },
     {
       "id": "NAME-ENUMVALUE-SCREAMING",
+      "source": "house",
+      "apollo": ["ENUM_VALUES_SHOULD_BE_SCREAMING_SNAKE_CASE"],
       "title": "Enum values must be SCREAMING_SNAKE_CASE",
       "category": "Enums",
       "section": "Naming Rules",
@@ -105,7 +206,48 @@
       "fix": "Uppercase the value and separate words with underscores."
     },
     {
+      "id": "ENUM_PREFIX",
+      "source": "apollo",
+      "title": "Enums don't start with 'Enum'",
+      "category": "Enums",
+      "section": "Naming rules › Enums",
+      "severity": "warning",
+      "message": "enum names should not start with the redundant prefix 'Enum' (e.g. EnumResidence).",
+      "fix": "Drop the prefix: enum EnumResidence → enum Residence."
+    },
+    {
+      "id": "ENUM_SUFFIX",
+      "source": "apollo",
+      "title": "Enums don't end with 'Enum'",
+      "category": "Enums",
+      "section": "Naming rules › Enums",
+      "severity": "warning",
+      "message": "enum names should not end with the redundant suffix 'Enum' (e.g. ResidenceEnum).",
+      "fix": "Drop the suffix: enum ResidenceEnum → enum Residence."
+    },
+    {
+      "id": "ENUM_USED_AS_INPUT_WITHOUT_SUFFIX",
+      "source": "apollo",
+      "title": "Input-only enums end with 'Input'",
+      "category": "Enums",
+      "section": "Naming rules › Enums",
+      "severity": "warning",
+      "message": "is only used as an input (argument or input field) — enums used as inputs should end with 'Input'. Enums also returned by a field are exempt here (see ENUM_USED_AS_OUTPUT_DESPITE_SUFFIX).",
+      "fix": "Rename the enum with an Input suffix, e.g. enum Role → enum RoleInput."
+    },
+    {
+      "id": "ENUM_USED_AS_OUTPUT_DESPITE_SUFFIX",
+      "source": "apollo",
+      "title": "Output enums don't end with 'Input'",
+      "category": "Enums",
+      "section": "Naming rules › Enums",
+      "severity": "warning",
+      "message": "ends with 'Input' but is returned by a field — output enums should not use the Input suffix.",
+      "fix": "Rename the enum without the suffix, e.g. enum RoleInput → enum Role."
+    },
+    {
       "id": "ENUM-UNKNOWN-VALUE",
+      "source": "house",
       "title": "Consider an UNKNOWN enum value",
       "category": "Enums",
       "section": "Enum Value Additions",
@@ -115,6 +257,7 @@
     },
     {
       "id": "SCALAR-STANDARD",
+      "source": "house",
       "title": "Use a standardized custom scalar",
       "category": "Scalars",
       "section": "Custom Scalars",
@@ -124,6 +267,7 @@
     },
     {
       "id": "SCALAR-PREFER-DATETIMEISO",
+      "source": "house",
       "title": "Prefer DateTimeISO for timestamps",
       "category": "Scalars",
       "section": "Custom Scalars",
@@ -133,6 +277,7 @@
     },
     {
       "id": "SCALAR-MONEY-NOT-DECIMAL",
+      "source": "house",
       "title": "Use Money for monetary values",
       "category": "Scalars",
       "section": "Custom Scalars",
@@ -142,6 +287,8 @@
     },
     {
       "id": "NAME-QUERY-CAMEL",
+      "source": "house",
+      "apollo": ["FIELD_NAMES_SHOULD_BE_CAMEL_CASE"],
       "title": "Query names must be camelCase",
       "category": "Queries",
       "section": "Naming Rules",
@@ -151,6 +298,8 @@
     },
     {
       "id": "NAME-MUTATION-CAMEL",
+      "source": "house",
+      "apollo": ["FIELD_NAMES_SHOULD_BE_CAMEL_CASE"],
       "title": "Mutation names must be camelCase",
       "category": "Mutations",
       "section": "Naming Rules",
@@ -160,6 +309,7 @@
     },
     {
       "id": "NAME-MUTATION-VERB",
+      "source": "house",
       "title": "Mutations start with a domain verb",
       "category": "Mutations",
       "section": "Use Business/Domain Language",
@@ -169,6 +319,7 @@
     },
     {
       "id": "OP-SINGLE-INPUT",
+      "source": "house",
       "title": "Use a single input type argument",
       "category": "Operations",
       "section": "Use a Single Input Type Argument for Queries/Mutations",
@@ -177,13 +328,376 @@
       "fix": "Group arguments into one input type, e.g. products(input: ProductsInput)."
     },
     {
+      "id": "DIRECTIVE_NAMES_SHOULD_BE_CAMEL_CASE",
+      "source": "apollo",
+      "title": "Directive names must be camelCase",
+      "category": "Directives",
+      "section": "Naming rules › Directives",
+      "severity": "error",
+      "message": "directive names must be camelCase (e.g. @specialField, not @SpecialField).",
+      "fix": "Rename the directive (definition and every usage) to camelCase."
+    },
+    {
+      "id": "DEPRECATED_DIRECTIVE_MISSING_REASON",
+      "source": "apollo",
+      "title": "@deprecated must give a reason",
+      "category": "Directives",
+      "section": "Other rules › Directives",
+      "severity": "warning",
+      "message": "uses @deprecated without a reason argument.",
+      "fix": "Add a reason naming the replacement and the planned removal date, e.g. @deprecated(reason: \"Use Product.name instead\")."
+    },
+    {
+      "id": "TAG_DIRECTIVE_USES_UNKNOWN_NAME",
+      "source": "apollo",
+      "title": "@tag uses an approved name",
+      "category": "Directives",
+      "section": "Other rules › Directives",
+      "severity": "warning",
+      "message": "uses a @tag name that is not on the approved list (standards.json → tags.approved).",
+      "fix": "Use an approved @tag name, or add the name to tags.approved (and in GraphOS Studio) after review. The check is skipped while tags.approved is empty."
+    },
+    {
+      "id": "CONTACT_DIRECTIVE_MISSING",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Subgraph declares owner @contact",
+      "category": "Directives",
+      "section": "Other rules › Directives",
+      "severity": "warning",
+      "message": "subgraph schemas should declare owner contact details with the @contact directive on the schema.",
+      "fix": "Add extend schema @contact(name: \"…\", url: \"…\", description: \"…\") to the subgraph SDL."
+    },
+    {
+      "id": "ALL_ELEMENTS_REQUIRE_DESCRIPTION",
+      "source": "apollo",
+      "title": "Every element has a description",
+      "category": "Documentation",
+      "section": "Other rules › Schema",
+      "severity": "info",
+      "message": "is missing a description — every type, field, enum value, operation and argument should be documented.",
+      "fix": "Fill the Description column, and add a \"\"\"description\"\"\" line above each field / value / parameter (✎ Edit row)."
+    },
+    {
+      "id": "DEFINED_TYPES_ARE_UNUSED",
+      "source": "apollo",
+      "title": "Every defined type is used",
+      "category": "Schema hygiene",
+      "section": "Other rules › Schema",
+      "severity": "warning",
+      "message": "is not referenced by any field, argument, interface or operation in the registry (entities, enums and scalars are checked separately).",
+      "fix": "Reference the type from a field / operation, or remove it once refactored out."
+    },
+    {
+      "id": "QUERY_DOCUMENT_DECLARATION",
+      "source": "apollo",
+      "title": "Schemas don't declare operations",
+      "category": "Schema hygiene",
+      "section": "Other rules › Schema",
+      "severity": "error",
+      "message": "contains an executable operation (query / mutation / subscription / fragment) — operations belong to clients, not schemas.",
+      "fix": "Remove the operation document from the Definition; keep only type definitions."
+    },
+    {
+      "id": "DOES_NOT_PARSE",
+      "source": "apollo",
+      "title": "SDL must parse",
+      "category": "Schema hygiene",
+      "section": "Other rules › Schema",
+      "severity": "error",
+      "message": "is malformed SDL (unbalanced brackets/quotes or a line that is not 'name: Type').",
+      "fix": "Fix the syntax; each field is name(args): Type @directives on its own line."
+    },
+    {
       "id": "ANTI-FIELD-VERSION",
+      "source": "house",
       "title": "No field/type versioning",
       "category": "Anti-patterns",
       "section": "Field Versioning",
       "severity": "warning",
       "message": "avoid version suffixes like V2 — schema versioning is a GQL anti-pattern.",
       "fix": "Use the 2-stage deprecation approach (@deprecated with a planned deletion date) instead of a versioned name."
+    },
+    {
+      "id": "INCONSISTENT_ENTITY",
+      "source": "apollo",
+      "title": "An object is an entity in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "is declared with @key in another subgraph but as a plain type here — the supergraph gets incomplete entity information.",
+      "fix": "Declare the type as an entity here too (Kind Key / Extend / Reference with the same @key)."
+    },
+    {
+      "id": "INCONSISTENT_BUT_COMPATIBLE_FIELD_TYPE",
+      "source": "apollo",
+      "title": "A field has the same type in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "has a different type in another subgraph — field types should be identical across subgraphs.",
+      "fix": "Use exactly the same type (including ! and list wrappers) in every subgraph that defines the field."
+    },
+    {
+      "id": "INCONSISTENT_ARGUMENT_PRESENCE",
+      "source": "apollo",
+      "title": "A field has the same arguments in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "has arguments that are missing in another subgraph that defines the same field — they are dropped from the supergraph.",
+      "fix": "Declare the same arguments on the field in every subgraph."
+    },
+    {
+      "id": "INCONSISTENT_BUT_COMPATIBLE_ARGUMENT_TYPE",
+      "source": "apollo",
+      "title": "An argument has the same type in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "has an argument whose type differs from another subgraph's definition of the same field.",
+      "fix": "Use exactly the same argument type (including !) in every subgraph."
+    },
+    {
+      "id": "INCONSISTENT_DEFAULT_VALUE_PRESENCE",
+      "source": "apollo",
+      "title": "Argument defaults are consistent",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "has an argument with a default value in one subgraph but not in another.",
+      "fix": "Give the argument the same default value in every subgraph (or none in all)."
+    },
+    {
+      "id": "INCONSISTENT_DESCRIPTION",
+      "source": "apollo",
+      "title": "A type has the same description in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "has a different description in another subgraph.",
+      "fix": "Use one description for the type in every subgraph (or describe it only in the owning subgraph)."
+    },
+    {
+      "id": "INCONSISTENT_ENUM_VALUE_FOR_INPUT_ENUM",
+      "source": "apollo",
+      "title": "Input enums have the same values in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "is used as an input and its values differ from another subgraph — only the shared values reach the supergraph.",
+      "fix": "Define the same enum values in every subgraph that declares the enum."
+    },
+    {
+      "id": "INCONSISTENT_ENUM_VALUE_FOR_OUTPUT_ENUM",
+      "source": "apollo",
+      "title": "Output enums have the same values in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "has values that differ from another subgraph — all values are merged into the supergraph.",
+      "fix": "Define the same enum values in every subgraph that declares the enum."
+    },
+    {
+      "id": "INCONSISTENT_INPUT_OBJECT_FIELD",
+      "source": "apollo",
+      "title": "Input types have the same fields in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "has fields that another subgraph's definition of the same input does not — they are dropped from the supergraph.",
+      "fix": "Define the same input fields in every subgraph that declares the input type."
+    },
+    {
+      "id": "INCONSISTENT_OBJECT_VALUE_TYPE_FIELD",
+      "source": "apollo",
+      "title": "Value types have the same fields in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "is a value type (no @key) whose fields differ from another subgraph's definition.",
+      "fix": "Define the same fields for the value type in every subgraph, or make it an entity."
+    },
+    {
+      "id": "INCONSISTENT_INTERFACE_VALUE_TYPE_FIELD",
+      "source": "apollo",
+      "title": "Interfaces have the same fields in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "is an interface whose fields differ from another subgraph's definition.",
+      "fix": "Define the same interface fields in every subgraph."
+    },
+    {
+      "id": "OVERRIDE_MIGRATION_IN_PROGRESS",
+      "source": "apollo",
+      "title": "Finish progressive @override migrations",
+      "category": "Composition",
+      "section": "Composition rules › Overridden and unused elements",
+      "severity": "warning",
+      "message": "uses @override with a label — a progressive field migration is still in progress.",
+      "fix": "Complete the migration, then remove the label (and later the @override)."
+    },
+    {
+      "id": "OVERRIDE_DIRECTIVE_CAN_BE_REMOVED",
+      "source": "apollo",
+      "title": "Remove @override once the source field is gone",
+      "category": "Composition",
+      "section": "Composition rules › Overridden and unused elements",
+      "severity": "warning",
+      "message": "has @override(from: …) but the source subgraph no longer defines the field.",
+      "fix": "Remove the @override directive."
+    },
+    {
+      "id": "OVERRIDDEN_FIELD_CAN_BE_REMOVED",
+      "source": "apollo",
+      "title": "Remove fields another subgraph overrides",
+      "category": "Composition",
+      "section": "Composition rules › Overridden and unused elements",
+      "severity": "info",
+      "message": "is fully overridden by another subgraph (@override without a label), so it is never resolved here.",
+      "fix": "Remove the field from this subgraph (keep it only if another field's @requires/@key needs it, then mark it @external)."
+    },
+    {
+      "id": "FROM_SUBGRAPH_DOES_NOT_EXIST",
+      "source": "apollo",
+      "title": "@override names an existing subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "error",
+      "message": "has @override(from: …) naming a subgraph that does not exist in the registry.",
+      "fix": "Correct the subgraph name (Business Application) or remove the @override."
+    },
+    {
+      "id": "UNUSED_ENUM_TYPE",
+      "source": "apollo",
+      "title": "Every enum is used",
+      "category": "Composition",
+      "section": "Composition rules › Overridden and unused elements",
+      "severity": "warning",
+      "message": "is defined but no field, argument or operation in any subgraph references it.",
+      "fix": "Reference the enum or remove it."
+    },
+    {
+      "id": "INCONSISTENT_UNION_MEMBER",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Unions have the same members in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "union member types should be the same in every subgraph that defines the union.",
+      "fix": "Define the same union members in every subgraph."
+    },
+    {
+      "id": "INCONSISTENT_RUNTIME_TYPES_FOR_SHAREABLE_RETURN",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "@shareable fields return the same runtime types",
+      "category": "Composition",
+      "section": "Composition rules › Inconsistent elements",
+      "severity": "warning",
+      "message": "a @shareable field's abstract return type should resolve to the same runtime types in every subgraph.",
+      "fix": "Make the interface/union implementations identical across the subgraphs sharing the field."
+    },
+    {
+      "id": "INCONSISTENT_EXECUTABLE_DIRECTIVE_PRESENCE",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Executable directives are defined in every subgraph",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "an executable directive should be defined in every subgraph.",
+      "fix": "Add the directive definition to every subgraph."
+    },
+    {
+      "id": "INCONSISTENT_EXECUTABLE_DIRECTIVE_LOCATIONS",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Executable directive locations match",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "an executable directive should declare the same locations in every subgraph.",
+      "fix": "Use the same `on …` locations in every definition of the directive."
+    },
+    {
+      "id": "INCONSISTENT_EXECUTABLE_DIRECTIVE_REPEATABLE",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Executable directive repeatability matches",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "an executable directive should be repeatable in all subgraphs or none.",
+      "fix": "Make `repeatable` consistent across subgraphs."
+    },
+    {
+      "id": "INCONSISTENT_TYPE_SYSTEM_DIRECTIVE_LOCATIONS",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Type-system directive locations match",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "a type-system directive should declare the same locations in every subgraph.",
+      "fix": "Use the same `on …` locations in every definition of the directive."
+    },
+    {
+      "id": "INCONSISTENT_TYPE_SYSTEM_DIRECTIVE_REPEATABLE",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Type-system directive repeatability matches",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "a type-system directive should be repeatable in all subgraphs or none.",
+      "fix": "Make `repeatable` consistent across subgraphs."
+    },
+    {
+      "id": "INCONSISTENT_NON_REPEATABLE_DIRECTIVE_ARGUMENTS",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Non-repeatable directive arguments match",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "a non-repeatable directive applied to the same element should use the same arguments in every subgraph.",
+      "fix": "Use identical directive arguments across subgraphs."
+    },
+    {
+      "id": "MERGED_NON_REPEATABLE_DIRECTIVE_ARGUMENTS",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Merged non-repeatable directive arguments",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "a non-repeatable directive's differing arguments were merged during composition.",
+      "fix": "Align the directive arguments across subgraphs."
+    },
+    {
+      "id": "NO_EXECUTABLE_DIRECTIVE_INTERSECTION",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Executable directive locations overlap",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "an executable directive has no location common to every subgraph, so it is dropped from the supergraph.",
+      "fix": "Give the directive at least one shared location in every subgraph."
+    },
+    {
+      "id": "DIRECTIVE_COMPOSITION",
+      "source": "apollo",
+      "enforcedBy": "graphos",
+      "title": "Custom directive composition",
+      "category": "Composition",
+      "section": "Composition rules › Directives",
+      "severity": "warning",
+      "message": "a custom directive composed via @composeDirective has an issue.",
+      "fix": "Check the @composeDirective / @link declarations in each subgraph."
     }
   ]
 }

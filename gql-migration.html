@@ -1211,11 +1211,11 @@ function exportSubgraph(){
 // FedGQL standards engine (DEFAULT_STANDARDS, VALIDATED_SHEETS, validateRow, worstSeverity, …) → common.js
 // Validate a whole buildSubgraphRows() result. Returns per-row map + severity-bucketed lists.
 function validateSubgraphRows(rows){
-  const all=[], byRow={};
+  const all=[], byRow={}, ctx=buildStandardsContext(rows);   // cross-row rules: unused types, enum usage, composition
   for(const sheet of VALIDATED_SHEETS){
     byRow[sheet]={};
     for(const row of (rows[sheet]||[])){
-      const v=validateRow(sheet,row); if(!v.length) continue;
+      const v=validateRow(sheet,row,ctx); if(!v.length) continue;
       const id=row[OV_ID[sheet]]; byRow[sheet][id]=v;
       for(const x of v) all.push(Object.assign({ sheet, rowId:id }, x));
     }
@@ -1244,9 +1244,10 @@ function stdSummaryParts(v){
 // Top banner (live-updated by updateStdSummary) + the reference list of enforced standards.
 function standardsPanelHTML(v){
   const { cls, head } = stdSummaryParts(v);
-  const rules=(STANDARDS.rules||[]).filter(r=>r.enabled!==false);
-  const ref=`<details class="stdref"><summary>FedGQL standards enforced (${rules.length} rules — from ${esc((STANDARDS.meta||{}).title||"schema standards")})</summary>
-    <ul>${rules.map(r=>`<li><span class="sev ${esc(r.severity)}">${esc(r.severity)}</span><b>${esc(r.title)}</b> — ${esc(r.message)}</li>`).join("")}</ul></details>`;
+  const rules=(STANDARDS.rules||[]).filter(isLocalRule);
+  const ext=(STANDARDS.rules||[]).filter(r=>r.enabled!==false&&!isLocalRule(r)).length;
+  const ref=`<details class="stdref"><summary>FedGQL standards enforced (${rules.length} rules — from ${esc((STANDARDS.meta||{}).title||"schema standards")} + Apollo GraphOS linter${ext?`; ${ext} more checked by GraphOS on publish`:""})</summary>
+    <ul>${rules.map(r=>`<li><span class="sev ${esc(r.severity)}">${esc(r.severity)}</span><b>${esc(r.title)}</b>${apolloIds(r).length?` <span class="mono">${esc(apolloIds(r).join(", "))}</span>`:""} — ${esc(r.message)}</li>`).join("")}</ul></details>`;
   return `<div id="stdSummary" class="stdpanel ${cls}">${head}</div>${ref}`;
 }
 // Re-point the top banner class/text after a live revalidation.
@@ -1270,7 +1271,7 @@ function revalidateRow(sheet, id){
   const rows=buildSubgraphRows(sg);
   updateStdSummary(validateSubgraphRows(rows));                 // keep the top banner counts live
   const row=(rows[sheet]||[]).find(r=>r[OV_ID[sheet]]===id);
-  applyRowValidation(sheet, id, row?validateRow(sheet,row):[]);
+  applyRowValidation(sheet, id, row?validateRow(sheet,row,buildStandardsContext(rows)):[]);
 }
 function applyRowValidation(sheet, id, viols){
   const dataRow=document.getElementById("row-"+sheet+"-"+id); if(!dataRow) return;

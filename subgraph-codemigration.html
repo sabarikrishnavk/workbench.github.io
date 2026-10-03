@@ -27,7 +27,8 @@
   .kv{ color: var(--muted); font-size: 12px; margin: 10px 0 3px; text-transform: uppercase; letter-spacing: .03em; }
   .picker{ border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; min-width: 260px; }
   .selrow{ display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-bottom: 4px; }
-  .selrow select{ min-width: 200px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+  .selrow>label{ max-width: 100%; min-width: 0; }
+  .selrow select{ min-width: min(200px, 100%); max-width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
   .code-head{ display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 6px; flex-wrap: wrap; }
   .grid2{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; min-width: 0; }
   /* mode toggle */
@@ -57,6 +58,103 @@
   .stdref>summary::-webkit-details-marker{ display: none; }
   .stdref>summary::before{ content: "▸"; color: var(--muted); margin-right: 6px; }
   .stdref[open]>summary::before{ content: "▾"; }
+  /* handler ↔ resolver pairs */
+  .pair{ border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 10px; margin: 8px 0; background: #fcfcfd; }
+  .pair.sel{ border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .pair-head{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; margin-bottom: 6px; }
+  .pair-head .arrow{ color: var(--muted); }
+  .via{ display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
+  .via.rest{ background: #fef3c7; color: #92400e; }
+  .via.grpc{ background: #dbeafe; color: #1e40af; }
+  .via.local{ background: #f1f5f9; color: #475569; }
+  .via.orch{ background: #ccfbf1; color: #0f766e; }
+  .pattern{ border-radius: 8px; padding: 8px 12px; margin: 10px 0 4px; font-size: 13px; border: 1px solid; }
+  .pattern.orch{ background: #f0fdfa; border-color: #99f6e4; }
+  .pattern.stitch{ background: #f5f3ff; border-color: #ddd6fe; }
+  .pattern.warn{ background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+  .stype{ display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; font-weight: 600; }
+  .stype.domain{ background: #dcfce7; color: #166534; }
+  .stype.integration{ background: #dbeafe; color: #1e40af; }
+  .stype.orchestrator{ background: #ccfbf1; color: #0f766e; }
+
+  /* ---------- migration overview (flow) ---------- */
+  .flowwrap>summary{ cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 8px; }
+  .flowwrap>summary::-webkit-details-marker{ display: none; }
+  .flowwrap>summary h2{ margin: 0; }
+  .flowwrap>summary::after{ content: "hide"; margin-left: auto; font-size: 12px; color: var(--muted); }
+  .flowwrap:not([open])>summary::after{ content: "show"; }
+  .flow{ display: flex; flex-direction: column; align-items: center; margin-top: 12px; }
+  .fbox{ width: 100%; max-width: 900px; box-sizing: border-box; background: #fff; border: 1px solid var(--line); border-radius: 16px;
+    padding: 14px 16px; box-shadow: 0 1px 3px rgba(15,23,42,.06); position: relative; }
+  .fbox>h3{ margin: 0; text-align: center; font-size: 17px; letter-spacing: -.01em; }
+  .fbox>.sub{ text-align: center; font-size: 12.5px; color: var(--muted); margin: 2px 0 10px; }
+  .ficons{ display: flex; flex-wrap: wrap; justify-content: center; }
+  .ficon{ flex: 1 1 0; min-width: 92px; text-align: center; padding: 6px 6px 2px; border-left: 1px dashed var(--line); }
+  .ficon:first-child{ border-left: 0; }
+  .ficon svg{ width: 30px; height: 30px; }
+  .ficon .lbl{ font-size: 12px; line-height: 1.3; margin-top: 4px; }
+  .ficon .n{ font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .farrow{ width: 2px; height: 22px; background: #94a3b8; position: relative; margin-bottom: 6px; }
+  .farrow::after{ content: ""; position: absolute; left: -5px; bottom: -6px; border: 6px solid transparent; border-top-color: #94a3b8; border-bottom: 0; }
+  .src{ color: #334155; }
+  .hub{ border: 1.5px solid #c4b5fd; background: linear-gradient(180deg,#fff 0%,#faf7ff 100%); color: var(--accent); }
+  .hub>h3{ color: var(--accent); display: flex; justify-content: center; align-items: center; gap: 8px; }
+  .hub>h3 svg{ width: 22px; height: 22px; }
+  .hub-grid{ display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px 14px; align-items: center; }
+  .caps{ display: flex; flex-direction: column; gap: 14px; }
+  .cap{ display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink); }
+  .cap .ci{ flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft); display: grid; place-items: center; color: var(--accent); }
+  .cap .ci svg{ width: 18px; height: 18px; }
+  .cap .dots{ flex: 1; border-top: 2px dotted #c4b5fd; min-width: 16px; }
+  .cap small{ display: block; color: var(--muted); font-size: 11px; }
+  .caps.right .cap{ flex-direction: row-reverse; text-align: left; }
+  .core{ width: 128px; height: 128px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #9775fa, #6741d9 70%);
+    box-shadow: 0 0 0 10px #f3f0ff, 0 0 0 11px #d0bfff; color: #fff; display: grid; place-items: center; text-align: center; margin: 12px; }
+  .core svg{ width: 44px; height: 44px; }
+  .core b{ display: block; font-size: 13px; margin-top: 2px; }
+  .blueprint{ grid-column: 2; justify-self: center; border: 1px solid #d0bfff; background: #fff; color: var(--accent); border-radius: 999px;
+    padding: 4px 14px; font-weight: 600; font-size: 13px; text-align: center; max-width: 340px; }
+  .blueprint .mono{ display: block; font-weight: 400; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .steps{ display: flex; justify-content: center; align-items: flex-start; gap: 4px; margin-top: 14px; flex-wrap: wrap; }
+  .step{ text-align: center; font-size: 12px; color: var(--ink); width: 84px; }
+  .step .si{ width: 42px; height: 42px; margin: 0 auto 4px; border-radius: 10px; border: 1px solid #d0bfff; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+  .step .si svg{ width: 20px; height: 20px; }
+  .step.done .si{ background: var(--accent); color: #fff; border-color: var(--accent); }
+  .step-arrow{ color: var(--muted); padding-top: 12px; font-size: 16px; }
+  .fork{ position: relative; width: 100%; max-width: 900px; height: 30px; }
+  .fork svg{ position: absolute; inset: 0; width: 100%; height: 100%; }
+  .fork .tip{ position: absolute; bottom: -1px; border: 6px solid transparent; border-top-color: #94a3b8; border-bottom: 0; transform: translateX(-6px); }
+  .branches{ display: grid; grid-template-columns: 1fr 1fr; gap: 18px; width: 100%; max-width: 900px; }
+  .branch{ border-width: 1.5px; cursor: pointer; text-align: left; font: inherit; transition: box-shadow .15s, transform .15s; padding-top: 16px; }
+  .branch:hover{ transform: translateY(-1px); }
+  .branch .bico{ position: absolute; top: -16px; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+  .branch .bico svg{ width: 20px; height: 20px; }
+  .branch.sg{ border-color: #a5b4fc; color: #4338ca; }
+  .branch.sg .bico{ left: -10px; background: #4f46e5; }
+  .branch.bff{ border-color: #5eead4; color: #0f766e; }
+  .branch.bff .bico{ right: -10px; background: #0d9488; }
+  .branch>h3{ color: inherit; font-size: 15.5px; }
+  .branch>.sub{ color: inherit; opacity: .85; }
+  .branch.active.sg{ box-shadow: 0 0 0 3px #e0e7ff; }
+  .branch.active.bff{ box-shadow: 0 0 0 3px #ccfbf1; }
+  .branch .state{ position: absolute; top: 8px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .branch.sg .state{ right: 12px; } .branch.bff .state{ left: 12px; }
+  .branch.active .state{ color: inherit; }
+  .branch .ficon{ min-width: 76px; color: inherit; }
+  .branch .ficon .lbl{ color: var(--ink); }
+  .tgt{ border: 1.5px solid #86efac; background: linear-gradient(180deg,#fff 0%,#f6fef9 100%); color: #15803d; }
+  .tgt>h3{ color: #166534; }
+  .tgt .ficon .lbl{ color: var(--ink); }
+  @media (max-width: 760px){
+    .hub-grid{ grid-template-columns: 1fr; }
+    .core{ grid-row: 1; justify-self: center; }
+    .blueprint{ grid-column: 1; }
+    .cap .dots{ display: none; }
+    .caps.right .cap{ flex-direction: row; }
+    .branches{ grid-template-columns: 1fr; gap: 26px; }
+    .fork{ height: 22px; } .fork svg, .fork .tip{ display: none; }
+    .fork::after{ content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: #94a3b8; }
+  }
 </style>
 </head>
 <body>
@@ -76,6 +174,11 @@
 </header>
 
 <main>
+  <details class="card flowwrap" open>
+    <summary><h2>Migration overview</h2><span class="hint">REST estate → migration tool → subgraph &amp; BFF code → federated graph · click a branch to switch mode</span></summary>
+    <div id="flow"></div>
+  </details>
+
   <div class="card">
     <h2>Inputs</h2>
     <p class="desc">Load the <b>FedGQL schema</b> (from <span class="mono">GQLRegistry.xlsx</span> — its
@@ -104,9 +207,11 @@
       <span class="spacer"></span>
       <button class="btn" id="btnExport" onclick="exportRegistryWithBff()" title="Export the loaded registry with a BffMappings sheet" data-help="code-export">Export registry + BFF mappings (.xlsx)</button>
     </div>
-    <p class="hint" style="margin:6px 0 0"><b>Single op</b>: map one REST operation to one FedGQL op.
-      <b>BFF composite</b>: map one BFF REST endpoint to a set of FedGQL queries &amp; mutations from
-      different subgraphs, and generate the composed document + server/client code.</p>
+    <p class="hint" style="margin:6px 0 0"><b>Single op</b>: map one REST operation to one FedGQL op and generate the
+      subgraph service (REST API + GraphQL API).
+      <b>BFF composite</b>: map one BFF REST endpoint to FedGQL ops from different subgraphs. An endpoint with logic
+      becomes an <b>orchestrator subgraph</b> that calls other services over REST / gRPC. A read-only endpoint
+      becomes <b>query stitching</b>: the front end sends one federated query.</p>
   </div>
 
   <div class="card" id="domainCard">
@@ -130,8 +235,10 @@
       <label for="codeLang"><b>Language</b>
         <select id="codeLang" onchange="setLang(this.value)"></select></label>
     </div>
-    <p class="hint" style="margin:0">Server code exposes the REST controller as a GraphQL resolver
-      (Java = Spring for GraphQL, .NET = Hot Chocolate, Node.js = Apollo Server).</p>
+    <p class="hint" style="margin:0">Server code turns the subgraph's current REST controllers into one service that hosts
+      both the REST API and the GraphQL API (queries &amp; mutations) on a shared service layer
+      (Java = Spring MVC + Spring for GraphQL, .NET = ASP.NET Core + Hot Chocolate, Node.js = Express + Apollo Server).
+      Subgraphs call each other over REST or gRPC only, never GraphQL.</p>
   </div>
 
   <div class="card" id="codeCard"><div id="codeMap"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> and a REST spec above to generate code.</div></div></div>
@@ -139,8 +246,9 @@
   <div class="card" id="bffCard" style="display:none">
     <h2>BFF composite → FedGQL set</h2>
     <p class="desc">Pick the <b>BFF REST endpoint</b> to migrate, then add the FedGQL queries &amp;
-      mutations (from any subgraph) it composes. The composed document, server/client code and per-op
-      field mappings are generated below and saved to a <span class="mono">BffMappings</span> sheet on export.</p>
+      mutations (from any subgraph) it composes. Choose an <b>orchestrating mutation</b> to move the BFF logic into
+      that op's subgraph, and set <b>Call via</b> (REST / gRPC) for each downstream service. Without one, the front
+      end stitches the queries through the router. The mappings are saved to a <span class="mono">BffMappings</span> sheet on export.</p>
     <div class="selrow">
       <label for="bffSel"><b data-help="code-bff">BFF REST endpoint</b>
         <select id="bffSel" onchange="setBffRef(this.value)"></select></label>
@@ -351,12 +459,13 @@ function sdlForType(t){
 /* ---------- Server: a federation SUBGRAPH implementing the registry's Query / Mutation ops ----------
    For the subgraph that owns the selected op (Entities.BusinessApplication) we generate:
      • the subgraph schema (federation SDL with descriptions),
-     • a REST client wrapping the CURRENT service — one method per op, bound by its "REST:" link,
-     • Query + Mutation resolvers for every op of the subgraph (the selected op is marked),
-     • entity reference resolvers for the @key types it owns, and resolvers for fields it
-       contributes to other subgraphs' entities (Extend rows, e.g. pnp → Product.storeContext),
-     • the server bootstrap.
-   REST responses are returned as-is; adapt any renamed/added fields (see the Field mapping table). */
+     • the service layer — one method per op (orchestrating mutations get the BFF's downstream calls),
+     • the REST API — the current controller actions, bound by each op's "REST:" link, calling the service,
+     • Query + Mutation resolvers for every op of the subgraph (the selected op is marked), calling the
+       same service, plus entity reference resolvers for the @key types it owns and resolvers for fields
+       it contributes to other subgraphs' entities (Extend rows, e.g. pnp → Product.storeContext),
+     • downstream REST / gRPC clients + .proto contracts when the subgraph orchestrates,
+     • the bootstrap of ONE service serving both APIs. */
 const DESC3=/"""([\s\S]*?)"""/;
 function subgraphModel(entityId){
   const sgName=subgraphOf(entityId);
@@ -365,8 +474,30 @@ function subgraphModel(entityId){
   const rows=(M.reg.Schema||[]).filter(r=>entIds.has(String(r.EntityID||"")) && r.Kind!=="Scalar");
   const types=rows.map(r=>({ row:r, kind:r.Kind, name:String(r.TypeName||"").trim(), t:parseDefBody(r.Kind, r.TypeName, r.Definition) })).filter(x=>x.name);
   const ops=M.gqlOps.filter(o=>entIds.has(String(o.EntityID||""))).map(o=>({ ...o, args:parseGqlParams(o.Parameters), rest:restBinding(o) }));
-  return { sgName, entIds, types, ops, Sg:cap(sgName.replace(/[^A-Za-z0-9]+(.)?/g,(m,c)=>c?c.toUpperCase():"")) || "Subgraph" };
+  const st=serviceTypeOf(sgName);
+  return { sgName, entIds, types, ops, Sg:cap(sgName.replace(/[^A-Za-z0-9]+(.)?/g,(m,c)=>c?c.toUpperCase():"")) || "Subgraph", svcType:st.type, svcTypeSrc:st.src };
 }
+/* Service Type (GQL registry · Entities.ServiceType, per Business Application) decides how the
+   generated service implements its logic:
+     Domain       — owns its data; the logic stays in its service; it calls no other subgraph.
+     Integration  — adapts an external / legacy system: its service calls that system's REST API.
+     Orchestrator — coordinates other subgraph services over REST / gRPC; the only type that may.
+   Not set → inferred: Orchestrator when one of its ops orchestrates a BFF mapping, else Domain. */
+const SERVICE_TYPES=["Domain","Integration","Orchestrator"];
+const SERVICE_RULES={
+  Domain:"owns its data — business logic stays in this service; it calls no other subgraph",
+  Integration:"adapts an external / legacy system — the service calls that system's REST API, never other subgraphs",
+  Orchestrator:"coordinates other subgraph services over REST / gRPC — never through the graph",
+};
+function serviceTypeOf(sgName){
+  const rows=(M.entities||[]).filter(e=>String(e.BusinessApplication||"").trim()===sgName);
+  for(const r of rows){ const v=String(r.ServiceType||"").trim().toLowerCase(); const t=SERVICE_TYPES.find(x=>x.toLowerCase()===v); if(t) return { type:t, src:"registry" }; }
+  const ids=new Set(rows.map(r=>String(r.EntityID)));
+  const orch=Object.values(M.bff||{}).some(m=>(m.ops||[]).some(o=>String(o.opId)===String(m.orchestrator||"") && ids.has(String(o.entityId))));
+  return { type:orch?"Orchestrator":"Domain", src:"inferred" };
+}
+const svcTypeOfEntity=eid=>serviceTypeOf(subgraphOf(eid));
+const svcTypeBadge=st=>`<span class="stype ${st.type.toLowerCase()}">${st.type}</span>${st.src==="inferred"?' <span class="hint">(inferred — set Service Type in the GQL registry)</span>':""} <span class="hint">· ${esc(SERVICE_RULES[st.type])}</span>`;
 // REST endpoint backing an op: the loaded spec's matching operation, else the op's own "REST:" link.
 function restBinding(op){
   const r=M.restOps.find(o=>refMatches(op,o));
@@ -419,7 +550,7 @@ function customScalars(sg){
 // Reference resolver for an owned @key type: the subgraph query returning it whose args are the key fields.
 function lookupQueryFor(sg, typeName, keyFields, extraArgs){
   const allowed=new Set([...(keyFields||[]), ...(extraArgs||[])]);
-  return sg.ops.find(o=>o.kind==="query" && baseType(o.ReturnType)===typeName && !/^\s*\[/.test(o.ReturnType||"") && o.args.length && o.args.every(a=>allowed.has(a.name)) && o.rest) || null;
+  return sg.ops.find(o=>o.kind==="query" && baseType(o.ReturnType)===typeName && !/^\s*\[/.test(o.ReturnType||"") && o.args.length && o.args.every(a=>allowed.has(a.name))) || null;
 }
 const keyList=t=>String(t.key||"").split(/[\s,]+/).filter(Boolean);
 // Fields this subgraph adds to another subgraph's entity, with the op (if any) that can resolve them.
@@ -430,7 +561,7 @@ function extensionResolvers(sg){
     for(const f of (x.t.fields||[]).filter(f=>!f.external && !keys.includes(f.name))){   // keys identify the entity — not contributed
       const fArgs=parseGqlParams(f.args||"").map(a=>a.name);
       const req=(String(x.row.Definition||"").match(new RegExp("\\b"+f.name+"\\b[^\\n]*@requires\\(fields:\\s*\"([^\"]*)\"\\)"))||[])[1]||"";
-      const op=lookupQueryFor(sg, baseType(f.type), keys, fArgs) || sg.ops.find(o=>o.kind==="query" && baseType(o.ReturnType)===baseType(f.type) && o.rest && o.args.every(a=>keys.includes(a.name)||fArgs.includes(a.name))) || null;
+      const op=lookupQueryFor(sg, baseType(f.type), keys, fArgs) || sg.ops.find(o=>o.kind==="query" && baseType(o.ReturnType)===baseType(f.type) && o.args.every(a=>keys.includes(a.name)||fArgs.includes(a.name))) || null;
       out.push({ type:x.name, keys, field:f, fArgs, op, requires:req });
     }
   }
@@ -440,85 +571,259 @@ const MARK=(op, sel)=>op.id===sel.id ? "   // ← selected op" : "";
 const restLabel=op=>op.rest?`${op.rest.method} ${op.rest.path}`:"no REST link — add a REST: line in Links & References";
 function camel(s){ s=String(s||""); return s.charAt(0).toLowerCase()+s.slice(1); }
 
-/* ------------------------------ Node.js (Apollo) ------------------------------ */
-function nodeSubgraph(sg, sel){
-  const Api=sg.Sg+"Api", api=camel(Api);
-  const methods=sg.ops.map(o=>{
-    const c=restCall(o), params=o.args.map(a=>a.name).join(", ");
-    if(!c) return `  // ${o.Name}: ${restLabel(o)}\n  ${o.Name}(${params}) { throw new Error("${o.Name}: not bound to a REST endpoint yet"); }`;
-    const path=c.path.replace(/^\//,"").replace(/\{(\w+)\}/g,(m,p)=>{ const s=c.pp.find(x=>x.name===p); return "${encodeURIComponent("+(s&&s.expr||p)+")}"; });
-    const opts=[];
-    if(c.query.length) opts.push(`params: { ${c.query.map(a=>`...(${a.name} != null && { ${a.name}: String(${a.name}) })`).join(", ")} }`);
-    if(c.body) opts.push(`body: ${c.body}`);
-    const verb=c.method.toLowerCase()==="delete"?"delete":c.method.toLowerCase();
-    return `  // ${c.method} ${c.path} — backs ${o.kind==="mutation"?"Mutation":"Query"}.${o.Name}\n  ${o.Name}(${params}) {\n    return this.${verb}(\`${path}\`${opts.length?`, { ${opts.join(", ")} }`:""});\n  }`;
+/* ================= Subgraph microservice: REST API + GraphQL API on one service layer =================
+   Each subgraph is ONE service. It keeps the REST API its controllers expose today (unchanged for REST
+   clients) and adds the GraphQL API (Query / Mutation / entity resolvers). Both call the same service
+   class, in-process — the resolver never calls its own REST endpoint over HTTP.
+   An orchestrating mutation (BffMappings Owner = orchestrator, e.g. checkout.submitCheckout) carries the
+   BFF's logic in its service: it calls the other subgraph services over REST or gRPC. A subgraph never
+   calls the graph (router or another subgraph's GraphQL) — that would create router ↔ subgraph cycles. */
+const sgPascal=s=>cap(String(s||"").replace(/[^A-Za-z0-9]+(.)?/g,(m,c)=>c?c.toUpperCase():""))||"Svc";
+const isWriteM=m=>["POST","PUT","PATCH"].includes(m);
+const inputFieldDefs=t=>((M.regTypes.find(x=>x.name===baseType(t) && x.kind==="input")||{}).fields||[]);
+const isListT=t=>/^\s*\[/.test(String(t||""));
+const opTitle=o=>`${o.rest?o.rest.method+" "+o.rest.path+" · ":""}${o.kind==="mutation"?"Mutation":"Query"}.${o.Name}`;
+// How each GraphQL arg is read from the REST request the current controller receives.
+function restIn(o){
+  const b=o.rest; if(!b) return null;
+  const pp=pathParams(b.path), write=isWriteM(b.method);
+  const args=o.args.map(a=>{
+    if(pp.includes(a.name)) return { a, from:"path" };
+    if(isInputType(a.type)) return { a, from:"body", merge:pp.filter(p=>!o.args.some(x=>x.name===p) && inputFields(a.type).includes(p)) };
+    return { a, from:write?"field":"query" };
   });
-  const res=(kind)=>sg.ops.filter(o=>o.kind===kind).map(o=>{ const d=regDescOf(o); return `${d?`    // ${d}\n`:""}    ${o.Name}: (_parent, ${o.args.length?`{ ${o.args.map(a=>a.name).join(", ")} }`:"_args"}, { dataSources }) =>\n      dataSources.${api}.${o.Name}(${o.args.map(a=>a.name).join(", ")}),${MARK(o,sel)}`; }).join("\n");
+  return { ...b, pp, write, args };
+}
+
+/* --- orchestration: the BFF mapping whose orchestrator is this op, and its downstream steps --- */
+function orchestrationOf(opId, preferRef){
+  const sgReg={ name:M.sgName||"registry", types:M.regTypes };
+  const entries=Object.entries(M.bff||{}).sort(([a],[b])=>(a===preferRef?-1:b===preferRef?1:0));
+  for(const [ref,m] of entries){
+    if(!m.orchestrator || String(m.orchestrator)!==String(opId)) continue;
+    const self=(m.ops||[]).find(o=>String(o.opId)===String(opId)); if(!self) continue;
+    const selfSg=subgraphOf(self.entityId);
+    const steps=(m.ops||[]).filter(o=>o!==self).map((o,i)=>{
+      const model=bffOpModel(o, sgReg), rest=restBindingOf(o), sg=subgraphOf(o.entityId);
+      const via= sg===selfSg ? "local" : (o.via==="grpc"||!rest ? "grpc" : "rest");
+      return { n:i+1, op:o, model, rest, c:rest?restCall({ args:model.args, rest }):null, via, sg, Sg:sgPascal(sg), v:camel(sgPascal(sg)), write:o.kind==="mutation" };
+    });
+    return { ref, m, self, steps };
+  }
+  return null;
+}
+const stepLabel=st=> st.via==="local" ? `${st.model.name} — in-process (same subgraph)`
+  : st.via==="rest" ? `REST → ${st.sg} service · ${st.c.method} ${st.c.path}` : `gRPC → ${st.sg} service · ${st.Sg}Service/${Pascal(st.model.name)}`;
+// Where a step's value comes from: an orchestrator arg, or a field of its input object.
+// A bare "id" falls back to <entity>Id (cart(id) ← input.cartId) when the step returns that entity.
+function leafOf(orchArgs, name, ent){
+  const a=orchArgs.find(x=>x.name===name); if(a) return { arg:a.name };
+  for(const x of orchArgs) if(isInputType(x.type) && inputFields(x.type).includes(name)) return { arg:x.name, field:name };
+  return name==="id" && ent ? leafOf(orchArgs, camel(ent)+"Id") : null;
+}
+// a step's gRPC request: every arg flattened to scalar leaves (input objects expanded)
+function stepLeaves(st){
+  const out=[];
+  for(const a of st.model.args){
+    if(isInputType(a.type)) for(const f of inputFieldDefs(a.type)) out.push({ name:f.name, type:f.type });
+    else out.push({ name:a.name, type:a.type });
+  }
+  return out;
+}
+const snake=s=>String(s).replace(/([a-z0-9])([A-Z])/g,"$1_$2").toLowerCase();
+function protoType(t){ const b=baseType(t); return {Int:"int32",Long:"int64",Float:"double",Boolean:"bool"}[b] || ((["ID","String"].includes(b)||M.regTypes.some(x=>x.name===b&&x.kind==="enum")||(M.reg.Schema||[]).some(r=>r.Kind==="Scalar"&&r.TypeName===b))?"string":null); }
+// gRPC contracts the orchestrator needs from each downstream subgraph (that service hosts gRPC as well).
+function protoFiles(orchs){
+  const by={};
+  for(const o of orchs) for(const st of o.steps.filter(s=>s.via==="grpc")) (by[st.sg]=by[st.sg]||{ st, rpcs:new Map() }).rpcs.set(st.model.name, st);
+  return Object.entries(by).map(([sg,{st,rpcs}])=>({ sg, Sg:st.Sg, title:`protos/${sg}.proto — gRPC contract the ${sg} service exposes (alongside its REST + GraphQL APIs)`,
+    code:`syntax = "proto3";\n\npackage ${snake(st.Sg)};\noption java_package = "com.example.grpc.${snake(st.Sg).replace(/_/g,"")}";\noption java_multiple_files = true;\noption csharp_namespace = "${st.Sg}.Grpc";\n\nservice ${st.Sg}Service {\n${[...rpcs.values()].map(s=>`  rpc ${Pascal(s.model.name)} (${Pascal(s.model.name)}Request) returns (${Pascal(s.model.name)}Reply);`).join("\n")}\n}\n\n${[...rpcs.values()].map(s=>{
+      const fs=stepLeaves(s); let i=0;
+      return `message ${Pascal(s.model.name)}Request {\n${fs.map(f=>{ const pt=protoType(f.type); return pt?`  ${isListT(f.type)?"repeated ":""}${pt} ${snake(f.name)} = ${++i};`:`  // TODO: ${f.name}: ${f.type} — add a nested message`; }).join("\n")}\n}\n\n// mirrors ${s.model.returns||"the REST response"} — add the fields the orchestrator reads\nmessage ${Pascal(s.model.name)}Reply {\n}`; }).join("\n\n")}` }));
+}
+// What the service method for an op implements, given the subgraph's Service Type.
+function svcPlan(sg, o){
+  const orch=orchestrationOf(o.id);
+  if(sg.svcType==="Orchestrator") return orch ? { kind:"orch", orch } : { kind:"state" };
+  if(orch) return { kind:"misplaced", orch };                    // orchestration mapped onto a Domain / Integration service
+  return sg.svcType==="Integration" ? { kind:"integration", c:restCall(o) } : { kind:"domain" };
+}
+const misplacedNote=(sg,p)=>`${sg.sgName} is a ${sg.svcType} service (${SERVICE_RULES[sg.svcType]}), but ${p.orch.ref} makes this op orchestrate ${p.orch.steps.length} call(s). Set Service Type = Orchestrator for ${sg.sgName} in the GQL registry, or pick an op of an Orchestrator subgraph.`;
+const todoOf=(sg,o,p)=>p.kind==="state" ? `TODO: the orchestrator's own process state (e.g. the saga / order record) for ${o.Name} — no downstream calls`
+  : `TODO: the business logic the ${o.rest?o.rest.method+" "+o.rest.path:o.Name} controller runs today — move it here unchanged`;
+// all orchestrations this subgraph carries — only an Orchestrator service may
+const sgOrchestrations=sg=>sg.svcType==="Orchestrator" ? sg.ops.map(o=>orchestrationOf(o.id)).filter(Boolean) : [];
+const isIntegration=sg=>sg.svcType==="Integration" && sg.ops.some(o=>o.rest);
+const restTargets=orchs=>[...new Map([].concat(...orchs.map(o=>o.steps.filter(s=>s.via==="rest"))).map(s=>[s.sg,s])).values()];
+const grpcTargets=orchs=>[...new Map([].concat(...orchs.map(o=>o.steps.filter(s=>s.via==="grpc"))).map(s=>[s.sg,s])).values()];
+const envName=s=>String(s||"svc").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
+const noRest=o=>`no REST link — GraphQL only (add a REST: line in Links & References to keep a REST route)`;
+const GQL_RULE="never through the graph — a subgraph calling the router would create a cycle";
+
+/* ------------------------------ Node.js (Express + Apollo Server) ------------------------------ */
+const nodeLeaf=(src,name)=>src ? (src.field?`${src.arg}.${src.field}`:src.arg) : `undefined /* TODO: ${name} — from an earlier step */`;
+function nodeStepCall(st, orchArgs){
+  const L=n=>nodeLeaf(leafOf(orchArgs, n, baseType(st.model.returns)), n);
+  const argVal=a=>isInputType(a.type) ? `{ ${inputFieldDefs(a.type).map(f=>`${f.name}: ${L(f.name)}`).join(", ")} }` : L(a.name);
+  if(st.via==="local") return `await this.${st.model.name}(${st.model.args.map(argVal).join(", ")})`;
+  if(st.via==="rest"){
+    const c=st.c, path=c.path.replace(/\{(\w+)\}/g,(m,p)=>{ const q=c.pp.find(z=>z.name===p); return "${encodeURIComponent("+L(String(q&&q.expr||p).split(".").pop())+")}"; });
+    const qs=c.query.length?"${qs({ "+c.query.map(q=>`${q.name}: ${L(q.name)}`).join(", ")+" })}":"";
+    const body=c.body ? (c.body.startsWith("{") ? `{ ${st.model.args.filter(a=>!c.pp.some(p=>p.name===a.name)).map(a=>`${a.name}: ${argVal(a)}`).join(", ")} }` : argVal(st.model.args.find(a=>a.name===c.body))) : "";
+    return `await this.clients.${st.v}Rest.${c.method.toLowerCase()}(\`${path}${qs}\`${body?", "+body:""})`;
+  }
+  return `await this.clients.${st.v}Grpc.${Pascal(st.model.name)}({ ${stepLeaves(st).map(l=>`${l.name}: ${L(l.name)}`).join(", ")} })`;
+}
+function nodeIntegrationCall(o, c){
+  const path=c.path.replace(/\{(\w+)\}/g,(m,p)=>{ const q=c.pp.find(x=>x.name===p); return "${encodeURIComponent("+(q&&q.expr||p)+")}"; });
+  const qs=c.query.length?"${qs({ "+c.query.map(a=>a.name).join(", ")+" })}":"";
+  return `    // Integration: the external system's REST API (${c.method} ${c.path})\n    return this.clients.external.${c.method.toLowerCase()}(\`${path}${qs}\`${c.body?", "+c.body:""});`;
+}
+function nodeSvcMethod(sg, o){
+  const p=svcPlan(sg, o), orch=p.orch;
+  let body;
+  if(p.kind==="integration" && p.c) body=nodeIntegrationCall(o, p.c);
+  else if(p.kind==="misplaced") body=`    // ⚠ ${misplacedNote(sg,p)}\n    throw new Error("${o.Name}: orchestration belongs in an Orchestrator service");`;
+  else if(p.kind==="orch"){
+    const L=[`    // Orchestration moved here from the BFF (${orch.ref}): downstream subgraph services are`, `    // called over REST / gRPC — ${GQL_RULE}.`, "    const done = [];   // completed writes, compensated on failure", "    try {"];
+    for(const st of orch.steps){ L.push(`      // ${st.n}. ${stepLabel(st)}`, `      const r${st.n} = ${nodeStepCall(st, o.args)};`); if(st.write) L.push(`      done.push({ step: "${st.model.name}", result: r${st.n} });`); }
+    L.push(`      return { /* build the ${baseType(o.ReturnType)||"result"} from r1…r${orch.steps.length} */ };`, "    } catch (err) {", "      for (const d of done.reverse()) { /* compensate d.step — refund, restore, cancel */ }", "      throw err;", "    }");
+    body=L.join("\n");
+  } else body=`    // ${todoOf(sg,o,p)}\n    throw new Error("${o.Name}: not implemented");`;
+  return `  // ${opTitle(o)}\n  async ${o.Name}(${o.args.map(a=>a.name).join(", ")}) {\n${body}\n  }`;
+}
+function nodeRoute(sg, o){
+  const r=restIn(o); if(!r) return `  // ${o.Name}: ${noRest(o)}`;
+  const val=x=> x.from==="path" ? `req.params.${x.a.name}` : x.from==="query" ? `req.query.${x.a.name}` : x.from==="field" ? `req.body.${x.a.name}`
+    : (x.merge.length ? `{ ...req.body, ${x.merge.map(p=>`${p}: req.params.${p}`).join(", ")} }` : "req.body");
+  return `  // ${r.method} ${r.path} — existing endpoint, unchanged for REST clients\n  router.${r.method.toLowerCase()}("${r.path.replace(/\{(\w+)\}/g,":$1")}", async (req, res, next) => {\n    try {\n      res${r.method==="POST"?".status(201)":""}.json(await service.${o.Name}(${r.args.map(val).join(", ")}));\n    } catch (err) {\n      next(err);\n    }\n  });`;
+}
+function nodeResolver(sg, o, sel){
+  const d=regDescOf(o), s=camel(sg.Sg);
+  return `${d?`    // ${d}\n`:""}    ${o.Name}: (_parent, ${o.args.length?`{ ${o.args.map(a=>a.name).join(", ")} }`:"_args"}, { services }) =>\n      services.${s}.${o.Name}(${o.args.map(a=>a.name).join(", ")}),${MARK(o,sel)}`;
+}
+function nodeSubgraph(sg, sel){
+  const S=sg.Sg+"Service", s=camel(sg.Sg), orchs=sgOrchestrations(sg), rt=restTargets(orchs), gt=grpcTargets(orchs), ext=isIntegration(sg);
+  const res=(kind)=>sg.ops.filter(o=>o.kind===kind).map(o=>nodeResolver(sg, o, sel)).join("\n");
   const ent=[];
   for(const x of sg.types.filter(x=>x.kind==="Key")){
     const keys=keyList(x.t), lq=lookupQueryFor(sg, x.name, keys);
-    ent.push(`  ${x.name}: {\n    // _entities: the router sends { __typename: "${x.name}", ${keys.join(", ")} }\n    __resolveReference: (ref, { dataSources }) =>\n      ${lq?`dataSources.${api}.${lq.Name}(${lq.args.map(a=>"ref."+a.name).join(", ")})`:`/* TODO: load ${x.name} by ${keys.join(" + ")} */ ref`},\n  },`);
+    ent.push(`  ${x.name}: {\n    // _entities: the router sends { __typename: "${x.name}", ${keys.join(", ")} }\n    __resolveReference: (ref, { services }) =>\n      ${lq?`services.${s}.${lq.Name}(${lq.args.map(a=>"ref."+a.name).join(", ")})`:`/* TODO: load ${x.name} by ${keys.join(" + ")} */ ref`},\n  },`);
   }
   const byType={};
   for(const e of extensionResolvers(sg)) (byType[e.type]=byType[e.type]||[]).push(e);
   for(const [t,list] of Object.entries(byType)){
     const fields=list.map(e=>{
-      const call=e.op ? `dataSources.${api}.${e.op.Name}(${e.op.args.map(a=>e.keys.includes(a.name)?"parent."+a.name:a.name).join(", ")})` : `/* TODO: resolve ${e.field.name}: ${e.field.type}${e.requires?` — @requires(${e.requires}) gives you parent.${e.requires.split(/\s+/).join(", parent.")}`:""} */ null`;
-      return `    ${e.field.name}: (parent, ${e.fArgs.length?`{ ${e.fArgs.join(", ")} }`:"_args"}, { dataSources }) =>\n      ${call},`;
+      const call=e.op ? `services.${s}.${e.op.Name}(${e.op.args.map(a=>e.keys.includes(a.name)?"parent."+a.name:a.name).join(", ")})` : `/* TODO: resolve ${e.field.name}: ${e.field.type}${e.requires?` — @requires(${e.requires}) gives you parent.${e.requires.split(/\s+/).join(", parent.")}`:""} */ null`;
+      return `    ${e.field.name}: (parent, ${e.fArgs.length?`{ ${e.fArgs.join(", ")} }`:"_args"}, { services }) =>\n      ${call},`;
     }).join("\n");
     ent.push(`  // ${t} is owned by another subgraph; this subgraph adds fields to it (@key ${list[0].keys.join(" ")})\n  ${t}: {\n    __resolveReference: (ref) => ref,\n${fields}\n  },`);
   }
-  return [
+  const anyQs=[].concat(...orchs.map(o=>o.steps)).some(st=>st.via==="rest"&&st.c.query.length) || (ext && sg.ops.some(o=>{ const c=restCall(o); return c&&c.query.length; }));
+  const anyClients=rt.length||gt.length||ext;
+  const files=[
     { title:"schema.graphql — subgraph SDL", sdl:true, code:subgraphSDL(sg) },
-    { title:`src/datasources/${Api}.js — the current REST service`, code:`import { RESTDataSource } from "@apollo/datasource-rest";\n\n// Wraps the existing ${sg.sgName} REST service; each method backs one Query / Mutation resolver.\nexport class ${Api} extends RESTDataSource {\n  baseURL = process.env.${sg.sgName.toUpperCase().replace(/[^A-Z0-9]+/g,"_")}_REST_URL;\n\n${methods.join("\n\n")}\n}` },
-    { title:"src/resolvers.js — Query / Mutation / entity resolvers", code:`// ${sg.sgName} subgraph resolvers — each delegates to the REST data source.\nexport const resolvers = {\n${sg.ops.some(o=>o.kind==="query")?`  Query: {\n${res("query")}\n  },\n`:""}${sg.ops.some(o=>o.kind==="mutation")?`  Mutation: {\n${res("mutation")}\n  },\n`:""}${ent.join("\n")}\n};` },
-    { title:"src/index.js — subgraph server", code:`import { readFileSync } from "node:fs";\nimport gql from "graphql-tag";\nimport { ApolloServer } from "@apollo/server";\nimport { startStandaloneServer } from "@apollo/server/standalone";\nimport { buildSubgraphSchema } from "@apollo/subgraph";\nimport { resolvers } from "./resolvers.js";\nimport { ${Api} } from "./datasources/${Api}.js";\n\nconst typeDefs = gql(readFileSync(new URL("../schema.graphql", import.meta.url), "utf8"));\nconst server = new ApolloServer({ schema: buildSubgraphSchema([{ typeDefs, resolvers }]) });\n\nconst { url } = await startStandaloneServer(server, {\n  listen: { port: Number(process.env.PORT || 4001) },\n  context: async () => ({ dataSources: { ${api}: new ${Api}() } }),\n});\nconsole.log(\`${sg.sgName} subgraph ready at \${url}\`);` },
+    { title:`src/${S}.js — service layer shared by the REST API and the GraphQL API`, code:`${anyQs?`import { qs } from "./clients.js";\n\n`:""}// ${sg.sgName} · ${sg.svcType} service — ${SERVICE_RULES[sg.svcType]}.\n// The business logic behind BOTH the REST routes and the GraphQL resolvers.\nexport class ${S} {\n  constructor(clients = {}) {\n    this.clients = clients;   // ${sg.svcType==="Orchestrator"?"downstream subgraph services (REST / gRPC) — never the graph":sg.svcType==="Integration"?"the external system's REST API":"none — a Domain service calls no other subgraph"}\n  }\n\n${sg.ops.map(o=>nodeSvcMethod(sg, o)).join("\n\n")}\n}` },
+    { title:"src/rest.js — REST API (the current controllers, now calling the service)", code:`import express from "express";\n\n// ${sg.sgName} REST API — same routes and payloads as today.\nexport function restRoutes(service) {\n  const router = express.Router();\n\n${sg.ops.map(o=>nodeRoute(sg, o)).join("\n\n")}\n\n  return router;\n}` },
+    { title:"src/resolvers.js — GraphQL API: Query / Mutation / entity resolvers", code:`// ${sg.sgName} subgraph resolvers — each calls the same service the REST routes use.\nexport const resolvers = {\n${sg.ops.some(o=>o.kind==="query")?`  Query: {\n${res("query")}\n  },\n`:""}${sg.ops.some(o=>o.kind==="mutation")?`  Mutation: {\n${res("mutation")}\n  },\n`:""}${ent.join("\n")}\n};` },
   ];
+  if(anyClients) files.push({ title:ext?"src/clients.js — the external system this Integration service adapts":"src/clients.js — downstream subgraph services (REST / gRPC)", code:`// ${ext?`The external / legacy system behind ${sg.sgName} — called over its REST API.`:`Clients for the subgraph services the orchestration calls — REST or gRPC, ${GQL_RULE}.`}\n${gt.length?`import grpc from "@grpc/grpc-js";\nimport protoLoader from "@grpc/proto-loader";\nimport { promisify } from "node:util";\n\n`:""}${rt.length||ext?`const restClient = (base) => {\n  const call = async (method, path, body) => {\n    const res = await fetch(base + path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });\n    if (!res.ok) throw new Error(\`\${method} \${path} → \${res.status}\`);\n    return res.status === 204 ? null : res.json();\n  };\n  return { get: (p) => call("GET", p), delete: (p, b) => call("DELETE", p, b), post: (p, b) => call("POST", p, b), put: (p, b) => call("PUT", p, b), patch: (p, b) => call("PATCH", p, b) };\n};\n\n`:""}${gt.length?`// unary gRPC client whose methods return promises\nconst grpcClient = (proto, pkg, service, address) => {\n  const def = grpc.loadPackageDefinition(protoLoader.loadSync(new URL(\`../protos/\${proto}\`, import.meta.url).pathname));\n  const client = new def[pkg][service](address, grpc.credentials.createInsecure());\n  return new Proxy(client, { get: (c, m) => promisify(c[m].bind(c)) });\n};\n\n`:""}${anyQs?`export const qs = (o) => { const p = new URLSearchParams(Object.entries(o).filter(([, v]) => v != null)); return p.size ? "?" + p : ""; };\n\n`:""}export const clients = {\n${(ext?[`  external: restClient(process.env.${envName(sg.sgName)}_EXTERNAL_API_URL),   // the system ${sg.sgName} integrates`]:[]).concat(rt.map(st=>`  ${st.v}Rest: restClient(process.env.${envName(st.sg)}_REST_URL),`)).concat(gt.map(st=>`  ${st.v}Grpc: grpcClient("${st.sg}.proto", "${snake(st.Sg)}", "${st.Sg}Service", process.env.${envName(st.sg)}_GRPC_ADDR),`)).join("\n")}\n};` });
+  files.push(...protoFiles(orchs));
+  files.push({ title:"src/index.js — one service: REST API + GraphQL API (subgraph)", code:`import { readFileSync } from "node:fs";\nimport express from "express";\nimport gql from "graphql-tag";\nimport { ApolloServer } from "@apollo/server";\nimport { expressMiddleware } from "@apollo/server/express4";\nimport { buildSubgraphSchema } from "@apollo/subgraph";\nimport { resolvers } from "./resolvers.js";\nimport { restRoutes } from "./rest.js";\nimport { ${S} } from "./${S}.js";\n${anyClients?`import { clients } from "./clients.js";\n`:""}\nconst ${s} = new ${S}(${anyClients?"clients":""});\nconst typeDefs = gql(readFileSync(new URL("../schema.graphql", import.meta.url), "utf8"));\nconst graphql = new ApolloServer({ schema: buildSubgraphSchema([{ typeDefs, resolvers }]) });\nawait graphql.start();\n\nconst app = express();\napp.use(express.json());\napp.use("/graphql", expressMiddleware(graphql, { context: async () => ({ services: { ${s} } }) }));   // GraphQL API — the router calls this\napp.use(restRoutes(${s}));                                                                          // REST API — existing clients keep working\napp.listen(Number(process.env.PORT || 4001), () => console.log("${sg.sgName}: REST + GraphQL (/graphql) ready"));` });
+  return files;
 }
 
-/* ------------------------- Java (Spring for GraphQL 1.3+) ------------------------- */
+/* ------------------------- Java (Spring Boot: MVC + Spring for GraphQL 1.3+) ------------------------- */
 function jType(t){ if(isInputType(t)) return "Map<String, Object>"; const b=baseType(t), list=/^\s*\[/.test(String(t||"")); const m={ID:"String",String:"String",Int:"Integer",Long:"Long",Float:"Double",Boolean:"Boolean"}; const inner=m[b]||(M.regTypes.some(x=>x.name===b&&x.kind==="enum")?"String":"Map<String, Object>"); return list?`List<${inner}>`:inner; }
 function jRet(t){ const b=baseType(t); if(b==="Boolean") return /^\s*\[/.test(String(t||""))?"List<Boolean>":"Boolean"; return /^\s*\[/.test(String(t||""))?"List<Map<String, Object>>":"Map<String, Object>"; }
-function javaSubgraph(sg, sel){
-  const Client=sg.Sg+"RestClient", Ctl=sg.Sg+"Controller", pkg="com.example."+sg.sgName.toLowerCase().replace(/[^a-z0-9]/g,"");
-  const tref=t=>jRet(t)==="Boolean"?"Boolean.class":/^List</.test(jRet(t))?"LIST":"MAP";
-  const methods=sg.ops.map(o=>{
-    const c=restCall(o), sig=`public ${jRet(o.ReturnType)} ${o.Name}(${o.args.map(a=>`${jType(a.type)} ${a.name}`).join(", ")})`;
-    if(!c) return `  // ${o.Name}: ${restLabel(o)}\n  ${sig} {\n    throw new UnsupportedOperationException("${o.Name}: not bound to a REST endpoint yet");\n  }`;
-    const vars=c.pp.map(p=>p.expr&&p.via?`${p.via}.get("${p.name}")`:(p.expr||`null /* ${p.name} */`));
-    const uri=c.query.length ? `b -> b.path("${c.path}")${c.query.map(a=>`.queryParamIfPresent("${a.name}", Optional.ofNullable(${a.name}))`).join("")}.build(${vars.join(", ")})` : `"${c.path}"${vars.length?", "+vars.join(", "):""}`;
-    const verb=c.method.toLowerCase();
-    return `  /** ${c.method} ${c.path} — backs ${o.kind==="mutation"?"Mutation":"Query"}.${o.Name} */\n  ${sig} {\n    return rest.${verb}().uri(${uri})${c.body?`\n        .body(${c.body.startsWith("{")?"Map.of("+o.args.filter(a=>!c.pp.some(p=>p.name===a.name)).map(a=>`"${a.name}", ${a.name}`).join(", ")+")":c.body})`:""}\n        .retrieve().body(${tref(o.ReturnType)});\n  }`;
-  });
-  const mapping=o=>{ const d=regDescOf(o); return `${d?`  /** ${d} */\n`:""}  @${o.kind==="mutation"?"MutationMapping":"QueryMapping"}${MARK(o,sel)}\n  public ${jRet(o.ReturnType)} ${o.Name}(${o.args.map(a=>`@Argument ${jType(a.type)} ${a.name}`).join(", ")}) {\n    return api.${o.Name}(${o.args.map(a=>a.name).join(", ")});\n  }`; };
-  const ents=[];
-  for(const x of sg.types.filter(x=>x.kind==="Key")){
-    const keys=keyList(x.t), lq=lookupQueryFor(sg, x.name, keys);
-    ents.push(`  /** _entities → ${x.name} by @key(${keys.join(" ")}) */\n  @EntityMapping("${x.name}")\n  public Map<String, Object> ${camel(x.name)}Entity(${keys.map(k=>`@Argument String ${k}`).join(", ")}) {\n    return typed("${x.name}", ${lq?`api.${lq.Name}(${lq.args.map(a=>a.name).join(", ")})`:`Map.of(${keys.map(k=>`"${k}", ${k}`).join(", ")}) /* TODO: load ${x.name} */`});\n  }`);
-  }
-  const ext=extensionResolvers(sg); const extTypes=[...new Set(ext.map(e=>e.type))];
-  for(const t of extTypes){ const keys=ext.find(e=>e.type===t).keys;
-    ents.push(`  /** ${t} is owned by another subgraph — return the key so the fields below can resolve */\n  @EntityMapping("${t}")\n  public Map<String, Object> ${camel(t)}Entity(${keys.map(k=>`@Argument String ${k}`).join(", ")}) {\n    return typed("${t}", Map.of(${keys.map(k=>`"${k}", ${k}`).join(", ")}));\n  }`); }
-  for(const e of ext){
-    const call=e.op ? `api.${e.op.Name}(${e.op.args.map(a=>e.keys.includes(a.name)?`(String) parent.get("${a.name}")`:a.name).join(", ")})` : `null /* TODO: resolve ${e.field.name}${e.requires?` — @requires(${e.requires}) is on parent`:""} */`;
-    ents.push(`  @SchemaMapping(typeName = "${e.type}", field = "${e.field.name}")\n  public ${jRet(e.field.type)==="Boolean"?"Boolean":jRet(e.field.type)} ${e.field.name}(Map<String, Object> parent${e.fArgs.map(a=>`, @Argument String ${a}`).join("")}) {\n    return ${call};\n  }`);
-  }
-  return [
-    { title:"src/main/resources/graphql/schema.graphqls — subgraph SDL", sdl:true, code:subgraphSDL(sg) },
-    { title:`${Client}.java — the current REST service`, code:`package ${pkg};\n\nimport java.util.*;\nimport org.springframework.beans.factory.annotation.Value;\nimport org.springframework.core.ParameterizedTypeReference;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.client.RestClient;\n\n// Wraps the existing ${sg.sgName} REST service; each method backs one Query / Mutation.\n@Component\npublic class ${Client} {\n  private static final ParameterizedTypeReference<Map<String, Object>> MAP = new ParameterizedTypeReference<>() {};\n  private static final ParameterizedTypeReference<List<Map<String, Object>>> LIST = new ParameterizedTypeReference<>() {};\n  private final RestClient rest;\n\n  public ${Client}(RestClient.Builder builder, @Value("\${rest.${sg.sgName}.base-url}") String baseUrl) {\n    this.rest = builder.baseUrl(baseUrl).build();\n  }\n\n${methods.join("\n\n")}\n}` },
-    { title:`${Ctl}.java — @QueryMapping / @MutationMapping / @EntityMapping`, code:`package ${pkg};\n\nimport java.util.*;\nimport org.springframework.graphql.data.federation.EntityMapping;\nimport org.springframework.graphql.data.method.annotation.*;\nimport org.springframework.stereotype.Controller;\n\n// ${sg.sgName} subgraph — resolvers delegate to the REST client.\n@Controller\npublic class ${Ctl} {\n  private final ${Client} api;\n  public ${Ctl}(${Client} api) { this.api = api; }\n\n${sg.ops.filter(o=>o.kind==="query").map(mapping).join("\n\n")}${sg.ops.some(o=>o.kind==="mutation")?"\n\n"+sg.ops.filter(o=>o.kind==="mutation").map(mapping).join("\n\n"):""}${ents.length?"\n\n"+ents.join("\n\n")+"\n\n  // Entities are plain Maps: tag them with __typename so _entities can resolve the GraphQL type.\n  private static Map<String, Object> typed(String type, Map<String, Object> m) {\n    if (m == null) return null;\n    Map<String, Object> out = new HashMap<>(m);\n    out.put(\"__typename\", type);\n    return out;\n  }":""}\n}` },
-    { title:`${sg.Sg}SubgraphApplication.java — bootstrap + federation`, code:`package ${pkg};\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\nimport org.springframework.boot.autoconfigure.graphql.GraphQlSourceBuilderCustomizer;\nimport org.springframework.context.annotation.*;\nimport org.springframework.graphql.data.federation.FederationSchemaFactory;\n\n@SpringBootApplication\npublic class ${sg.Sg}SubgraphApplication {\n  public static void main(String[] args) { SpringApplication.run(${sg.Sg}SubgraphApplication.class, args); }\n}\n\n// Apollo Federation subgraph support (Spring for GraphQL 1.3+; needs com.apollographql.federation:\n// federation-graphql-java-support): adds _service / _entities and routes _entities to @EntityMapping.\n@Configuration\nclass FederationConfig {\n  @Bean\n  FederationSchemaFactory schemaFactory() {\n    FederationSchemaFactory factory = new FederationSchemaFactory();\n    // entities are returned as Maps tagged with __typename (see the controller's typed(...))\n    factory.setTypeResolver(env -> env.getObject() instanceof java.util.Map<?, ?> m && m.get("__typename") instanceof String t\n        ? env.getSchema().getObjectType(t) : null);\n    return factory;\n  }\n\n  @Bean\n  GraphQlSourceBuilderCustomizer federation(FederationSchemaFactory factory) {\n    return builder -> builder.schemaFactory(factory::createGraphQLSchema);\n  }\n}\n\n${scalarConfigJava(sg)}// application.yml\n// rest:\n//   ${sg.sgName}:\n//     base-url: https://${sg.sgName}.internal.example.com` },
-  ];
-}
-
 // Spring for GraphQL needs a runtime implementation for every custom scalar in the schema (Apollo
 // Server doesn't). Pass-through coercing: the REST JSON value is served as-is.
 function scalarConfigJava(sg){
   const sc=[...customScalars(sg)]; if(!sc.length) return "";
   return `// Custom scalars must be wired at runtime — pass-through coercing (values flow as the REST JSON gives them).\n@Configuration\nclass ScalarConfig {\n  @Bean\n  org.springframework.graphql.execution.RuntimeWiringConfigurer customScalars() {\n    return wiring -> wiring\n${sc.map(n=>`        .scalar(passThrough("${n}"))`).join("\n")};\n  }\n\n  @SuppressWarnings("deprecation")\n  private static graphql.schema.GraphQLScalarType passThrough(String name) {\n    return graphql.schema.GraphQLScalarType.newScalar().name(name).coercing(new graphql.schema.Coercing<Object, Object>() {\n      public Object serialize(Object v) { return v; }\n      public Object parseValue(Object v) { return v; }\n      public Object parseLiteral(Object v) {\n        if (v instanceof graphql.language.FloatValue f) return f.getValue();\n        if (v instanceof graphql.language.IntValue i) return i.getValue();\n        if (v instanceof graphql.language.StringValue s) return s.getValue();\n        if (v instanceof graphql.language.BooleanValue b) return b.isValue();\n        return null;\n      }\n    }).build();\n  }\n}\n\n`;
 }
+const jLeaf=(src,name)=>src ? (src.field?`${src.arg}.get("${src.field}")`:src.arg) : `null /* TODO: ${name} — from an earlier step */`;
+function jGrpcSet(f, src){
+  if(!src) return `        // .set${Pascal(f.name)}(…)   TODO: ${f.name} — from an earlier step`;
+  const x=jLeaf(src,f.name), pt=protoType(f.type);
+  if(!pt||isListT(f.type)) return `        // .set${Pascal(f.name)}(…)   TODO: ${f.name}: ${f.type}`;
+  const v=pt==="string"?`String.valueOf(${x})`:pt==="bool"?`(Boolean) ${x}`:pt==="double"?`((Number) ${x}).doubleValue()`:pt==="int64"?`((Number) ${x}).longValue()`:`((Number) ${x}).intValue()`;
+  return `        .set${Pascal(f.name)}(${v})`;
+}
+function javaStepCall(st, orchArgs){
+  const L=n=>jLeaf(leafOf(orchArgs, n, baseType(st.model.returns)), n);
+  const argVal=a=>isInputType(a.type) ? `vars(${inputFieldDefs(a.type).map(f=>`"${f.name}", ${L(f.name)}`).join(", ")})` : L(a.name);
+  if(st.via==="local") return `var r${st.n} = ${st.model.name}(${st.model.args.map(a=>isInputType(a.type)?argVal(a):`(${jType(a.type)}) ${argVal(a)}`).join(", ")});`;
+  if(st.via==="rest"){
+    const c=st.c, uv=c.pp.map(p=>L(String(p.expr||p.name).split(".").pop()));
+    const uri=c.query.length?`b -> b.path("${c.path}")${c.query.map(q=>`.queryParamIfPresent("${q.name}", Optional.ofNullable(${L(q.name)}))`).join("")}.build(${uv.join(", ")})`:`"${c.path}"${uv.length?", "+uv.join(", "):""}`;
+    const body=c.body ? (c.body.startsWith("{") ? `vars(${st.model.args.filter(a=>!c.pp.some(p=>p.name===a.name)).map(a=>`"${a.name}", ${argVal(a)}`).join(", ")})` : argVal(st.model.args.find(a=>a.name===c.body))) : "";
+    return `Object r${st.n} = ${st.v}Rest.${c.method.toLowerCase()}().uri(${uri})${body?`.body(${body})`:""}\n          .retrieve().body(Object.class);`;
+  }
+  return `var r${st.n} = ${st.v}Grpc.${st.model.name}(${Pascal(st.model.name)}Request.newBuilder()\n${stepLeaves(st).map(f=>jGrpcSet(f, leafOf(orchArgs, f.name, baseType(st.model.returns)))).join("\n")}\n        .build());`;
+}
+function javaIntegrationCall(o, c){
+  const vars=c.pp.map(p=>p.expr&&p.via?`${p.via}.get("${p.name}")`:(p.expr||`null /* ${p.name} */`));
+  const uri=c.query.length ? `b -> b.path("${c.path}")${c.query.map(a=>`.queryParamIfPresent("${a.name}", Optional.ofNullable(${a.name}))`).join("")}.build(${vars.join(", ")})` : `"${c.path}"${vars.length?", "+vars.join(", "):""}`;
+  const body=c.body?(c.body.startsWith("{")?`vars(${o.args.filter(a=>!c.pp.some(p=>p.name===a.name)).map(a=>`"${a.name}", ${a.name}`).join(", ")})`:c.body):"";
+  const R=jRet(o.ReturnType), tref=R==="Boolean"?"Boolean.class":/^List/.test(R)?"LIST":"MAP";
+  return `    // Integration: the external system's REST API (${c.method} ${c.path})\n    return externalApi.${c.method.toLowerCase()}().uri(${uri})${body?`\n        .body(${body})`:""}\n        .retrieve().body(${tref});`;
+}
+function javaSvcMethod(sg, o){
+  const p=svcPlan(sg, o), orch=p.orch, R=jRet(o.ReturnType);
+  const sig=`  /** ${opTitle(o)} */\n  public ${R} ${o.Name}(${o.args.map(a=>`${jType(a.type)} ${a.name}`).join(", ")})`;
+  if(p.kind==="integration" && p.c) return `${sig} {\n${javaIntegrationCall(o, p.c)}\n  }`;
+  if(p.kind==="misplaced") return `${sig} {\n    // ⚠ ${misplacedNote(sg,p)}\n    throw new UnsupportedOperationException("${o.Name}: orchestration belongs in an Orchestrator service");\n  }`;
+  if(p.kind!=="orch") return `${sig} {\n    // ${todoOf(sg,o,p)}\n    throw new UnsupportedOperationException("${o.Name}: not implemented");\n  }`;
+  const L=[`    // Orchestration moved here from the BFF (${orch.ref}): downstream subgraph services are`, `    // called over REST / gRPC — ${GQL_RULE}.`, "    Deque<String> done = new ArrayDeque<>();   // completed writes, compensated on failure", "    try {"];
+  for(const st of orch.steps){ L.push(`      // ${st.n}. ${stepLabel(st)}`, "      "+javaStepCall(st, o.args).replace(/\n/g,"\n  ")); if(st.write) L.push(`      done.push("${st.model.name}");`); }
+  const ret=R==="Boolean"?"return true;":/^List/.test(R)?"return List.of();":"Map<String, Object> result = new LinkedHashMap<>();\n      return result;";
+  L.push(`      // TODO: build the ${baseType(o.ReturnType)||"result"} from r1…r${orch.steps.length}`, "      "+ret, "    } catch (RuntimeException e) {", "      done.forEach(step -> { /* compensate step — refund, restore, cancel */ });", "      throw e;", "    }");
+  return `${sig} {\n${L.join("\n")}\n  }`;
+}
+function javaRestAction(sg, o){
+  const r=restIn(o); if(!r) return `  // ${o.Name}: ${noRest(o)}`;
+  const ann={GET:"GetMapping",POST:"PostMapping",PUT:"PutMapping",PATCH:"PatchMapping",DELETE:"DeleteMapping"}[r.method]||"RequestMapping";
+  const ps=[], pre=[], call=[];
+  for(const x of r.args){
+    if(x.from==="path"){ ps.push(`@PathVariable ${jType(x.a.type)} ${x.a.name}`); call.push(x.a.name); }
+    else if(x.from==="query"){ ps.push(`@RequestParam(required = false) ${jType(x.a.type)} ${x.a.name}`); call.push(x.a.name); }
+    else if(x.from==="body"){ ps.push(`@RequestBody${r.write?"":"(required = false)"} Map<String, Object> ${x.a.name}`); x.merge.forEach(p=>{ ps.push(`@PathVariable String ${p}`); pre.push(`    ${x.a.name}.put("${p}", ${p});`); }); call.push(x.a.name); }
+    else call.push(`(${jType(x.a.type)}) body.get("${x.a.name}")`);
+  }
+  if(r.args.some(x=>x.from==="field")) ps.push("@RequestBody Map<String, Object> body");
+  return `  /** ${r.method} ${r.path} — existing endpoint, unchanged for REST clients */\n  @${ann}("${r.path}")\n  public ${jRet(o.ReturnType)} ${o.Name}(${ps.join(", ")}) {\n${pre.join("\n")}${pre.length?"\n":""}    return service.${o.Name}(${call.join(", ")});\n  }`;
+}
+function javaMapping(o, sel){ const d=regDescOf(o); return `${d?`  /** ${d} */\n`:""}  @${o.kind==="mutation"?"MutationMapping":"QueryMapping"}${MARK(o,sel)}\n  public ${jRet(o.ReturnType)} ${o.Name}(${o.args.map(a=>`@Argument ${jType(a.type)} ${a.name}`).join(", ")}) {\n    return service.${o.Name}(${o.args.map(a=>a.name).join(", ")});\n  }`; }
+function javaSubgraph(sg, sel){
+  const S=sg.Sg+"Service", pkg="com.example."+sg.sgName.toLowerCase().replace(/[^a-z0-9]/g,""), orchs=sgOrchestrations(sg), rt=restTargets(orchs), gt=grpcTargets(orchs), integ=isIntegration(sg);
+  const ents=[];
+  for(const x of sg.types.filter(x=>x.kind==="Key")){
+    const keys=keyList(x.t), lq=lookupQueryFor(sg, x.name, keys);
+    ents.push(`  /** _entities → ${x.name} by @key(${keys.join(" ")}) */\n  @EntityMapping("${x.name}")\n  public Map<String, Object> ${camel(x.name)}Entity(${keys.map(k=>`@Argument String ${k}`).join(", ")}) {\n    return typed("${x.name}", ${lq?`service.${lq.Name}(${lq.args.map(a=>a.name).join(", ")})`:`Map.of(${keys.map(k=>`"${k}", ${k}`).join(", ")}) /* TODO: load ${x.name} */`});\n  }`);
+  }
+  const ext=extensionResolvers(sg); const extTypes=[...new Set(ext.map(e=>e.type))];
+  for(const t of extTypes){ const keys=ext.find(e=>e.type===t).keys;
+    ents.push(`  /** ${t} is owned by another subgraph — return the key so the fields below can resolve */\n  @EntityMapping("${t}")\n  public Map<String, Object> ${camel(t)}Entity(${keys.map(k=>`@Argument String ${k}`).join(", ")}) {\n    return typed("${t}", Map.of(${keys.map(k=>`"${k}", ${k}`).join(", ")}));\n  }`); }
+  for(const e of ext){
+    const call=e.op ? `service.${e.op.Name}(${e.op.args.map(a=>e.keys.includes(a.name)?`(String) parent.get("${a.name}")`:a.name).join(", ")})` : `null /* TODO: resolve ${e.field.name}${e.requires?` — @requires(${e.requires}) is on parent`:""} */`;
+    ents.push(`  @SchemaMapping(typeName = "${e.type}", field = "${e.field.name}")\n  public ${jRet(e.field.type)} ${e.field.name}(Map<String, Object> parent${e.fArgs.map(a=>`, @Argument String ${a}`).join("")}) {\n    return ${call};\n  }`);
+  }
+  const deps=[...(integ?[{ t:"RestClient", n:"externalApi", ext:true }]:[]), ...rt.map(st=>({ t:"RestClient", n:`${st.v}Rest` })), ...gt.map(st=>({ t:`${st.Sg}ServiceGrpc.${st.Sg}ServiceBlockingStub`, n:`${st.v}Grpc` }))];
+  const grpcImports=gt.map(st=>`import com.example.grpc.${snake(st.Sg).replace(/_/g,"")}.*;\n`).join("");
+  const files=[
+    { title:"src/main/resources/graphql/schema.graphqls — subgraph SDL", sdl:true, code:subgraphSDL(sg) },
+    { title:`${S}.java — service layer shared by the REST API and the GraphQL API`, code:`package ${pkg};\n\nimport java.util.*;\n${deps.length?"import org.springframework.beans.factory.annotation.Qualifier;\n":""}${integ?"import org.springframework.core.ParameterizedTypeReference;\n":""}import org.springframework.stereotype.Service;\n${rt.length||integ?"import org.springframework.web.client.RestClient;\n":""}${grpcImports}\n// ${sg.sgName} · ${sg.svcType} service — ${SERVICE_RULES[sg.svcType]}.\n// The business logic behind BOTH the REST controller and the GraphQL controller.\n@Service\npublic class ${S} {\n${integ?"  private static final ParameterizedTypeReference<Map<String, Object>> MAP = new ParameterizedTypeReference<>() {};\n  private static final ParameterizedTypeReference<List<Map<String, Object>>> LIST = new ParameterizedTypeReference<>() {};\n":""}${deps.map(d=>`  private final ${d.t} ${d.n};`).join("\n")}${deps.length?`\n\n  public ${S}(${deps.map(d=>`@Qualifier("${d.n}") ${d.t} ${d.n}`).join(", ")}) {\n${deps.map(d=>`    this.${d.n} = ${d.n};`).join("\n")}\n  }\n\n`:""}${sg.ops.map(o=>javaSvcMethod(sg, o)).join("\n\n")}${orchs.length||integ?"\n\n  // null-tolerant Map.of\n  private static Map<String, Object> vars(Object... kv) {\n    Map<String, Object> m = new LinkedHashMap<>();\n    for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);\n    return m;\n  }":""}\n}` },
+    { title:`${sg.Sg}RestController.java — REST API (the current controller, now calling the service)`, code:`package ${pkg};\n\nimport java.util.*;\nimport org.springframework.web.bind.annotation.*;\n\n// ${sg.sgName} REST API — same routes and payloads as today.\n@RestController\npublic class ${sg.Sg}RestController {\n  private final ${S} service;\n  public ${sg.Sg}RestController(${S} service) { this.service = service; }\n\n${sg.ops.map(o=>javaRestAction(sg, o)).join("\n\n")}\n}` },
+    { title:`${sg.Sg}GraphQlController.java — GraphQL API: @QueryMapping / @MutationMapping / @EntityMapping`, code:`package ${pkg};\n\nimport java.util.*;\nimport org.springframework.graphql.data.federation.EntityMapping;\nimport org.springframework.graphql.data.method.annotation.*;\nimport org.springframework.stereotype.Controller;\n\n// ${sg.sgName} subgraph — resolvers call the same service the REST controller uses.\n@Controller\npublic class ${sg.Sg}GraphQlController {\n  private final ${S} service;\n  public ${sg.Sg}GraphQlController(${S} service) { this.service = service; }\n\n${sg.ops.filter(o=>o.kind==="query").map(o=>javaMapping(o, sel)).join("\n\n")}${sg.ops.some(o=>o.kind==="mutation")?"\n\n"+sg.ops.filter(o=>o.kind==="mutation").map(o=>javaMapping(o, sel)).join("\n\n"):""}${ents.length?"\n\n"+ents.join("\n\n")+"\n\n  // Entities are plain Maps: tag them with __typename so _entities can resolve the GraphQL type.\n  private static Map<String, Object> typed(String type, Map<String, Object> m) {\n    if (m == null) return null;\n    Map<String, Object> out = new HashMap<>(m);\n    out.put(\"__typename\", type);\n    return out;\n  }":""}\n}` },
+  ];
+  if(deps.length) files.push({ title:integ?"DownstreamClients.java — the external system this Integration service adapts":"DownstreamClients.java — subgraph services the orchestration calls (REST / gRPC)", code:`package ${pkg};\n\n${gt.length?"import io.grpc.ManagedChannelBuilder;\n":""}import org.springframework.beans.factory.annotation.Value;\nimport org.springframework.context.annotation.*;\n${rt.length||integ?"import org.springframework.web.client.RestClient;\n":""}${grpcImports}\n// ${integ?`The external / legacy system behind ${sg.sgName}, over its REST API.`:`REST / gRPC clients — ${GQL_RULE}.`}\n@Configuration\nclass DownstreamClients {\n${(integ?[`  @Bean("externalApi")\n  RestClient externalApi(RestClient.Builder b, @Value("\${external.${sg.sgName}.base-url}") String url) {\n    return b.baseUrl(url).build();\n  }`]:[]).concat(rt.map(st=>`  @Bean("${st.v}Rest")\n  RestClient ${st.v}Rest(RestClient.Builder b, @Value("\${rest.${st.sg}.base-url}") String url) {\n    return b.baseUrl(url).build();\n  }`).concat(gt.map(st=>`  @Bean("${st.v}Grpc")\n  ${st.Sg}ServiceGrpc.${st.Sg}ServiceBlockingStub ${st.v}Grpc(@Value("\${grpc.${st.sg}.address}") String address) {\n    return ${st.Sg}ServiceGrpc.newBlockingStub(ManagedChannelBuilder.forTarget(address).usePlaintext().build());\n  }`))).join("\n\n")}\n}` });
+  files.push(...protoFiles(orchs));
+  files.push({ title:`${sg.Sg}SubgraphApplication.java — one service: REST API + GraphQL API (subgraph)`, code:`package ${pkg};\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\nimport org.springframework.boot.autoconfigure.graphql.GraphQlSourceBuilderCustomizer;\nimport org.springframework.context.annotation.*;\nimport org.springframework.graphql.data.federation.FederationSchemaFactory;\n\n// spring-boot-starter-web serves the REST API, spring-boot-starter-graphql serves /graphql — one app.\n@SpringBootApplication\npublic class ${sg.Sg}SubgraphApplication {\n  public static void main(String[] args) { SpringApplication.run(${sg.Sg}SubgraphApplication.class, args); }\n}\n\n// Apollo Federation subgraph support (Spring for GraphQL 1.3+; needs com.apollographql.federation:\n// federation-graphql-java-support): adds _service / _entities and routes _entities to @EntityMapping.\n@Configuration\nclass FederationConfig {\n  @Bean\n  FederationSchemaFactory schemaFactory() {\n    FederationSchemaFactory factory = new FederationSchemaFactory();\n    // entities are returned as Maps tagged with __typename (see the controller's typed(...))\n    factory.setTypeResolver(env -> env.getObject() instanceof java.util.Map<?, ?> m && m.get("__typename") instanceof String t\n        ? env.getSchema().getObjectType(t) : null);\n    return factory;\n  }\n\n  @Bean\n  GraphQlSourceBuilderCustomizer federation(FederationSchemaFactory factory) {\n    return builder -> builder.schemaFactory(factory::createGraphQLSchema);\n  }\n}\n\n${scalarConfigJava(sg)}// application.yml\n// spring.graphql.path: /graphql${integ?`\n// external:\n//   ${sg.sgName}.base-url: https://${sg.sgName}-provider.example.com`:""}${rt.length?`\n// rest:\n${rt.map(st=>`//   ${st.sg}.base-url: https://${st.sg}.internal.example.com`).join("\n")}`:""}${gt.length?`\n// grpc:\n${gt.map(st=>`//   ${st.sg}.address: ${st.sg}.internal.example.com:9090`).join("\n")}`:""}` });
+  return files;
+}
 
-/* ---------------------------- .NET (Hot Chocolate) ---------------------------- */
+/* ---------------------------- .NET (ASP.NET Core + Hot Chocolate) ---------------------------- */
 function csT(t, forArg){
   const b=baseType(t), list=/^\s*\[/.test(String(t||"")), nn=/!\s*$/.test(String(t||""));
   const m={ID:"string",String:"string",Int:"int",Long:"long",Float:"double",Boolean:"bool",Money:"decimal",Decimal:"decimal",BigDecimal:"decimal",DateTime:"DateTimeOffset",DateTimeISO:"DateTimeOffset",Date:"DateOnly"};
@@ -539,19 +844,60 @@ function csTypeAttrs(t, target){
 const csStr=s=>String(s||"").replace(/\\/g,"\\\\").replace(/"/g,'\\"');
 // field name → description, from the """…""" lines in a Schema Definition
 function fieldDescs(def){ const m={}; const b=String(def||""), i=b.indexOf("{"); for(const e of describedLines(i>=0?b.slice(i+1,b.lastIndexOf("}")):b)){ const n=(e.line.match(/^(\w+)/)||[])[1]; if(n&&e.desc) m[n]=e.desc; } return m; }
+const csLeaf=(src,name)=>src ? (src.field?`${src.arg}.${Pascal(src.field)}`:src.arg) : null;
+function dotnetStepCall(st, orchArgs){
+  const L=n=>csLeaf(leafOf(orchArgs, n, baseType(st.model.returns)), n);
+  const Lo=n=>L(n) || `(object?)null /* TODO: ${n} — from an earlier step */`;
+  const anon=fs=>`new { ${fs.map(f=>`${f} = ${Lo(f)}`).join(", ")} }`;
+  if(st.via==="local") return `var r${st.n} = await ${Pascal(st.model.name)}(${st.model.args.map(a=>isInputType(a.type)
+      ? `new ${baseType(a.type)}(${inputFieldDefs(a.type).filter(f=>!f.args).map(f=>L(f.name)||`default! /* TODO: ${f.name} */`).join(", ")})` : (L(a.name)||`default! /* TODO: ${a.name} */`)).join(", ")});`;
+  if(st.via==="rest"){
+    const c=st.c, path=c.path.replace(/^\//,"").replace(/\{(\w+)\}/g,(m,p)=>{ const q=c.pp.find(z=>z.name===p); return `{Uri.EscapeDataString(Convert.ToString(${Lo(String(q&&q.expr||p).split(".").pop())})!)}`; });
+    const qs=c.query.length?`{Downstream.QueryString(${c.query.map(q=>`("${q.name}", ${Lo(q.name)})`).join(", ")})}`:"";
+    const body=c.body ? (c.body.startsWith("{") ? anon(st.model.args.filter(a=>!c.pp.some(p=>p.name===a.name)).map(a=>a.name)) : anon(inputFieldDefs((st.model.args.find(a=>a.name===c.body)||{}).type).map(f=>f.name))) : "";
+    return `var r${st.n} = await Downstream.SendAsync(${st.v}Rest, HttpMethod.${Pascal(c.method.toLowerCase())}, $"${path}${qs}"${body?", "+body:""});`;
+  }
+  const sets=stepLeaves(st).map(f=>{ const x=L(f.name), pt=protoType(f.type);
+    return !x ? `            // ${Pascal(f.name)} = …   TODO: ${f.name} — from an earlier step` : (!pt||isListT(f.type)) ? `            // ${Pascal(f.name)} = …   TODO: ${f.name}: ${f.type}` : `            ${Pascal(f.name)} = ${pt==="string"?`$"{${x}}"`:x},`; });
+  return `var r${st.n} = await ${st.v}Grpc.${Pascal(st.model.name)}Async(new ${st.Sg}.Grpc.${Pascal(st.model.name)}Request\n        {\n${sets.join("\n")}\n        });`;
+}
+function dotnetIntegrationCall(o, c, ret){
+  const path=c.path.replace(/^\//,"").replace(/\{(\w+)\}/g,(m,p)=>{ const q=c.pp.find(x=>x.name===p); return "{Uri.EscapeDataString(Convert.ToString("+(q&&q.expr?q.expr.replace(/\.(\w+)$/,(mm,f)=>"."+Pascal(f)):p)+")!)}"; });
+  const qs=c.query.length ? `{Downstream.QueryString(${c.query.map(a=>`("${a.name}", ${a.name})`).join(", ")})}` : "";
+  const url=`$"${path}${qs}"`, body=c.body?(c.body.startsWith("{")?"new "+c.body:c.body):null;
+  const call = c.method==="GET" ? `return await External.GetFromJsonAsync<${ret}>(${url});`
+    : `var res = await External.SendAsync(new HttpRequestMessage(HttpMethod.${Pascal(c.method.toLowerCase())}, ${url})${body?` { Content = JsonContent.Create(${body}) }`:""});\n        res.EnsureSuccessStatusCode();\n        return await res.Content.ReadFromJsonAsync<${ret}>();`;
+  return `        // Integration: the external system's REST API (${c.method} ${c.path})\n        ${call}`;
+}
+function dotnetSvcMethod(sg, o){
+  const p=svcPlan(sg, o), orch=p.orch, ret=csT(o.ReturnType).replace(/\?$/,"");
+  const args=o.args.map(a=>`${csT(a.type,true)} ${a.name}`).join(", ");
+  if(p.kind==="integration" && p.c) return `    // ${opTitle(o)}\n    public async Task<${ret}?> ${Pascal(o.Name)}(${args})\n    {\n${dotnetIntegrationCall(o, p.c, ret)}\n    }`;
+  if(p.kind==="misplaced") return `    // ${opTitle(o)}\n    // ⚠ ${misplacedNote(sg,p)}\n    public Task<${ret}?> ${Pascal(o.Name)}(${args})\n        => throw new InvalidOperationException("${o.Name}: orchestration belongs in an Orchestrator service");`;
+  if(p.kind!=="orch") return `    // ${opTitle(o)}\n    public Task<${ret}?> ${Pascal(o.Name)}(${args})\n        => throw new NotImplementedException("${todoOf(sg,o,p)}");`;
+  const L=[`        // Orchestration moved here from the BFF (${orch.ref}): downstream subgraph services are`, `        // called over REST / gRPC — ${GQL_RULE}.`, "        var done = new Stack<string>();   // completed writes, compensated on failure", "        try", "        {"];
+  for(const st of orch.steps){ L.push(`            // ${st.n}. ${stepLabel(st)}`, "            "+dotnetStepCall(st, o.args).replace(/\n/g,"\n    ")); if(st.write) L.push(`            done.Push("${st.model.name}");`); }
+  L.push(`            return null;   // TODO: build the ${baseType(o.ReturnType)||"result"} from r1…r${orch.steps.length}`, "        }", "        catch", "        {", "            foreach (var step in done) { /* compensate step — refund, restore, cancel */ }", "            throw;", "        }");
+  return `    // ${opTitle(o)}\n    public async Task<${ret}?> ${Pascal(o.Name)}(${args})\n    {\n${L.join("\n")}\n    }`;
+}
+function dotnetRestAction(sg, o){
+  const r=restIn(o); if(!r) return `    // ${o.Name}: ${noRest(o)}`;
+  const ps=[], call=[];
+  for(const x of r.args){
+    if(x.from==="path"){ ps.push(`${csT(x.a.type)} ${x.a.name}`); call.push(x.a.name); }
+    else if(x.from==="query"){ ps.push(`[FromQuery] ${csT(x.a.type,true)} ${x.a.name}`); call.push(x.a.name); }
+    else if(x.from==="body"){ ps.push(`[FromBody] ${csT(x.a.type)} ${x.a.name}`); x.merge.forEach(p=>ps.push(`string ${p}`)); call.push(x.merge.length?`${x.a.name} with { ${x.merge.map(p=>`${Pascal(p)} = ${p}`).join(", ")} }`:x.a.name); }
+    else call.push(`body["${x.a.name}"].Deserialize<${csT(x.a.type,true)}>()`);
+  }
+  if(r.args.some(x=>x.from==="field")) ps.push("[FromBody] Dictionary<string, JsonElement> body");
+  return `    // ${r.method} ${r.path} — existing endpoint, unchanged for REST clients\n    [Http${Pascal(r.method.toLowerCase())}("${r.path.replace(/^\//,"")}")]\n    public async Task<IActionResult> ${Pascal(o.Name)}(${ps.join(", ")})\n        => Ok(await service.${Pascal(o.Name)}(${call.join(", ")}));`;
+}
+function dotnetResolver(sg, o, sel){
+  const d=regDescOf(o), S=sg.Sg+"Service";
+  return `${d?`    [GraphQLDescription("${d.replace(/"/g,'\\"')}")]\n`:""}    public static Task<${csT(o.ReturnType).replace(/\?$/,"")}?> ${Pascal(o.Name)}(${o.args.map(a=>[...csTypeAttrs(a.type,"param"), `${csT(a.type,true)} ${a.name}`].join(" ")).concat([`${S} service`]).join(", ")})${MARK(o,sel)}\n        => service.${Pascal(o.Name)}(${o.args.map(a=>a.name).join(", ")});`;
+}
 function dotnetSubgraph(sg, sel){
-  const Api=sg.Sg+"Api";
-  const methods=sg.ops.map(o=>{
-    const c=restCall(o), ret=csT(o.ReturnType).replace(/\?$/,""), sig=`public async Task<${ret}?> ${Pascal(o.Name)}(${o.args.map(a=>`${csT(a.type,true)} ${a.name}`).join(", ")})`;
-    if(!c) return `    // ${o.Name}: ${restLabel(o)}\n    ${sig} => throw new NotImplementedException("${o.Name}: not bound to a REST endpoint yet");`;
-    const path=c.path.replace(/^\//,"").replace(/\{(\w+)\}/g,(m,p)=>{ const s=c.pp.find(x=>x.name===p); return "{Uri.EscapeDataString("+(s&&s.expr?s.expr.replace(/\.(\w+)$/,(mm,f)=>"."+Pascal(f)):p)+")}"; });
-    const qs=c.query.length ? `{QueryString(${c.query.map(a=>`("${a.name}", ${a.name})`).join(", ")})}` : "";
-    const url=`$"${path}${qs}"`;
-    const body=c.body?(c.body.startsWith("{")?"new "+c.body:c.body):null;
-    const call = c.method==="GET" ? `return await http.GetFromJsonAsync<${ret}>(${url});`
-      : `var res = await http.SendAsync(new HttpRequestMessage(HttpMethod.${Pascal(c.method.toLowerCase())}, ${url})${body?` { Content = JsonContent.Create(${body}) }`:""});\n        res.EnsureSuccessStatusCode();\n        return await res.Content.ReadFromJsonAsync<${ret}>();`;
-    return `    // ${c.method} ${c.path} — backs ${o.kind==="mutation"?"Mutation":"Query"}.${o.Name}\n    ${sig}\n    {\n        ${call}\n    }`;
-  });
+  const S=sg.Sg+"Service", orchs=sgOrchestrations(sg), rt=restTargets(orchs), gt=grpcTargets(orchs), ext=isIntegration(sg);
   const recs=[];
   for(const x of sg.types){
     if(x.kind==="Enum"){ const vals=splitEnum(x.row.Definition); recs.push(`public enum ${x.name} { ${vals.map(v=>Pascal(v.toLowerCase().replace(/_(\w)/g,(m,c)=>c.toUpperCase()))).join(", ")} }`); continue; }
@@ -561,12 +907,12 @@ function dotnetSubgraph(sg, sel){
     if(x.kind==="Input"){ recs.push(`${doc}public record ${x.name}(${props});`); continue; }
     if(x.kind==="Key"){
       const lq=lookupQueryFor(sg, x.name, keys);
-      recs.push(`${doc}[Key("${keys.join(" ")}")]\npublic record ${x.name}(${props})\n{\n    // _entities: the router asks for ${x.name} by @key(${keys.join(" ")})\n    [ReferenceResolver]\n    public static Task<${x.name}?> ResolveReference(${keys.map(k=>{ const t=(fields.find(f=>f.name===k)||{}).type||"ID!"; return [...csTypeAttrs(t,"param"), `${csT(t)} ${k}`].join(" "); }).join(", ")}, ${Api} api)\n        => ${lq?`api.${Pascal(lq.Name)}(${lq.args.map(a=>a.name).join(", ")})`:`Task.FromResult<${x.name}?>(null) /* TODO: load ${x.name} */`};\n}`);
+      recs.push(`${doc}[Key("${keys.join(" ")}")]\npublic record ${x.name}(${props})\n{\n    // _entities: the router asks for ${x.name} by @key(${keys.join(" ")})\n    [ReferenceResolver]\n    public static Task<${x.name}?> ResolveReference(${keys.map(k=>{ const t=(fields.find(f=>f.name===k)||{}).type||"ID!"; return [...csTypeAttrs(t,"param"), `${csT(t)} ${k}`].join(" "); }).join(", ")}, ${S} service)\n        => ${lq?`service.${Pascal(lq.Name)}(${lq.args.map(a=>a.name).join(", ")})`:`Task.FromResult<${x.name}?>(null) /* TODO: load ${x.name} */`};\n}`);
       continue;
     }
     if(x.kind==="Extend"){
       const ext=extensionResolvers(sg).filter(e=>e.type===x.name);
-      const fieldsCs=ext.map(e=>`${e.requires?`    [Requires("${e.requires}")]\n`:""}    public ${e.op?`Task<${csT(e.field.type).replace(/\?$/,"")}?>`:csT(e.field.type)} ${Pascal(e.field.name)}(${e.fArgs.map(a=>`string ${a}`).concat(e.op?[`${Api} api`]:[]).join(", ")})\n        => ${e.op?`api.${Pascal(e.op.Name)}(${e.op.args.map(a=>e.keys.includes(a.name)?Pascal(a.name):a.name).join(", ")})`:`default! /* TODO: resolve ${e.field.name}${e.requires?` from ${e.requires.split(/\s+/).map(Pascal).join(", ")} (provided via @requires)`:""} */`};`).join("\n\n");
+      const fieldsCs=ext.map(e=>`${e.requires?`    [Requires("${e.requires}")]\n`:""}    public ${e.op?`Task<${csT(e.field.type).replace(/\?$/,"")}?>`:csT(e.field.type)} ${Pascal(e.field.name)}(${e.fArgs.map(a=>`string ${a}`).concat(e.op?[`${S} service`]:[]).join(", ")})\n        => ${e.op?`service.${Pascal(e.op.Name)}(${e.op.args.map(a=>e.keys.includes(a.name)?Pascal(a.name):a.name).join(", ")})`:`default! /* TODO: resolve ${e.field.name}${e.requires?` from ${e.requires.split(/\s+/).map(Pascal).join(", ")} (provided via @requires)`:""} */`};`).join("\n\n");
       // keys + the @external fields other fields @require (the router sends them in the representation)
       const ext2=(x.t.fields||[]).filter(f=>f.external && !keys.includes(f.name)), carry=[...keys.map(k=>fields.find(f=>f.name===k)||{name:k,type:"ID!"}), ...ext2];
       const extProps=carry.map(f=>[...(ext2.includes(f)?["[property: External]"]:[]), ...csTypeAttrs(f.type,"property"), `${csT(f.type)} ${Pascal(f.name)}`].join(" ")).join(", ");
@@ -576,17 +922,54 @@ function dotnetSubgraph(sg, sel){
     if(x.kind==="Reference"){ recs.push(`// reference stub — ${x.name} is resolved by its owning subgraph (resolvable: false)\n[Key("${keys.join(" ")}", resolvable: false)]\npublic record ${x.name}(${props});`); continue; }
     recs.push(`${doc}public record ${x.name}(${props});`);
   }
-  const res=(kind)=>sg.ops.filter(o=>o.kind===kind).map(o=>{ const d=regDescOf(o); return `${d?`    [GraphQLDescription("${d.replace(/"/g,'\\"')}")]\n`:""}    public static Task<${csT(o.ReturnType).replace(/\?$/,"")}?> ${Pascal(o.Name)}(${o.args.map(a=>[...csTypeAttrs(a.type,"param"), `${csT(a.type,true)} ${a.name}`].join(" ")).concat([`${Api} api`]).join(", ")})${MARK(o,sel)}\n        => api.${Pascal(o.Name)}(${o.args.map(a=>a.name).join(", ")});`; }).join("\n\n");
-  return [
+  const res=(kind)=>sg.ops.filter(o=>o.kind===kind).map(o=>dotnetResolver(sg, o, sel)).join("\n\n");
+  const ctorDeps=[...(rt.length||ext?["IHttpClientFactory http"]:[]), ...gt.map(st=>`${st.Sg}.Grpc.${st.Sg}Service.${st.Sg}ServiceClient ${st.v}Grpc`)];
+  const restLocals=(ext?[`    HttpClient External => http.CreateClient("${sg.sgName}-external");   // the system ${sg.sgName} integrates`]:[]).concat(rt.map(st=>`    HttpClient ${st.v}Rest => http.CreateClient("${st.sg}-rest");`)).join("\n");
+  const files=[
     { title:"schema.graphql — subgraph SDL (Hot Chocolate generates this from the code)", sdl:true, code:subgraphSDL(sg) },
-    { title:`${Api}.cs — the current REST service`, code:`using System.Net.Http.Json;\n\n// Typed HttpClient over the existing ${sg.sgName} REST service; each method backs one Query / Mutation.\npublic class ${Api}(HttpClient http)\n{\n${methods.join("\n\n")}\n\n    static string QueryString(params (string Key, object? Value)[] ps)\n    {\n        var q = string.Join("&", ps.Where(p => p.Value is not null).Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value!.ToString()!)}"));\n        return q.Length > 0 ? "?" + q : "";\n    }\n}` },
-    { title:"Resolvers.cs — [QueryType] / [MutationType] / entities", code:`using HotChocolate.ApolloFederation.Types;\nusing HotChocolate.ApolloFederation.Resolvers;\n\n// Names the source-generated registration: builder.Add${sg.Sg}Types()\n[assembly: Module("${sg.Sg}Types")]\n\n// ${sg.sgName} subgraph — resolvers delegate to ${Api}.\n${sg.ops.some(o=>o.kind==="query")?`[QueryType]\npublic static class ${sg.Sg}Queries\n{\n${res("query")}\n}\n\n`:""}${sg.ops.some(o=>o.kind==="mutation")?`[MutationType]\npublic static class ${sg.Sg}Mutations\n{\n${res("mutation")}\n}\n\n`:""}${recs.join("\n\n")}` },
-    { title:`${sg.Sg}Subgraph.csproj — packages`, code:`<Project Sdk="Microsoft.NET.Sdk.Web">\n  <PropertyGroup>\n    <TargetFramework>net9.0</TargetFramework>\n    <Nullable>enable</Nullable>\n    <ImplicitUsings>enable</ImplicitUsings>\n  </PropertyGroup>\n  <ItemGroup>\n    <PackageReference Include="HotChocolate.AspNetCore" Version="14.1.0" />\n    <PackageReference Include="HotChocolate.ApolloFederation" Version="14.1.0" />\n    <PackageReference Include="HotChocolate.Types.Analyzers" Version="14.1.0" />\n  </ItemGroup>\n</Project>` },
-    { title:"Program.cs — subgraph bootstrap", code:`var builder = WebApplication.CreateBuilder(args);\n\nbuilder.Services.AddHttpClient<${Api}>(c =>\n    c.BaseAddress = new Uri(builder.Configuration["Rest:${Pascal(sg.sgName)}"]!));   // the current REST service\n\nbuilder.Services\n    .AddGraphQLServer()\n    .AddApolloFederation()      // _service / _entities, [Key], [ReferenceResolver]\n${[...customScalars(sg)].filter(n=>CS_DECIMAL_SCALARS.includes(n)).map(n=>`    .AddType(new DecimalType("${n}"))   // custom scalar ${n} (decimal at runtime)\n`).join("")}    .Add${sg.Sg}Types();     // source-generated (HotChocolate.Types.Analyzers) from [QueryType] / [MutationType] / records\n\nvar app = builder.Build();\napp.MapGraphQL();\napp.Run();` },
+    { title:`${S}.cs — service layer shared by the REST API and the GraphQL API`, code:`${ext?"using System.Net.Http.Json;\n\n":""}// ${sg.sgName} · ${sg.svcType} service — ${SERVICE_RULES[sg.svcType]}.\n// The business logic behind BOTH the REST controller and the GraphQL resolvers.\npublic class ${S}(${ctorDeps.join(", ")})\n{\n${restLocals}${restLocals?"\n\n":""}${sg.ops.map(o=>dotnetSvcMethod(sg, o)).join("\n\n")}\n}` },
+    { title:`${sg.Sg}Controller.cs — REST API (the current controller, now calling the service)`, code:`using System.Text.Json;\nusing Microsoft.AspNetCore.Mvc;\n\n// ${sg.sgName} REST API — same routes and payloads as today.\n[ApiController]\npublic class ${sg.Sg}Controller(${S} service) : ControllerBase\n{\n${sg.ops.map(o=>dotnetRestAction(sg, o)).join("\n\n")}\n}` },
+    { title:"Resolvers.cs — GraphQL API: [QueryType] / [MutationType] / entities", code:`using HotChocolate.ApolloFederation.Types;\nusing HotChocolate.ApolloFederation.Resolvers;\n\n// Names the source-generated registration: builder.Add${sg.Sg}Types()\n[assembly: Module("${sg.Sg}Types")]\n\n// ${sg.sgName} subgraph — resolvers call the same ${S} the REST controller uses.\n${sg.ops.some(o=>o.kind==="query")?`[QueryType]\npublic static class ${sg.Sg}Queries\n{\n${res("query")}\n}\n\n`:""}${sg.ops.some(o=>o.kind==="mutation")?`[MutationType]\npublic static class ${sg.Sg}Mutations\n{\n${res("mutation")}\n}\n\n`:""}${recs.join("\n\n")}` },
   ];
+  if(rt.length||ext) files.push({ title:ext?"Downstream.cs — REST helpers for the external system":"Downstream.cs — REST helpers for the subgraph services the orchestration calls", code:`using System.Net.Http.Json;\nusing System.Text.Json;\n\n// ${ext?`REST helpers for the external / legacy system behind ${sg.sgName}.`:`REST calls to other subgraph services — ${GQL_RULE}.`}\npublic static class Downstream\n{\n    public static async Task<JsonElement?> SendAsync(HttpClient c, HttpMethod m, string path, object? body = null)\n    {\n        var res = await c.SendAsync(new HttpRequestMessage(m, path) { Content = body is null ? null : JsonContent.Create(body) });\n        res.EnsureSuccessStatusCode();\n        return res.Content.Headers.ContentLength == 0 ? null : await res.Content.ReadFromJsonAsync<JsonElement>();\n    }\n\n    public static string QueryString(params (string Key, object? Value)[] ps)\n    {\n        var q = string.Join("&", ps.Where(p => p.Value is not null).Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value!.ToString()!)}"));\n        return q.Length > 0 ? "?" + q : "";\n    }\n}` });
+  files.push(...protoFiles(orchs));
+  files.push({ title:`${sg.Sg}Subgraph.csproj — packages`, code:`<Project Sdk="Microsoft.NET.Sdk.Web">\n  <PropertyGroup>\n    <TargetFramework>net9.0</TargetFramework>\n    <Nullable>enable</Nullable>\n    <ImplicitUsings>enable</ImplicitUsings>\n  </PropertyGroup>\n  <ItemGroup>\n    <PackageReference Include="HotChocolate.AspNetCore" Version="14.1.0" />\n    <PackageReference Include="HotChocolate.ApolloFederation" Version="14.1.0" />\n    <PackageReference Include="HotChocolate.Types.Analyzers" Version="14.1.0" />${gt.length?`\n    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.66.0" />\n    <PackageReference Include="Google.Protobuf" Version="3.28.2" />\n    <PackageReference Include="Grpc.Tools" Version="2.66.0" PrivateAssets="All" />`:""}\n  </ItemGroup>${gt.length?`\n  <ItemGroup>\n${gt.map(st=>`    <Protobuf Include="protos/${st.sg}.proto" GrpcServices="Client" />`).join("\n")}\n  </ItemGroup>`:""}\n</Project>` });
+  files.push({ title:"Program.cs — one service: REST API + GraphQL API (subgraph)", code:`var builder = WebApplication.CreateBuilder(args);\n\nbuilder.Services.AddScoped<${S}>();   // shared by the REST controller and the GraphQL resolvers\nbuilder.Services.AddControllers();     // REST API — existing clients keep working\n${ext?`builder.Services.AddHttpClient("${sg.sgName}-external", c => c.BaseAddress = new Uri(builder.Configuration["External:${sgPascal(sg.sgName)}"]!));   // the system ${sg.sgName} integrates\n`:""}${rt.map(st=>`builder.Services.AddHttpClient("${st.sg}-rest", c => c.BaseAddress = new Uri(builder.Configuration["Rest:${sgPascal(st.sg)}"]!));   // ${st.sg} service (REST)\n`).join("")}${gt.map(st=>`builder.Services.AddGrpcClient<${st.Sg}.Grpc.${st.Sg}Service.${st.Sg}ServiceClient>(o => o.Address = new Uri(builder.Configuration["Grpc:${sgPascal(st.sg)}"]!));   // ${st.sg} service (gRPC)\n`).join("")}\nbuilder.Services\n    .AddGraphQLServer()         // GraphQL API — the router calls /graphql\n    .AddApolloFederation()      // _service / _entities, [Key], [ReferenceResolver]\n${[...customScalars(sg)].filter(n=>CS_DECIMAL_SCALARS.includes(n)).map(n=>`    .AddType(new DecimalType("${n}"))   // custom scalar ${n} (decimal at runtime)\n`).join("")}    .Add${sg.Sg}Types();     // source-generated (HotChocolate.Types.Analyzers) from [QueryType] / [MutationType] / records\n\nvar app = builder.Build();\napp.MapControllers();\napp.MapGraphQL();\napp.Run();` });
+  return files;
 }
 function splitEnum(def){ return String(def||"").replace(/^[^{]*\{|\}\s*$/g,"").replace(/"""[\s\S]*?"""/g,"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
 const SUBGRAPH_SERVERS={ "Node.js (Apollo Server)":nodeSubgraph, "Java (Spring for GraphQL)":javaSubgraph, ".NET (Hot Chocolate)":dotnetSubgraph };
+
+/* ---------- One op: REST API action ↔ GraphQL API resolver, over the shared service method ---------- */
+const SERVER_PAIRS={
+  "Node.js (Apollo Server)":{ restTitle:"Express route", gqlTitle:"Apollo Server resolver",
+    rest:(sg,o)=>`// src/rest.js\n${nodeRoute(sg, o).replace(/^ {2}/gm,"")}`,
+    gql:(sg,o,sel)=>`// src/resolvers.js\n${o.kind==="mutation"?"Mutation":"Query"}: {\n${nodeResolver(sg, o, sel).replace(/^ {2}/gm,"")}\n}`,
+    svc:(sg,o)=>`// src/${sg.Sg}Service.js\n${nodeSvcMethod(sg, o).replace(/^ {2}/gm,"")}` },
+  "Java (Spring for GraphQL)":{ restTitle:"Spring MVC @RestController", gqlTitle:"Spring for GraphQL @Controller",
+    rest:(sg,o)=>`// ${sg.Sg}RestController.java\n${javaRestAction(sg, o).replace(/^ {2}/gm,"")}`,
+    gql:(sg,o,sel)=>`// ${sg.Sg}GraphQlController.java\n${javaMapping(o, sel).replace(/^ {2}/gm,"")}`,
+    svc:(sg,o)=>`// ${sg.Sg}Service.java\n${javaSvcMethod(sg, o).replace(/^ {2}/gm,"")}` },
+  ".NET (Hot Chocolate)":{ restTitle:"ASP.NET Core controller action", gqlTitle:"Hot Chocolate resolver",
+    rest:(sg,o)=>`// ${sg.Sg}Controller.cs\n${dotnetRestAction(sg, o).replace(/^ {4}/gm,"")}`,
+    gql:(sg,o,sel)=>`// Resolvers.cs\n${dotnetResolver(sg, o, sel).replace(/^ {4}/gm,"")}`,
+    svc:(sg,o)=>`// ${sg.Sg}Service.cs\n${dotnetSvcMethod(sg, o).replace(/^ {4}/gm,"")}` },
+};
+function opPairHtml(sg, o, sel, P){
+  const r=o.rest, T=o.kind==="mutation"?"Mutation":"Query", orch=orchestrationOf(o.id);
+  const rest=P.rest(sg, o), gq=P.gql(sg, o, sel), svc=P.svc(sg, o);
+  return `<div class="pair${o.id===sel.id?" sel":""}">
+    <div class="pair-head"><span class="badge ${o.kind}">${esc(o.kind)}</span>
+      <span class="mono">${r?esc(r.method+" "+r.path):'<span style="color:var(--warn)">no REST link</span>'}</span><span class="arrow">+</span>
+      <span class="mono"><b>${esc(T+"."+o.Name)}</b></span><span class="arrow">→</span><span class="mono">${esc(sg.Sg)}Service.${esc(o.Name)}</span>
+      ${orch?`<span class="via rest">orchestrator · ${orch.steps.length} downstream call${orch.steps.length===1?"":"s"}</span>`:""}${o.id===sel.id?' <span class="hint">· selected op</span>':""}</div>
+    <div class="grid2">
+      <div><div class="code-head"><h3>REST API <span class="hint">· ${esc(P.restTitle)} (kept)</span></h3><button class="copy-btn" onclick='copyText(${attrJson(rest)})'>Copy</button></div><pre class="code">${esc(rest)}</pre></div>
+      <div><div class="code-head"><h3>GraphQL API <span class="hint">· ${esc(P.gqlTitle)} (added)</span></h3><button class="copy-btn" onclick='copyText(${attrJson(gq)})'>Copy</button></div><pre class="code">${esc(gq)}</pre></div>
+    </div>
+    <div class="code-head"><h3>Shared service <span class="hint">· both APIs call this${orch?` — orchestration from <span class="mono">${esc(orch.ref)}</span>, calling other subgraph services over REST / gRPC`:""}</span></h3><button class="copy-btn" onclick='copyText(${attrJson(svc)})'>Copy</button></div>
+    <pre class="code">${esc(svc)}</pre></div>`;
+}
 
 /* ------------------------------ model / state --------------------------- */
 const M = { reg:{}, entities:[], regTypes:[], gqlOps:[], restOps:[], restTypes:[], sgName:"", restName:"", wb:null, bff:{} };
@@ -680,7 +1063,9 @@ function renderDomain(){
   if(!r){ host.innerHTML=html+'<p class="hint" style="margin:6px 0 0">Showing operations across all subgraphs. Pick one to scope the code migration to a single entity.</p>'; return; }
   const disp=[
     ["EntityID", r.EntityID], ["Name", r.Name], ["Experience Domain", r.ExperienceDomain],
-    ["Business Application", r.BusinessApplication], ["Business Capability", r.BusinessCapability],
+    ["Business Application", r.BusinessApplication],
+    ["Service Type", svcTypeBadge(serviceTypeOf(String(r.BusinessApplication||"").trim())), true],
+    ["Business Capability", r.BusinessCapability],
     ["Approval", r.ApprovalStatus],
     ["Comments", r.Comments],
     ["Links & References", linksHTML(r.Links), true],
@@ -743,7 +1128,127 @@ function buildOpCtx(gqlSel, restSel, sgReg){
   return { gqlOp, retEnt, origRet, varName, p, restReqLine, matched, diffTokens, changes, fieldRows, changesHtml, fieldRowsHtml, mapNote };
 }
 
-function render(){
+/* ---------------- Migration overview: source estate → tool → two branches → target ---------------- */
+const FI=(d)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON={
+  code:FI('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9.5 9.5 7 12l2.5 2.5M14.5 9.5 17 12l-2.5 2.5"/>'),
+  spec:FI('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+  layers:FI('<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>'),
+  devices:FI('<rect x="2" y="4" width="14" height="11" rx="1.5"/><path d="M6 19h6"/><rect x="17" y="8" width="5" height="11" rx="1"/>'),
+  db:FI('<ellipse cx="12" cy="5.5" rx="7" ry="2.5"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>'),
+  search:FI('<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>'),
+  link:FI('<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.3 11 15.7 7M8.3 13l7.4 4"/>'),
+  diff:FI('<path d="M7 4v10M3 9h8M13 18h8"/><rect x="2" y="2" width="20" height="20" rx="3" opacity=".35"/>'),
+  key:FI('<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/>'),
+  gear:FI('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
+  graph:FI('<path d="m12 2.5 8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><circle cx="12" cy="2.5" r="1.4"/><circle cx="20.2" cy="7.25" r="1.4"/><circle cx="20.2" cy="16.75" r="1.4"/><circle cx="12" cy="21.5" r="1.4"/><circle cx="3.8" cy="16.75" r="1.4"/><circle cx="3.8" cy="7.25" r="1.4"/>'),
+  router:FI('<circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="19" r="2"/><path d="m5.5 6.5 4.3 3.7M18.5 6.5l-4.3 3.7M5.5 17.5l4.3-3.7M18.5 17.5l-4.3-3.7"/>'),
+  swap:FI('<path d="M4 8h13l-3-3M20 16H7l3 3"/>'),
+  resolver:FI('<path d="M5 4h5v5H5zM14 15h5v5h-5z"/><path d="M7.5 9v4a2 2 0 0 0 2 2H14"/>'),
+  saga:FI('<path d="M20 12a8 8 0 0 1-14.3 4.9M4 12A8 8 0 0 1 18.3 7.1"/><path d="M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2"/>'),
+  rest:FI('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'),
+  doc:FI('<path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h3"/>'),
+  server:FI('<rect x="3" y="3" width="18" height="7" rx="1.5"/><rect x="3" y="14" width="18" height="7" rx="1.5"/><path d="M7 6.5h.01M7 17.5h.01"/>'),
+  query:FI('<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="17.5" cy="16.5" r="2.5"/><path d="m19.3 18.3 2 2"/>'),
+  write:FI('<path d="M4 20h4l11-11-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'),
+  check:FI('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.7 2.7L16 9.8"/>'),
+  upload:FI('<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>'),
+};
+function flowIcon(icon, label, n){ return `<div class="ficon">${ICON[icon]}<div class="lbl">${label}</div>${n!=null&&n!==""?`<div class="n">${n}</div>`:""}</div>`; }
+function renderFlow(){
+  const host=document.getElementById("flow"); if(!host) return;
+  const regOk=M.regTypes.length>0, restOk=M.restOps.length>0;
+  const plural=(n,w)=>`${n} ${w}${n===1?"":"s"}`;
+  const subgraphs=new Set((M.entities||[]).map(e=>String(e.BusinessApplication||"").trim()).filter(Boolean));
+  const byType={ Domain:0, Integration:0, Orchestrator:0 };
+  for(const sgn of subgraphs){ if(M.gqlOps.some(o=>subgraphOf(o.EntityID)===sgn)) byType[serviceTypeOf(sgn).type]++; }
+  const keyed=(M.reg.Schema||[]).filter(r=>r.Kind==="Key").length;
+  const nQ=M.gqlOps.filter(o=>o.kind==="query").length, nMu=M.gqlOps.length-nQ;
+  const bffMaps=Object.values(M.bff||{}).filter(m=>(m.ops||[]).length);
+  const orchMaps=bffMaps.filter(m=>bffOrchestratorOp(m)), nOrch=orchMaps.length, nStitch=bffMaps.length-nOrch;
+  const allSteps=[].concat(...orchMaps.map(m=>{ const o=orchestrationOf(m.orchestrator); return o?o.steps:[]; }));
+  const nViaRest=allSteps.filter(s=>s.via==="rest").length, nViaGrpc=allSteps.filter(s=>s.via==="grpc").length;
+  const bffEndpoints=M.restOps.filter(o=>/^\/bff\b/i.test(o.path||"")).length;
+  const linked=M.gqlOps.filter(o=>restRefsOf(o).length).length;
+  const bound=M.gqlOps.filter(o=>M.restOps.some(r=>refMatches(o,r))).length;
+  // blueprint = the mapping currently on screen
+  let blue="load a registry and a REST spec";
+  if(mode==="bff" && bffRef){ const m=M.bff[bffRef]; blue=`${bffRef} → ${m&&m.ops.length?plural(m.ops.length,"op"):"no ops yet"}`; }
+  else if(mode!=="bff" && regOk && restOk){ const r=M.restOps.find(o=>o.id===selRest), g=M.gqlOps.find(o=>o.id===selGql); if(r&&g) blue=`${restRefOf(r)} → ${g.kind} ${g.Name}`; }
+  const mapped = mode==="bff" ? !!(bffRef && M.bff[bffRef] && M.bff[bffRef].ops.length) : !!(regOk && restOk && selRest && selGql);
+  const stepDefs=[["upload","Load",regOk&&restOk],["link","Map",mapped],["diff","Diff",mapped],["gear","Generate",mapped]];
+  const steps=stepDefs.map(([ic,l,done],i)=>`${i?'<span class="step-arrow">→</span>':""}<div class="step${done?" done":""}"><div class="si">${ICON[ic]}</div>${l}</div>`).join("");
+  const cap2=(ic,t,s)=>`<div class="cap"><span class="ci">${ICON[ic]}</span><span>${t}<small>${s}</small></span><span class="dots"></span></div>`;
+  const tip=(pct)=>`<span class="tip" style="left:${pct}%"></span>`;
+  const sgOn=mode!=="bff", bffOn=mode==="bff";
+  host.innerHTML=`<div class="flow">
+    <div class="fbox src"><h3>Existing REST estate</h3><div class="sub">${restOk?`<span class="mono">${esc(M.restName||"REST spec")}</span>`:"load a REST spec (OpenAPI / Swagger)"}</div>
+      <div class="ficons">
+        ${flowIcon("spec","REST APIs<br>(OpenAPI)", restOk?plural(M.restOps.length,"operation"):"—")}
+        ${flowIcon("code","Handlers &amp;<br>controllers", restOk?plural(new Set(M.restOps.map(o=>o.path)).size,"route"):"—")}
+        ${flowIcon("layers","BFF<br>endpoints", restOk?plural(bffEndpoints,"endpoint"):"—")}
+        ${flowIcon("devices","Web &amp; mobile<br>clients","JS · Kotlin · Swift")}
+      </div></div>
+    <div class="farrow"></div>
+    <div class="fbox hub"><h3>${ICON.swap} Subgraph Code Migration Tool</h3><div class="sub">Analyze the REST estate · map it to the FedGQL registry · generate subgraph &amp; BFF code</div>
+      <div class="hub-grid">
+        <div class="caps">
+          ${cap2("search","Spec analysis", restOk?`${plural(M.restOps.length,"REST op")} · ${plural(M.restTypes.length,"type")}`:"OpenAPI → ops &amp; types")}
+          ${cap2("db","Schema discovery", regOk?`${plural(M.regTypes.length,"type")} · ${plural(M.gqlOps.length,"op")}`:"GQLRegistry.xlsx")}
+          ${cap2("link","Operation mapping", regOk?`${linked} ops with REST: links${restOk?` · ${bound} matched`:""}`:"REST: links → ops")}
+        </div>
+        <div class="core">${ICON.graph}<b>REST → GQL</b></div>
+        <div class="caps right">
+          ${cap2("diff","Field diff","renamed · retyped · added")}
+          ${cap2("key","Federation wiring", regOk?`${keyed} @key ${keyed===1?"entity":"entities"} · ${plural(subgraphs.size,"subgraph")}`:"@key entities · _entities")}
+          ${cap2("gear","Code generation","Java · .NET · Node · clients")}
+        </div>
+        <div class="blueprint">Migration blueprint<span class="mono" title="${esc(blue)}">${esc(blue)}</span></div>
+      </div>
+      <div class="steps">${steps}</div></div>
+    <div class="fork"><svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path d="M50 0V12H25V30M50 12H75V30" fill="none" stroke="#94a3b8" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>${tip(25)}${tip(75)}</div>
+    <div class="branches">
+      <button type="button" class="fbox branch sg${sgOn?" active":""}" onclick="flowGo('single')" title="Switch to Single op mode">
+        <span class="bico">${ICON.resolver}</span><span class="state">${sgOn?"● active":"open →"}</span>
+        <h3>Subgraph microservice</h3><div class="sub">One service · REST API + GraphQL API · shared service layer</div>
+        <div class="ficons">
+          ${flowIcon("code","REST API<br>(kept)", restOk?plural(M.restOps.length,"op"):"")}
+          ${flowIcon("resolver","GraphQL API<br>(added)", regOk?`${nQ} Q · ${nMu} M`:"")}
+          ${flowIcon("server","Shared<br>service", regOk?`${byType.Domain} domain · ${byType.Integration} integ.`:"")}
+          ${flowIcon("key","Entities<br>@key", regOk?String(keyed):"")}
+          ${flowIcon("doc","Java · .NET<br>· Node","")}
+        </div></button>
+      <button type="button" class="fbox branch bff${bffOn?" active":""}" onclick="flowGo('bff')" title="Switch to BFF composite mode">
+        <span class="bico">${ICON.layers}</span><span class="state">${bffOn?"● active":"open →"}</span>
+        <h3>BFF migration</h3><div class="sub">Orchestrator subgraph · or query stitching in the router</div>
+        <div class="ficons">
+          ${flowIcon("saga","Orchestrator<br>subgraphs", regOk?`${byType.Orchestrator} svc · ${plural(nOrch,"endpoint")}`:"")}
+          ${flowIcon("rest","REST<br>calls", String(nViaRest))}
+          ${flowIcon("swap","gRPC<br>calls", String(nViaGrpc))}
+          ${flowIcon("graph","Query<br>stitching", plural(nStitch,"endpoint"))}
+          ${flowIcon("devices","Front end<br>→ router","")}
+        </div></button>
+    </div>
+    <div class="fork"><svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path d="M25 0V16H75V0M50 16V30" fill="none" stroke="#94a3b8" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>${tip(50)}</div>
+    <div class="fbox tgt"><h3>Federated GraphQL supergraph</h3><div class="sub">One graph behind the FedGQL router · front ends make one round-trip · subgraphs call each other over REST / gRPC, never GraphQL</div>
+      <div class="ficons">
+        ${flowIcon("router","FedGQL<br>router","")}
+        ${flowIcon("graph","Subgraphs", regOk?String(subgraphs.size):"")}
+        ${flowIcon("key","@key<br>entities", regOk?String(keyed):"")}
+        ${flowIcon("query","Queries", regOk?String(nQ):"")}
+        ${flowIcon("write","Mutations", regOk?String(nMu):"")}
+        ${flowIcon("check","Validated<br>clients","")}
+      </div></div>
+  </div>`;
+}
+function flowGo(m){
+  setMode(m);
+  const t=document.getElementById(m==="bff"?"bffCard":"domainCard"); if(t) t.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+// The overview renders last so its blueprint reflects the selections the views just resolved.
+function render(){ renderMain(); renderFlow(); }
+function renderMain(){
   populateLangSelect();
   applyMode();
   if(mode==="bff"){ renderBff(); return; }
@@ -787,8 +1292,15 @@ function render(){
     const sgm=subgraphModel(gqlSel.EntityID), gen=SUBGRAPH_SERVERS[lang]||SUBGRAPH_SERVERS["Node.js (Apollo Server)"];
     const files=gen(sgm, gqlSel);
     const nQ=sgm.ops.filter(o=>o.kind==="query").length, nM=sgm.ops.filter(o=>o.kind==="mutation").length, unbound=sgm.ops.filter(o=>!o.rest).map(o=>o.Name);
-    codeSection = `<div class="code-head"><h3>${esc(lang)} — <span class="mono">${esc(sgm.sgName)}</span> subgraph · ${nQ} ${nQ===1?"query":"queries"} · ${nM} ${nM===1?"mutation":"mutations"} <span class="hint">(resolvers delegate to the current REST service · <span class="mono">${esc(gqlOp.name)}</span> marked “← selected op”)</span></h3></div>
+    const P=SERVER_PAIRS[lang]||SERVER_PAIRS["Node.js (Apollo Server)"];
+    const selOp=sgm.ops.find(o=>o.id===gqlSel.id), others=sgm.ops.filter(o=>o!==selOp);
+    codeSection = `<div class="code-head"><h3>${esc(lang)} — <span class="mono">${esc(sgm.sgName)}</span> subgraph · ${nQ} ${nQ===1?"query":"queries"} · ${nM} ${nM===1?"mutation":"mutations"} <span class="hint">(one service hosting the REST API + the GraphQL API · <span class="mono">${esc(gqlOp.name)}</span> marked “← selected op”)</span></h3></div>
+      <p style="margin:2px 0 8px;font-size:13px"><b>Service Type</b> ${svcTypeBadge({ type:sgm.svcType, src:sgm.svcTypeSrc })}</p>
       ${unbound.length?`<p class="hint" style="color:#b45309;margin:0 0 6px">No REST: link for ${unbound.map(n=>`<span class="mono">${esc(n)}</span>`).join(", ")} — add one in Links &amp; References (registry) to generate its REST call.</p>`:""}
+      <div class="kv">REST API ↔ GraphQL API <span class="hint">(the current controller action, kept, next to the resolver added beside it — both call the shared service method below them)</span></div>
+      ${selOp?opPairHtml(sgm, selOp, gqlSel, P):""}
+      ${others.length?`<details class="stdref" style="margin:6px 0 12px"><summary><b>Other ops in the ${esc(sgm.sgName)} subgraph</b> <span class="hint">· ${others.length} REST ↔ GraphQL pair${others.length===1?"":"s"}</span></summary>${others.map(o=>opPairHtml(sgm, o, gqlSel, P)).join("")}</details>`:""}
+      <div class="kv">Generated subgraph files</div>
       ${files.map(f=>`<div class="code-head"><h3 class="mono" style="font-size:12.5px">${esc(f.title)}</h3><button class="copy-btn" onclick='copyText(${attrJson(f.code)})'>Copy</button></div><pre class="code">${f.sdl?highlightSDL(f.code):esc(f.code)}</pre>`).join("")}`;
   } else {
     const gen=CODE_LANGS[lang]||CODE_LANGS.JavaScript;
@@ -844,7 +1356,8 @@ function hydrateBff(rows){  // rows from the BffMappings sheet -> M.bff (registr
     if(!m.name && r.BffName) m.name=r.BffName;
     const opId=String(r.GqlOpId||"");
     m.ops.push({ alias:r.Alias||r.GqlOp||"", kind:(r.GqlKind||"query"), name:r.GqlOp||"",
-      opId, entityId:String(r.EntityID||""), args:r.Args||"", notes:r.Notes||"" });
+      opId, entityId:String(r.EntityID||""), args:r.Args||"", notes:r.Notes||"",
+      via:String(r.Via||"").trim().toLowerCase()==="grpc"?"grpc":"rest" });   // subgraph → subgraph: REST or gRPC, never GraphQL
     const role=String(r.Owner||"").trim().toLowerCase();
     if(role==="orchestrator") m.orchestrator=opId;            // orchestrating mutation (saga)
     else if(role) m.owner=opId;                               // owning op for federation composition
@@ -852,10 +1365,10 @@ function hydrateBff(rows){  // rows from the BffMappings sheet -> M.bff (registr
   if(Object.keys(bff).length){ M.bff=bff; saveBff(); }
 }
 function bffRowsAoA(){
-  const header=["BffRef","BffName","Alias","GqlKind","GqlOp","GqlOpId","EntityID","Args","Order","Notes","Owner"];
+  const header=["BffRef","BffName","Alias","GqlKind","GqlOp","GqlOpId","EntityID","Args","Order","Notes","Owner","Via"];
   const rows=[header];
   for(const [ref,m] of Object.entries(M.bff||{}))
-    (m.ops||[]).forEach((o,i)=>rows.push([ref, m.name||"", o.alias||"", o.kind||"", o.name||"", o.opId||"", o.entityId||"", o.args||"", i+1, o.notes||"", (m.orchestrator&&String(m.orchestrator)===String(o.opId))?"orchestrator":((m.owner&&String(m.owner)===String(o.opId))?"owner":"")]));
+    (m.ops||[]).forEach((o,i)=>rows.push([ref, m.name||"", o.alias||"", o.kind||"", o.name||"", o.opId||"", o.entityId||"", o.args||"", i+1, o.notes||"", (m.orchestrator&&String(m.orchestrator)===String(o.opId))?"orchestrator":((m.owner&&String(m.owner)===String(o.opId))?"owner":""), o.via==="grpc"?"grpc":"rest"]));
   return rows;
 }
 function exportRegistryWithBff(){
@@ -883,7 +1396,7 @@ function bffOwnerOp(m){
 }
 function addBffOp(opId){
   const m=curBff(), o=M.gqlOps.find(g=>String(g.id)===String(opId)); if(!m||!o) return;
-  m.ops.push({ alias:o.Name, kind:o.kind, name:o.Name, opId:String(o.id), entityId:String(o.EntityID||""), args:o.Parameters||"", notes:"" });
+  m.ops.push({ alias:o.Name, kind:o.kind, name:o.Name, opId:String(o.id), entityId:String(o.EntityID||""), args:o.Parameters||"", notes:"", via:"rest" });
   if(!m.owner && o.kind==="query") m.owner=String(o.id);      // default owner = first query added
   openMenu=false; saveBff(); render();
 }
@@ -1083,42 +1596,53 @@ function opSequenceMermaid(gqlSel, cx, sgReg){
   return L.join("\n");
 }
 
-/* --- BFF mutation flow. With an orchestrating mutation (saga / process coordinator, e.g.
-   submitCheckout) the client sends ONE mutation; its resolver calls the other ops' subgraphs in
-   table order over internal clients. Without one, the router runs the root mutation fields serially
-   in document order (a field can't read the previous field's result). --- */
+/* --- BFF migration patterns.
+   • Orchestration — the BFF endpoint has logic (e.g. POST /bff/checkout). Pick the orchestrating
+     mutation (submitCheckout): its subgraph (checkout) takes over the logic in its service and calls
+     the other subgraph services over REST or gRPC (Call via, per op). The client sends ONE mutation.
+   • Query stitching — no orchestrating mutation: the front end sends one federated query and the
+     router stitches the subgraphs by @key. No server code; nothing calls the graph from a subgraph. --- */
 function bffOrchestratorOp(m){ return (m.ops||[]).find(o=>o.kind==="mutation" && String(o.opId)===String(m.orchestrator||"")) || null; }
 function setBffOrchestrator(opId){ const m=curBff(); if(m){ m.orchestrator=String(opId||""); saveBff(); render(); } }
 function bffOpDoc(model, kw){
   const vars=model.varDefs.length?`(${model.varDefs.join(", ")})`:"";
   return `${kw} ${cap(model.alias)}${vars} {\n${model.field.replace(/^ {4}/gm,"  ")}\n}`;
 }
+// REST binding of a BFF op row (via its registry op's REST: link).
+function restBindingOf(o){ const reg=M.gqlOps.find(g=>String(g.id)===String(o.opId)); return reg?restBinding(reg):null; }
+// The orchestrator subgraph and its op, in the shape the subgraph generators take.
+function orchSubgraph(orchRow){
+  const sgm=subgraphModel(orchRow.entityId), op=sgm.ops.find(o=>String(o.id)===String(orchRow.opId));
+  return op ? { sgm, op } : null;
+}
 function bffMutationFlow(bff, sgReg){
   const orch=bffOrchestratorOp(bff), muts=(bff.ops||[]).filter(o=>o.kind==="mutation");
   if(!muts.length) return null;
   const rest=M.restOps.find(o=>restRefOf(o)===bffRef), route=rest?`${rest.method} ${rest.path}`:(bffRef||"BFF");
   const L=["sequenceDiagram","  autonumber", `  participant C as Client · ${mmLbl(route)}`, "  participant R as FedGQL Router"];
-  const idx={}, part=(eid, tag)=>{ const sg=subgraphOf(eid); if(!(sg in idx)){ idx[sg]="S"+(Object.keys(idx).length+1); L.push(`  participant ${idx[sg]} as ${mmLbl(sg)} subgraph${tag?" · "+mmLbl(tag):""}`); } return idx[sg]; };
   const argNames=mo=>mo.args.map(a=>a.name).join(", ");
   if(orch){
-    const om=bffOpModel(orch, sgReg), O=part(orch.entityId, "orchestrator");
-    const steps=(bff.ops||[]).filter(o=>o!==orch).map(o=>({ op:o, model:bffOpModel(o, sgReg) }));
-    steps.forEach(st=>part(st.op.entityId));
+    const om=bffOpModel(orch, sgReg), plan=orchestrationOf(orch.opId, bffRef), osg=subgraphOf(orch.entityId);
+    L.push(`  participant O as ${mmLbl(osg)} subgraph · orchestrator`);
+    const idx={};
+    for(const st of plan.steps) if(st.via!=="local" && !(st.sg+st.via in idx)){ idx[st.sg+st.via]="P"+(Object.keys(idx).length+1); L.push(`  participant ${idx[st.sg+st.via]} as ${mmLbl(st.sg)} service · ${st.via==="rest"?"REST":"gRPC"}`); }
     L.push(`  C->>R: mutation ${mmMsg(cap(om.alias))} (${mmMsg(argNames(om))})`);
-    L.push(`  R->>${O}: ${mmMsg(om.name)}(${mmMsg(argNames(om))})`);
-    L.push(`  Note over ${O}: saga / process coordinator — steps run inside the resolver (internal gRPC or HTTP), not through the router`);
-    steps.forEach((st,i)=>{
-      const P=idx[subgraphOf(st.op.entityId)];
-      L.push(`  ${O}->>${P}: ${i+1}. ${mmMsg(st.model.name)}(${mmMsg(argNames(st.model))})${st.op.kind==="mutation"?" · write":""}`);
-      L.push(`  ${P}-->>${O}: ${mmMsg(baseType(st.model.returns)||"result")}`);
-    });
-    if(steps.some(st=>st.op.kind==="mutation")) L.push(`  Note over ${O}: on failure, compensate the completed writes (e.g. refund / restore the cart)`);
-    L.push(`  ${O}-->>R: ${mmMsg(baseType(om.returns)||"result")}`);
+    L.push(`  R->>O: ${mmMsg(om.name)}(${mmMsg(argNames(om))}) · GraphQL API`);
+    L.push(`  Note over O: ${mmMsg(osg)} service runs the BFF logic — it calls other subgraph services over REST / gRPC, never through the router`);
+    for(const st of plan.steps){
+      if(st.via==="local"){ L.push(`  Note over O: ${st.n}. ${mmMsg(st.model.name)} — in-process`); continue; }
+      const P=idx[st.sg+st.via];
+      L.push(`  O->>${P}: ${st.n}. ${st.via==="rest"?"REST "+mmMsg(st.c.method+" "+st.c.path):"gRPC "+mmMsg(st.Sg+"Service/"+Pascal(st.model.name))}${st.write?" · write":""}`);
+      L.push(`  ${P}-->>O: ${mmMsg(baseType(st.model.returns)||"result")}`);
+    }
+    if(plan.steps.some(st=>st.write)) L.push("  Note over O: on failure, compensate the completed writes (e.g. refund / restore the cart)");
+    L.push(`  O-->>R: ${mmMsg(baseType(om.returns)||"result")}`);
     L.push(`  R-->>C: { data: { ${mmMsg(om.alias)} } }`);
     const doc=bffOpDoc(om, "mutation");
     const vars={}; for(const a of om.args) vars[`${om.prefix}_${a.name}`]=sampleForType(a.type, sgReg, 1);
-    return { orchestrated:true, orch, om, steps, doc, vars, mermaid:L.join("\n"), code:orchestratorCode(orch, om, steps, sgReg) };
+    return { orchestrated:true, orch, om, plan, doc, vars, mermaid:L.join("\n") };
   }
+  const idx={}, part=eid=>{ const sg=subgraphOf(eid); if(!(sg in idx)){ idx[sg]="S"+(Object.keys(idx).length+1); L.push(`  participant ${idx[sg]} as ${mmLbl(sg)} subgraph`); } return idx[sg]; };
   const models=muts.map(o=>bffOpModel(o, sgReg));
   models.forEach((mo,i)=>part(muts[i].entityId));
   L.push(`  C->>R: mutation ${mmMsg(bff.name||"Bff")}`);
@@ -1129,61 +1653,60 @@ function bffMutationFlow(bff, sgReg){
   L.push(`  R-->>C: { data: { ${mmMsg(models.map(mo=>mo.alias).join(", "))} } }`);
   return { orchestrated:false, mermaid:L.join("\n") };
 }
-// Node.js resolver skeleton for the orchestrating mutation: each step is an internal call to the owning subgraph.
-function orchestratorCode(orch, om, steps, sgReg){
-  const sgVar=eid=>subgraphOf(eid).replace(/[^A-Za-z0-9]/g,"")||"svc";
-  const lines=[`// ${subgraphOf(orch.entityId)} subgraph — ${om.name} orchestrator (saga / process coordinator)`,
-    `// The client sends ONE mutation; this resolver drives the other subgraphs over internal clients.`,
-    `const resolvers = {`, `  Mutation: {`, `    async ${om.name}(_, args, { clients }) {`, `      const done = [];   // completed writes, for compensation`, `      try {`];
-  steps.forEach((st,i)=>{
-    const sel=st.model.retEnt&&(st.model.retEnt.fields||[]).length ? " {\n"+gqlSelection(st.model.retEnt, sgReg, "            ")+"\n          }" : "";
-    const vars=st.model.args.length?"("+st.model.args.map(a=>`$${a.name}: ${a.type}`).join(", ")+")":"";
-    const call=`${st.model.name}${st.model.args.length?"("+st.model.args.map(a=>`${a.name}: $${a.name}`).join(", ")+")":""}${sel}`;
-    const from=i?`from args / r1${i>1?"…r"+i:""}`:"from args";
-    lines.push(`        // ${i+1}. ${st.op.kind} ${st.model.name} — ${subgraphOf(st.op.entityId)} subgraph`);
-    lines.push(`        const r${i+1} = await clients.${sgVar(st.op.entityId)}.request(\`${st.op.kind} ${cap(st.model.name)}${vars} {\n          ${call}\n        }\`, { /* ${st.model.args.map(a=>a.name).join(", ")} ${from} */ });`);
-    if(st.op.kind==="mutation") lines.push(`        done.push({ step: "${st.model.name}", result: r${i+1} });`);
-  });
-  lines.push(`        return { success: true /* , … build the ${baseType(om.returns)||"result"} from r1…r${steps.length} */ };`,
-    `      } catch (err) {`, `        for (const d of done.reverse()) { /* compensate d.step (refund, restore, cancel) */ }`,
-    `        return { success: false, errors: [{ code: "CHECKOUT_FAILED", message: String(err.message || err) }] };`,
-    `      }`, `    },`, `  },`, `};`);
-  return lines.join("\n");
-}
 
-/* --- BFF server generators: REST endpoint that composes the federated graph --- */
-const BFF_SERVER_LANGS={
-  "Node.js (Apollo Server)": (bff, comp, rest)=>{
-    const route=rest?`${rest.method} ${rest.path}`:"(no BFF endpoint)";
-    const vars=JSON.stringify(comp.__vars||{}, null, 2).replace(/\n/g,"\n  ");
-    const calls=[];
-    if(comp.query) calls.push(`  const q = await run(\`${tStr(comp.query.doc)}\`);`);
-    if(comp.mutation) calls.push(`  const m = await run(\`${tStr(comp.mutation.doc)}\`);`);
-    const merge=`{ ${[comp.query?"...q.data":"", comp.mutation?"...m.data":""].filter(Boolean).join(", ")} }`;
-    const code=`// BFF handler for ${route} — composes the federated graph in one place\nimport fetch from "node-fetch";\n\nexport async function ${bff.name||"bff"}Handler(req, res) {\n  const variables = ${vars};\n  const run = (query) => fetch(process.env.GRAPHQL_GATEWAY_URL, {\n    method: "POST",\n    headers: { "Content-Type": "application/json" },\n    body: JSON.stringify({ query, variables })\n  }).then(r => r.json());\n\n${calls.join("\n")}\n  res.json(${merge});\n}`;
-    return { codeTitle:`Node.js BFF handler — ${route} → federated graph`, code };
+/* --- the CURRENT BFF handler being migrated: it calls each step's REST endpoint itself --- */
+const LEGACY_BFF={
+  "Node.js (Apollo Server)":(x)=>{
+    const a=e=>"args."+e, svcs=[...new Map(x.steps.filter(s=>s.c).map(s=>[s.sg,s])).values()];
+    const L=[`// Current — BFF handler for ${x.route}: the orchestration logic lives in the BFF`, `const restClient = (base) => async (method, path, body) => {\n  const res = await fetch(base + path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });\n  if (!res.ok) throw new Error(\`\${method} \${path} → \${res.status}\`);\n  return res.status === 204 ? null : res.json();\n};`];
+    svcs.forEach(s=>L.push(`const ${s.v}Rest = restClient(process.env.${envName(s.sg)}_REST_URL);   // ${s.sg} REST service`));
+    L.push("", `export async function ${camel(x.name)}Handler(req, res, next) {`, "  const args = { ...req.params, ...req.query, ...req.body };", "  try {");
+    for(const s of x.steps){
+      if(!s.c){ L.push(`    // ${s.n}. ${s.model.name}: no REST endpoint (REST: link missing)`, `    const r${s.n} = null;`); continue; }
+      const path=s.c.path.replace(/\{(\w+)\}/g,(m,p)=>{ const q=s.c.pp.find(z=>z.name===p); return "${encodeURIComponent("+a(q&&q.expr||p)+")}"; });
+      const body=s.c.body?(s.c.body.startsWith("{")?`{ ${s.model.args.filter(q=>!s.c.pp.some(p=>p.name===q.name)).map(q=>`${q.name}: ${a(q.name)}`).join(", ")} }`:a(s.c.body)):"";
+      L.push(`    // ${s.n}. ${s.c.method} ${s.c.path} — ${s.sg}`, `    const r${s.n} = await ${s.v}Rest("${s.c.method}", \`${path}\`${body?", "+body:""});`);
+    }
+    L.push(`    res.json({ /* build the response from r1…r${x.steps.length} */ });`, "  } catch (err) {", "    next(err);   // compensation for completed writes lives here today", "  }", "}");
+    return L.join("\n");
   },
-  "Java (Spring for GraphQL)": (bff, comp, rest)=>{
-    const route=rest?`${rest.method} ${rest.path}`:"(no BFF endpoint)";
-    const map={GET:"GetMapping",POST:"PostMapping",PUT:"PutMapping",PATCH:"PatchMapping",DELETE:"DeleteMapping"}[rest?rest.method:"GET"]||"GetMapping";
-    const calls=[];
-    if(comp.query) calls.push(`    Map q = post("${jStr(comp.query.doc)}", variables);`);
-    if(comp.mutation) calls.push(`    Map m = post("${jStr(comp.mutation.doc)}", variables);`);
-    const puts=[comp.query?'    out.putAll((Map) q.get("data"));':"", comp.mutation?'    out.putAll((Map) m.get("data"));':""].filter(Boolean).join("\n");
-    const code=`// BFF controller for ${route} — composes the federated graph in one place\n@RestController\npublic class ${cap(bff.name||"Bff")}BffController {\n  private final WebClient gql = WebClient.create(System.getenv("GRAPHQL_GATEWAY_URL"));\n\n  @${map}("${rest?rest.path:"/bff"}")\n  public Map<String,Object> ${bff.name||"bff"}(@RequestParam Map<String,Object> variables) {\n    Map<String,Object> out = new HashMap<>();\n${calls.join("\n")}\n${puts}\n    return out;\n  }\n\n  private Map post(String query, Map<String,Object> variables) {\n    return gql.post().bodyValue(Map.of("query", query, "variables", variables))\n        .retrieve().bodyToMono(Map.class).block();\n  }\n}`;
-    return { codeTitle:`Spring BFF @RestController — ${route} → federated graph`, code };
+  "Java (Spring for GraphQL)":(x)=>{
+    const a=e=>{ const [h,f]=String(e).split("."); return f?`((Map<?, ?>) args.get("${h}")).get("${f}")`:`args.get("${h}")`; };
+    const svcs=[...new Map(x.steps.filter(s=>s.c).map(s=>[s.sg,s])).values()];
+    const ann={GET:"GetMapping",POST:"PostMapping",PUT:"PutMapping",PATCH:"PatchMapping",DELETE:"DeleteMapping"}[x.rest?x.rest.method:"POST"]||"PostMapping";
+    const L=[`// Current — BFF controller for ${x.route}: the orchestration logic lives in the BFF`, "@RestController", `public class ${cap(x.name)}BffController {`];
+    svcs.forEach(s=>L.push(`  private final RestClient ${s.v}Rest = RestClient.create(System.getenv("${envName(s.sg)}_REST_URL"));   // ${s.sg} REST service`));
+    L.push("", `  @${ann}("${x.rest?x.rest.path:"/bff"}")`, `  public Map<String, Object> ${camel(x.name)}(@RequestBody(required = false) Map<String, Object> args) {`);
+    for(const s of x.steps){
+      if(!s.c){ L.push(`    // ${s.n}. ${s.model.name}: no REST endpoint (REST: link missing)`); continue; }
+      const uv=s.c.pp.map(p=>a(p.expr||p.name));
+      const body=s.c.body?(s.c.body.startsWith("{")?"args":a(s.c.body)):"";
+      L.push(`    // ${s.n}. ${s.c.method} ${s.c.path} — ${s.sg}`, `    Object r${s.n} = ${s.v}Rest.${s.c.method.toLowerCase()}().uri("${s.c.path}"${uv.length?", "+uv.join(", "):""})${body?`.body(${body})`:""}.retrieve().body(Object.class);`);
+    }
+    L.push(`    return new LinkedHashMap<>();   // build the response from r1…r${x.steps.length}`, "  }", "}");
+    return L.join("\n");
   },
-  ".NET (Hot Chocolate)": (bff, comp, rest)=>{
-    const route=rest?`${rest.method} ${rest.path}`:"(no BFF endpoint)";
-    const attr={GET:"HttpGet",POST:"HttpPost",PUT:"HttpPut",PATCH:"HttpPatch",DELETE:"HttpDelete"}[rest?rest.method:"GET"]||"HttpGet";
-    const calls=[];
-    if(comp.query) calls.push(`        var q = await Post("${jStr(comp.query.doc)}", variables);`);
-    if(comp.mutation) calls.push(`        var m = await Post("${jStr(comp.mutation.doc)}", variables);`);
-    const merge=[comp.query?"q":"", comp.mutation?"m":""].filter(Boolean).join(", ");
-    const code=`// BFF controller for ${route} — composes the federated graph in one place\n[ApiController]\npublic class ${cap(bff.name||"Bff")}BffController : ControllerBase {\n    private readonly IHttpClientFactory _http;\n    public ${cap(bff.name||"Bff")}BffController(IHttpClientFactory http) => _http = http;\n\n    [${attr}("${rest?rest.path:"/bff"}")]\n    public async Task<IActionResult> ${cap(bff.name||"Bff")}([FromQuery] Dictionary<string,object> variables) {\n${calls.join("\n")}\n        return Ok(Merge(${merge}));\n    }\n\n    private async Task<JsonElement> Post(string query, object variables) {\n        var client = _http.CreateClient("gateway");\n        var res = await client.PostAsJsonAsync(Environment.GetEnvironmentVariable("GRAPHQL_GATEWAY_URL"), new { query, variables });\n        return (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");\n    }\n}`;
-    return { codeTitle:`.NET BFF controller — ${route} → federated graph`, code };
+  ".NET (Hot Chocolate)":(x)=>{
+    const a=e=>{ const [h,f]=String(e).split("."); return f?`args["${h}"].GetProperty("${f}")`:`args["${h}"]`; };
+    const svcs=[...new Map(x.steps.filter(s=>s.c).map(s=>[s.sg,s])).values()];
+    const L=[`// Current — BFF controller for ${x.route}: the orchestration logic lives in the BFF`, "[ApiController]", `public class ${cap(x.name)}BffController(IHttpClientFactory http) : ControllerBase`, "{",
+      `    [Http${Pascal((x.rest?x.rest.method:"POST").toLowerCase())}("${(x.rest?x.rest.path:"/bff").replace(/^\//,"")}")]`, `    public async Task<IActionResult> ${cap(x.name)}([FromBody] Dictionary<string, JsonElement> args)`, "    {"];
+    svcs.forEach(s=>L.push(`        var ${s.v}Rest = http.CreateClient("${s.sg}-rest");   // ${s.sg} REST service`));
+    for(const s of x.steps){
+      if(!s.c){ L.push(`        // ${s.n}. ${s.model.name}: no REST endpoint (REST: link missing)`); continue; }
+      const path=s.c.path.replace(/^\//,"").replace(/\{(\w+)\}/g,(m,p)=>{ const q=s.c.pp.find(z=>z.name===p); return `{${a(q&&q.expr||p)}}`; });
+      const body=s.c.body?(s.c.body.startsWith("{")?"args":a(s.c.body)):"";
+      L.push(`        // ${s.n}. ${s.c.method} ${s.c.path} — ${s.sg}`, `        var r${s.n} = await ${s.v}Rest.SendAsync(new HttpRequestMessage(HttpMethod.${Pascal(s.c.method.toLowerCase())}, $"${path}")${body?` { Content = JsonContent.Create(${body}) }`:""});`);
+    }
+    L.push(`        return Ok(/* build the response from r1…r${x.steps.length} */);`, "    }", "}");
+    return L.join("\n");
   },
 };
+let orchLang="Node.js (Apollo Server)";
+function setOrchLang(v){ orchLang=v; render(); }
+// Call via for every step: REST where the op has a REST: link, else gRPC.
+function setAllVia(v){ const m=curBff(); if(!m) return; for(const o of m.ops) o.via=(v==="rest"&&restBindingOf(o))?"rest":"grpc"; saveBff(); render(); }
+
 /* --- BFF client generators: call the composed operation(s) in one round-trip --- */
 const BFF_CLIENT_LANGS={
   "JavaScript": (bff, comp)=>{
@@ -1235,11 +1758,19 @@ function renderBff(){
   const rows=(m.ops||[]).map((o,i)=>{
     const reg=M.gqlOps.find(g=>String(g.id)===String(o.opId));
     const ret=reg?reg.ReturnType:"";
+    const rb=reg?restBinding(reg):null, orchRow=bffOrchestratorOp(m);
+    const viaCell = !orchRow ? `<span class="hint">front end → router</span>`
+      : String(o.opId)===String(orchRow.opId) ? `<span class="via orch">orchestrator</span>`
+      : subgraphOf(o.entityId)===subgraphOf(orchRow.entityId) ? `<span class="via local">in-process</span>`
+      : `<select class="cell" title="How the orchestrator subgraph calls this op's service — REST or gRPC, never GraphQL" onchange="setBffField(${i},'via',this.value); render()">
+        <option value="rest"${o.via!=="grpc"&&rb?" selected":""}${rb?"":" disabled"}>REST · ${rb?esc(rb.method+" "+rb.path):"no REST link"}</option>
+        <option value="grpc"${o.via==="grpc"||!rb?" selected":""}>gRPC · ${esc(sgPascal(subgraphOf(o.entityId)))}Service/${esc(Pascal(o.name))}</option></select>`;
     return `<tr>
       <td><select class="cell" onchange="setBffField(${i},'kind',this.value); render()">
         ${["query","mutation"].map(k=>`<option${k===o.kind?" selected":""}>${k}</option>`).join("")}</select></td>
       <td class="mono">${esc(o.name)}</td>
       <td>${esc(o.entityId||"—")}${entName(o.entityId)?` <span class="hint">· ${esc(entName(o.entityId))}</span>`:""}</td>
+      <td>${viaCell}</td>
       <td><input class="cell" value="${esc(o.alias||"")}" oninput="setBffField(${i},'alias',this.value)" onchange="render()" /></td>
       <td><input class="cell mono" value="${esc(o.args!=null?o.args:"")}" oninput="setBffField(${i},'args',this.value)" onchange="render()" placeholder="${esc(reg?reg.Parameters||"":"")}" /></td>
       <td class="mono">${esc(ret||"—")}</td>
@@ -1248,8 +1779,8 @@ function renderBff(){
   }).join("");
   const addBtn=`<div class="op-picker"><button class="addrow" onclick="toggleOpMenu()" data-help="code-bff">＋ Add FedGQL op</button>${openMenu?opMenuHtml():""}</div>`;
   const tableHtml=`<div class="kv">Composed FedGQL operations <span class="hint">(pick from any subgraph)</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Kind</th><th>Op</th><th>Subgraph</th><th>Alias</th><th>Args</th><th>Returns</th><th></th></tr></thead>
-    <tbody>${rows||`<tr><td colspan="7" class="empty">No ops yet — use ＋ Add FedGQL op.</td></tr>`}</tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Kind</th><th>Op</th><th>Subgraph</th><th>Call via</th><th>Alias</th><th>Args</th><th>Returns</th><th></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="8" class="empty">No ops yet — use ＋ Add FedGQL op.</td></tr>`}</tbody></table></div>
     <div style="margin:8px 0">${addBtn}</div>`;
 
   // composed documents
@@ -1262,6 +1793,13 @@ function renderBff(){
     composedHtml=`<div class="kv">Composed document — <span class="mono">${esc(bffRef)}</span> → <span class="mono">${esc(m.name||"Bff")}</span> <span class="hint">${flow&&flow.orchestrated?`(orchestrated — the client sends only <span class="mono">${esc(flow.om.name)}</span>; the other ops run inside its resolver)`:"(variables are alias-prefixed to avoid cross-subgraph collisions)"}</span></div>
       <div class="grid2">${comp.query?docBlock("query "+ (m.name||"Bff"), comp.query.doc):""}${comp.mutation?docBlock("mutation "+(m.name||"Bff"), comp.mutation.doc):""}</div>`;
   }
+
+  // migration pattern: orchestration (an orchestrator subgraph) or query stitching (front end → router)
+  const orchRow=bffOrchestratorOp(m), hasMuts=m.ops.some(o=>o.kind==="mutation");
+  const patternHtml = !m.ops.length ? "" : orchRow
+    ? (svcTypeOfEntity(orchRow.entityId).type!=="Orchestrator" ? `<div class="pattern warn"><b>⚠ ${esc(subgraphOf(orchRow.entityId))} is a ${esc(svcTypeOfEntity(orchRow.entityId).type)} service</b>: ${esc(SERVICE_RULES[svcTypeOfEntity(orchRow.entityId).type])}. Its generated service won't orchestrate. Set its Service Type to <b>Orchestrator</b> in the GQL registry, or pick an op of an Orchestrator subgraph.</div>` : "")
+    + `<div class="pattern orch"><b>Pattern: orchestration</b> — the <span class="mono">${esc(subgraphOf(orchRow.entityId))}</span> subgraph becomes the orchestrator. Its service runs this BFF's logic for <span class="mono">${esc(orchRow.name)}</span>, exposed on both its REST API and its GraphQL API, and calls the other subgraph services over <b>REST or gRPC</b> (set <b>Call via</b> per op). The front end sends one mutation. No subgraph calls GraphQL.</div>`
+    : `<div class="pattern stitch"><b>Pattern: query stitching</b> — the front end sends one federated query and the router stitches the subgraphs by <span class="mono">@key</span>. No BFF or orchestrator code is needed, and no subgraph calls GraphQL.${hasMuts?" If this endpoint has write logic, pick an <b>Orchestrating mutation</b> under Mutation flow.":""}</div>`;
 
   // federation composition — nested entity-extension query + owning/extend @key SDL + Mermaid
   const fed=bffFederation(m, sgReg);
@@ -1310,17 +1848,36 @@ function renderBff(){
   let mutHtml="";
   if(flow){
     const mutOps=m.ops.filter(o=>o.kind==="mutation");
-    const orchSel=`<label><b>Orchestrating mutation</b> <select onchange="setBffOrchestrator(this.value)"><option value="">— none: the router runs the mutation fields serially —</option>${mutOps.map(o=>`<option value="${esc(o.opId)}"${String(m.orchestrator||"")===String(o.opId)?" selected":""}>${esc(o.alias||o.name)} · ${esc(subgraphOf(o.entityId))}</option>`).join("")}</select>
-      <span class="hint">a saga / process coordinator (e.g. <span class="mono">submitCheckout</span>) whose resolver calls the other ops' subgraphs in table order</span></label>`;
+    const orchSel=`<label><b>Orchestrating mutation</b> <select onchange="setBffOrchestrator(this.value)"><option value="">— none: the router runs the mutation fields serially —</option>${mutOps.map(o=>`<option value="${esc(o.opId)}"${String(m.orchestrator||"")===String(o.opId)?" selected":""}>${esc(o.alias||o.name)} · ${esc(subgraphOf(o.entityId))} (${esc(svcTypeOfEntity(o.entityId).type)})</option>`).join("")}</select>
+      <span class="hint">the op whose subgraph takes over the BFF logic (e.g. <span class="mono">submitCheckout</span> → checkout): its service calls the other ops' services in table order over REST / gRPC</span></label>`;
     let body="";
     if(flow.orchestrated){
-      body=`<div class="grid2">
-          <div><div class="code-head"><h3>Target — mutation the client sends</h3><button class="copy-btn" onclick='copyText(${attrJson(flow.doc)})'>Copy</button></div><pre class="code">${highlightSDL(flow.doc)}</pre>
-            <div class="code-head"><h3>Variables</h3></div><pre class="code">${esc(JSON.stringify(flow.vars,null,2))}</pre></div>
-          <div><div class="code-head"><h3>Orchestrator steps</h3></div><ol style="margin:0;padding-left:20px;font-size:13px">${flow.steps.map(st=>`<li><span class="badge ${st.op.kind}">${esc(st.op.kind)}</span> <span class="mono">${esc(st.model.name)}</span> <span class="hint">· ${esc(subgraphOf(st.op.entityId))} subgraph</span></li>`).join("")||'<li class="hint">add the ops the orchestrator calls</li>'}</ol>
-            <div class="code-head"><h3>Orchestrator resolver (Node.js skeleton)</h3><button class="copy-btn" onclick='copyText(${attrJson(flow.code)})'>Copy</button></div><pre class="code">${esc(flow.code)}</pre></div>
+      const steps=flow.plan.steps, os=orchSubgraph(flow.orch), P=SERVER_PAIRS[orchLang]||SERVER_PAIRS["Node.js (Apollo Server)"], osg=subgraphOf(flow.orch.entityId);
+      const route=bffRestOp?`${bffRestOp.method} ${bffRestOp.path}`:bffRef;
+      const cur=(LEGACY_BFF[orchLang]||LEGACY_BFF["Node.js (Apollo Server)"])({ name:m.name||"Bff", route, rest:bffRestOp, steps });
+      const tgt=os?P.svc(os.sgm, os.op):"// the orchestrating op isn't in its subgraph's registry ops";
+      const nR=steps.filter(s=>s.via==="rest").length, nG=steps.filter(s=>s.via==="grpc").length, nL=steps.length-nR-nG;
+      body=`<div class="selrow" style="margin:6px 0;align-items:center">
+          <label><b>Language</b> <select onchange="setOrchLang(this.value)">${SERVER_LANG_NAMES.map(n=>`<option${n===orchLang?" selected":""}>${esc(n)}</option>`).join("")}</select></label>
+          <span><span class="via rest">${nR} REST</span> <span class="via grpc">${nG} gRPC</span>${nL?` <span class="via local">${nL} in-process</span>`:""}</span>
+          <span class="spacer"></span>
+          <button class="btn" onclick="setAllVia('rest')" title="Call every downstream service that has a REST link over REST">All via REST</button>
+          <button class="btn" onclick="setAllVia('grpc')" title="Call every downstream service over gRPC">All via gRPC</button>
         </div>
-        ${mermaidBlock("bffMutGraph", "Mutation orchestration", "(one client mutation; the orchestrator drives each subgraph and compensates on failure)", flow.mermaid)}`;
+        <ol style="margin:4px 0 8px;padding-left:20px;font-size:13px">${steps.map(st=>`<li><span class="via ${st.via}">${st.via==="rest"?"REST":st.via==="grpc"?"gRPC":"in-process"}</span> <span class="mono">${esc(st.via==="rest"?st.c.method+" "+st.c.path:st.via==="grpc"?st.Sg+"Service/"+Pascal(st.model.name):st.model.name)}</span> <span class="hint">· ${esc(st.sg)} service${st.write?" · write":""}</span></li>`).join("")||'<li class="hint">add the ops the orchestrator calls</li>'}</ol>
+        <div class="grid2">
+          <div><div class="code-head"><h3>Current — BFF handler <span class="hint">· logic in the BFF</span></h3><button class="copy-btn" onclick='copyText(${attrJson(cur)})'>Copy</button></div><pre class="code">${esc(cur)}</pre></div>
+          <div><div class="code-head"><h3>Target — <span class="mono">${esc(osg)}</span> subgraph service <span class="hint">· logic in the orchestrator subgraph</span></h3><button class="copy-btn" onclick='copyText(${attrJson(tgt)})'>Copy</button></div><pre class="code">${esc(tgt)}</pre></div>
+        </div>
+        ${os?`<div class="grid2" style="margin-top:10px">
+          <div><div class="code-head"><h3>REST API <span class="hint">· ${esc(osg)} keeps a REST route for it</span></h3></div><pre class="code">${esc(P.rest(os.sgm, os.op))}</pre></div>
+          <div><div class="code-head"><h3>GraphQL API <span class="hint">· the mutation the front end calls</span></h3></div><pre class="code">${esc(P.gql(os.sgm, os.op, os.op))}</pre></div>
+        </div>`:""}
+        <div class="grid2" style="margin-top:10px">
+          <div><div class="code-head"><h3>Front end — mutation it sends</h3><button class="copy-btn" onclick='copyText(${attrJson(flow.doc)})'>Copy</button></div><pre class="code">${highlightSDL(flow.doc)}</pre></div>
+          <div><div class="code-head"><h3>Variables</h3></div><pre class="code">${esc(JSON.stringify(flow.vars,null,2))}</pre></div>
+        </div>
+        ${mermaidBlock("bffMutGraph", "Mutation orchestration", `(one client mutation; the ${esc(osg)} subgraph calls each service over REST / gRPC and compensates on failure)`, flow.mermaid)}`;
     } else {
       body=mermaidBlock("bffMutGraph", "Mutation sequence", "(root mutation fields run serially in document order)", flow.mermaid);
     }
@@ -1331,8 +1888,18 @@ function renderBff(){
   const outSelHtml=`<label><b>Output</b> <select onchange="setOut(this.value)">${["Client","Server"].map(o=>`<option${o===outKind?" selected":""}>${o}</option>`).join("")}</select></label>`;
   const langSelHtml=`<label><b>Language</b> <select onchange="setLang(this.value)">${langNames().map(n=>`<option${n===lang?" selected":""}>${esc(n)}</option>`).join("")}</select></label>`;
   let codeHtml="";
-  if(m.ops.length){
-    const gen=(outKind==="Server"?BFF_SERVER_LANGS[lang]:BFF_CLIENT_LANGS[lang]) || (outKind==="Server"?BFF_SERVER_LANGS["Node.js (Apollo Server)"]:BFF_CLIENT_LANGS.JavaScript);
+  if(m.ops.length && outKind==="Server"){
+    const os=orchRow?orchSubgraph(orchRow):null;
+    if(os){
+      const files=(SUBGRAPH_SERVERS[lang]||SUBGRAPH_SERVERS["Node.js (Apollo Server)"])(os.sgm, os.op);
+      codeHtml=`<div class="code-head" style="margin-top:12px"><h3>${esc(lang)} — <span class="mono">${esc(os.sgm.sgName)}</span> orchestrator subgraph <span class="hint">(one service: REST API + GraphQL API; <span class="mono">${esc(os.op.Name)}</span> carries the BFF logic)</span></h3><div class="selrow" style="margin:0">${outSelHtml}${langSelHtml}</div></div>
+        ${files.map(f=>`<div class="code-head"><h3 class="mono" style="font-size:12.5px">${esc(f.title)}</h3><button class="copy-btn" onclick='copyText(${attrJson(f.code)})'>Copy</button></div><pre class="code">${f.sdl?highlightSDL(f.code):esc(f.code)}</pre>`).join("")}`;
+    } else {
+      codeHtml=`<div class="code-head" style="margin-top:12px"><h3>Server code</h3><div class="selrow" style="margin:0">${outSelHtml}${langSelHtml}</div></div>
+        <p class="hint" style="margin:4px 0">${orchRow?"The orchestrating op isn't in its subgraph's registry ops.":"Query stitching needs no BFF or orchestrator code. The front end sends the federated query (Output → <b>Client</b>), and each subgraph's REST + GraphQL service is generated in <b>Single op</b> mode."}</p>`;
+    }
+  } else if(m.ops.length){
+    const gen=BFF_CLIENT_LANGS[lang]||BFF_CLIENT_LANGS.JavaScript;
     const s=gen(m, comp, bffRestOp);
     codeHtml=`<div class="code-head" style="margin-top:12px"><h3>${esc(s.codeTitle)}</h3><div class="selrow" style="margin:0">${outSelHtml}${langSelHtml}</div></div>
       <div class="code-head"><h3></h3><button class="copy-btn" onclick='copyText(${attrJson(s.code)})'>Copy</button></div><pre class="code">${esc(s.code)}</pre>`;
@@ -1355,7 +1922,7 @@ function renderBff(){
   }
 
   host.innerHTML = `<h3 style="margin:0 0 2px">${esc(m.name||"Bff")} <small class="hint">· BFF <span class="mono">${esc(bffRef)}</span> · ${m.ops.length} op(s) · ${esc(M.sgName||"registry")}</small></h3>
-    ${tableHtml}${composedHtml}${fedHtml}${mutHtml}${codeHtml}${perOp}`;
+    ${tableHtml}${patternHtml}${composedHtml}${fedHtml}${mutHtml}${codeHtml}${perOp}`;
   if(fedHtml) renderBffGraph(mmSrc);   // deferred: host.innerHTML was just replaced, so #bffGraph exists now
   if(flow) renderBffGraph(flow.mermaid, "bffMutGraph");
 }

@@ -490,15 +490,20 @@ function defaultScalarRows(entityId) {
     EntityID: entityId, Kind: "Scalar", TypeName: s, Definition: "", Links: ""
   }));
 }
+// How a subgraph application implements its logic — drives the generated service code
+// (subgraph-codemigration.html): Domain owns its data; Integration adapts an external / legacy
+// system; Orchestrator coordinates other subgraph services over REST / gRPC (never GraphQL).
+const SERVICE_TYPES = ["Domain", "Integration", "Orchestrator"];
 const SCHEMA = {
   Entities: {
     id: "EntityID",
-    desc: "GraphQL entities, tagged with the domain hierarchy. Links carry LeanIX / Confluence / ER references.",
+    desc: "GraphQL entities, tagged with the domain hierarchy. Service Type says how the Business Application implements its logic: Domain (owns its data), Integration (adapts an external system) or Orchestrator (coordinates other subgraph services over REST / gRPC). Links carry LeanIX / Confluence / ER references.",
     cols: [
       { key: "EntityID", label: "EntityID" },
       { key: "Name", label: "Entity" },
       { key: "ExperienceDomain", label: "Experience Domain" },
       { key: "BusinessApplication", label: "Business Application" },
+      { key: "ServiceType", label: "Service Type", options: SERVICE_TYPES },
       { key: "BusinessCapability", label: "Business Capability" },
       { key: "Description", label: "Description", area: true },
     ],
@@ -2457,14 +2462,14 @@ function seedData() {
     { type: "Other", value: src(sg) },
   ]);
   db.Entities = [
-    { EntityID: "ENT-001", Name: "Product", ExperienceDomain: "Retail Web", BusinessApplication: "product", BusinessCapability: "Product Information", Description: "Core, global product attributes that don't depend on location or store.", Links: refs("product", "Product+Subgraph") },
-    { EntityID: "ENT-002", Name: "ProductStoreContext", ExperienceDomain: "Retail Web", BusinessApplication: "pnp", BusinessCapability: "Pricing Management", Description: "A product at a specific physical store — store-scoped price (inventory contributes stock).", Links: refs("pnp", "Pricing+Subgraph") },
-    { EntityID: "ENT-003", Name: "Inventory", ExperienceDomain: "Retail Web", BusinessApplication: "inventory", BusinessCapability: "Inventory Management", Description: "Stock position of a SKU at a store.", Links: refs("inventory", "Inventory+Subgraph") },
-    { EntityID: "ENT-004", Name: "ProductSearch", ExperienceDomain: "Retail Web", BusinessApplication: "search", BusinessCapability: "Product Discovery", Description: "Full-text search, filtering and facets; returns Product references resolved by the router.", Links: refs("search", "Search+Subgraph") },
+    { EntityID: "ENT-001", Name: "Product", ExperienceDomain: "Retail Web", BusinessApplication: "product", ServiceType: "Domain", BusinessCapability: "Product Information", Description: "Core, global product attributes that don't depend on location or store.", Links: refs("product", "Product+Subgraph") },
+    { EntityID: "ENT-002", Name: "ProductStoreContext", ExperienceDomain: "Retail Web", BusinessApplication: "pnp", ServiceType: "Domain", BusinessCapability: "Pricing Management", Description: "A product at a specific physical store — store-scoped price (inventory contributes stock).", Links: refs("pnp", "Pricing+Subgraph") },
+    { EntityID: "ENT-003", Name: "Inventory", ExperienceDomain: "Retail Web", BusinessApplication: "inventory", ServiceType: "Domain", BusinessCapability: "Inventory Management", Description: "Stock position of a SKU at a store.", Links: refs("inventory", "Inventory+Subgraph") },
+    { EntityID: "ENT-004", Name: "ProductSearch", ExperienceDomain: "Retail Web", BusinessApplication: "search", ServiceType: "Integration", BusinessCapability: "Product Discovery", Description: "Full-text search, filtering and facets; returns Product references resolved by the router.", Links: refs("search", "Search+Subgraph") },
     { EntityID: "ENT-005", ...FEDGQL_ENTITY },
-    { EntityID: "ENT-006", Name: "Cart", ExperienceDomain: "Retail Web", BusinessApplication: "cart", BusinessCapability: "Cart Management", Description: "A shopper's cart and its lines; lines reference Product by sku.", Links: refs("cart", "Cart+Subgraph") },
-    { EntityID: "ENT-007", Name: "PaymentTransaction", ExperienceDomain: "Retail Web", BusinessApplication: "payments", BusinessCapability: "Payment Processing", Description: "Headless payment processing — knows amounts and payment methods, not what was bought.", Links: refs("payments", "Payments+Subgraph") },
-    { EntityID: "ENT-008", Name: "Order", ExperienceDomain: "Retail Web", BusinessApplication: "checkout", BusinessCapability: "Checkout & Order Orchestration", Description: "Checkout saga / process coordinator: validates the cart and stock, takes payment, places the order, clears the cart.", Links: refs("checkout", "Checkout+Subgraph") },
+    { EntityID: "ENT-006", Name: "Cart", ExperienceDomain: "Retail Web", BusinessApplication: "cart", ServiceType: "Domain", BusinessCapability: "Cart Management", Description: "A shopper's cart and its lines; lines reference Product by sku.", Links: refs("cart", "Cart+Subgraph") },
+    { EntityID: "ENT-007", Name: "PaymentTransaction", ExperienceDomain: "Retail Web", BusinessApplication: "payments", ServiceType: "Integration", BusinessCapability: "Payment Processing", Description: "Headless payment processing — knows amounts and payment methods, not what was bought.", Links: refs("payments", "Payments+Subgraph") },
+    { EntityID: "ENT-008", Name: "Order", ExperienceDomain: "Retail Web", BusinessApplication: "checkout", ServiceType: "Orchestrator", BusinessCapability: "Checkout & Order Orchestration", Description: "Checkout saga / process coordinator: validates the cart and stock, takes payment, places the order, clears the cart.", Links: refs("checkout", "Checkout+Subgraph") },
   ];
   const sch = (SchemaID, EntityID, Kind, TypeName, Definition, Description = "") => ({ SchemaID, EntityID, Kind, TypeName, Definition, Description, Links: "" });
   db.Schema = [

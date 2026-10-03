@@ -270,7 +270,7 @@ let selmonograph = null, selRest = null;
 /* Canonical GQLRegistry.xlsx headers — the export template (used when a sheet
    was empty / not loaded so pasted rows still line up column-for-column). */
 const CANON_HEADERS = {
-  Entities:  ["EntityID","Name","ExperienceDomain","BusinessApplication","BusinessCapability","Description","Contacts","ApprovalStatus","Comments","Links"],
+  Entities:  ["EntityID","Name","ExperienceDomain","BusinessApplication","ServiceType","BusinessCapability","Description","Contacts","ApprovalStatus","Comments","Links"],
   Schema:    ["SchemaID","EntityID","Kind","TypeName","Definition","Description","Contacts","ApprovalStatus","Comments","Links"],
   Queries:   ["QueryID","EntityID","Name","Parameters","ReturnType","AuthScopes","Description","Contacts","ApprovalStatus","Comments","Links"],
   Mutations: ["MutationID","EntityID","Name","Parameters","ReturnType","AuthScopes","Description","Contacts","ApprovalStatus","Comments","Links"],
@@ -756,6 +756,7 @@ const DOMAIN_COLS=[
   {h:"EntityID", f:"EntityID", mono:1},
   {h:"Experience Domain", f:"ExperienceDomain"},
   {h:"Business Application", f:"BusinessApplication"},
+  {h:"Service Type", f:"ServiceType"},
   {h:"Business Capability", f:"BusinessCapability"},
   {h:"Comments", f:"Comments"},
   {h:"Links & References", f:"Links"},
@@ -798,7 +799,7 @@ function renderDomainDetails(){
   if(!r){ host.innerHTML=html+'<div class="empty">Choose the GQL Registry entity this migration maps to, then import an OpenAPI/Swagger spec below.</div>'; return; }
   const disp=[
     ["EntityID", r.EntityID], ["Name", r.Name], ["Experience Domain", r.ExperienceDomain],
-    ["Business Application", r.BusinessApplication], ["Business Capability", r.BusinessCapability],
+    ["Business Application", r.BusinessApplication], ["Service Type", r.ServiceType], ["Business Capability", r.BusinessCapability],
     ["Approval", r.ApprovalStatus],
     ["Comments", r.Comments],
     ["Links & References", linksHTML(r.Links), true],
@@ -1150,7 +1151,7 @@ function buildSubgraphRows(sg, seed){
       entId=(meta.EntityID||"").trim() || ("ENT-"+pad3(++eN));
       out.Entities.push({ EntityID:entId, Name:t.name,
         ExperienceDomain:meta.ExperienceDomain||"", BusinessApplication:(meta.BusinessApplication||"").trim()||sg.name,
-        BusinessCapability:meta.BusinessCapability||"",
+        ServiceType:meta.ServiceType||"", BusinessCapability:meta.BusinessCapability||"",
         Comments:meta.Comments||"", Links:(meta.Links||"").trim()||src,
         ApprovalStatus:"Draft" });
       entByName.set(t.name, entId);
@@ -1344,7 +1345,7 @@ function renderCurrentSubgraph(){
   host.innerHTML = `<h3 style="margin:0 0 2px">${esc(sg.name)} <small class="hint">· FedGQL subgraph${focusNote} · <span class="hint">cells are editable</span></small></h3>
     ${standardsPanelHTML(val)}
     <div class="kv">Entities (${rows.Entities.length})</div>
-    ${tbl("Entities",[{h:"EntityID",k:"EntityID",mono:1},{h:"Name",k:"Name",mono:1},{h:"Experience Domain",k:"ExperienceDomain",edit:1},{h:"Business Application",k:"BusinessApplication",edit:1},{h:"Business Capability",k:"BusinessCapability",edit:1},{h:"Comments",k:"Comments",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Entities, "no @key entities")}
+    ${tbl("Entities",[{h:"EntityID",k:"EntityID",mono:1},{h:"Name",k:"Name",mono:1},{h:"Experience Domain",k:"ExperienceDomain",edit:1},{h:"Business Application",k:"BusinessApplication",edit:1},{h:"Service Type",k:"ServiceType",sel:["","Domain","Integration","Orchestrator"]},{h:"Business Capability",k:"BusinessCapability",edit:1},{h:"Comments",k:"Comments",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Entities, "no @key entities")}
     <div class="kv">Schema — types / enums / inputs (${rows.Schema.length}) <button class="addrow" onclick="addSubgraphRow('Schema')" data-help="mig-add-rows">＋ Add type</button></div>
     ${tbl("Schema",[{h:"SchemaID",k:"SchemaID",mono:1},{h:"Kind",k:"Kind",sel:["Key","Type","Input","Enum","Interface","Union","Scalar","Reference","Extend"]},{h:"Type name",k:"TypeName",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Definition",k:"Definition",mono:1,edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Schema, "no types")}
     <div class="kv">Queries (${rows.Queries.length}) <button class="addrow" onclick="addSubgraphRow('Queries')" data-help="mig-add-rows">＋ Add query</button></div>

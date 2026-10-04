@@ -29,7 +29,7 @@
   .flow .arrow{ border: none; background: none; text-align: center; padding: 0; color: var(--muted); }
   .flow .hi{ border-color: var(--accent); background: var(--accent-soft); }
   h2.sec{ font-size: 22px; margin: 36px 0 12px; }
-  .tools{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .tools{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
   .tool{ background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 6px; }
   .tool .ico{ font-size: 28px; }
   .tool h3{ margin: 0; font-size: 18px; }
@@ -64,6 +64,8 @@
   <a class="btn" href="workbench.html">Registry workbench</a>
   <a class="btn" href="gql-migration.html">GQL migration</a>
   <a class="btn" href="subgraph-codemigration.html">Code migration</a>
+  <!-- <a class="btn" href="data-mapping.html">Data mapping</a>
+--> 
   <a class="btn" href="help.html">❓ Help</a>
   <a class="btn primary" href="demo.html">▶ Presentation</a>
 </header>
@@ -111,6 +113,12 @@
       <ul><li>Single op: client or server code</li><li>BFF composite: federated query + sequence trace</li><li>Mappings saved in a BffMappings sheet</li></ul>
       <div class="acts"><a class="btn primary" href="subgraph-codemigration.html">Open</a><a class="btn" href="help.html#code-migration">Help</a><a class="btn" href="demo.html#code">Slides</a></div>
     </div>
+    <div class="tool">
+      <div class="ico">🗺️</div><h3>Data mapping registry</h3>
+      <p>Register applications by domain, then trace each attribute from MDM / PIM through integration and domain services to the BFF / FedGQL router and the UI.</p>
+      <ul><li>Domains &amp; applications registry with architecture checks</li><li>Editable source → target mapping canvas</li><li>Lineage by business term · systems &amp; flows</li><li>Kafka event catalog · Avro / JSON Schema / SDL / DDL</li></ul>
+      <div class="acts"><a class="btn primary" href="data-mapping.html">Open</a><a class="btn" href="samples/DataMappingRegistry-sample.xlsx">Sample .xlsx</a></div>
+    </div>
   </div>
 
   <h2 class="sec">Start here</h2>
@@ -139,6 +147,7 @@
         <li><code>mono-graph.gql</code>: the monolith to migrate from.</li>
         <li><code>bff-openapi.yaml</code>: composite BFF endpoints to migrate.</li>
         <li><code>GQLRegistry-sample.xlsx</code>: the matching registry.</li>
+        <li><code>DataMappingRegistry-sample.xlsx</code>: product and cart data mapped from MDM / PIM through Kafka, the services and the supergraph to the web, for <a href="data-mapping.html">Data mapping</a>.</li>
       </ul>
       <p style="margin:10px 0 0"><a href="help.html#try-samples">How to walk through the samples →</a></p>
     </div>

@@ -83,6 +83,7 @@
   <a class="sub" href="#wb-subgraph-sdl">Subgraph SDL</a>
   <a class="sub" href="#wb-summary">Summary</a>
   <a class="grp" href="#migration">GQL migration</a>
+  <a class="sub" href="#mig-guide">Onboarding guide</a>
   <a class="sub" href="#mig-load">Load data</a>
   <a class="sub" href="#mig-import">Import OpenAPI</a>
   <a class="sub" href="#mig-monograph">MonoGraph schema</a>
@@ -226,6 +227,37 @@
     <h2>GQL migration <small class="hint">gql-migration.html</small></h2>
     <p>Migrates one registry entity at a time: its service's OpenAPI spec becomes FedGQL registry rows, which you review, propose and copy into the registry.</p>
 
+    <div class="feat" id="mig-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
+      <p>A seven-step wizard with a progress bar that onboards one application to a federated subgraph and fills the registry for you:</p>
+      <p>The <b>Migration overview</b> diagram above the steps (moved here from Code migration) follows your progress:</p>
+      <ul>
+        <li>It shows the flow: source estate → onboarding guide → subgraph mapping and GQL Registry → federated supergraph.</li>
+        <li>Each stage turns <b>purple</b> while you're on it and <b>green</b> when it's done.</li>
+        <li>The connector into the next stage animates, and a stage flashes when it becomes current or completes.</li>
+        <li>Click a stage or step icon to jump to it, or <span class="ui">hide</span> it to collapse the diagram.</li>
+      </ul>
+      <ol>
+        <li><b>Load GQL Registry</b>: choose <code>GQLRegistry.xlsx</code> (or the sample). To continue earlier work, also choose the saved <code>…-subgraph.xlsx</code> to resume.</li>
+        <li><b>Domain &amp; application</b>: pick the experience domain, then the business application (registry entity). <span class="ui">＋ Add a new application</span> creates a Draft entity if it isn't registered yet.</li>
+        <li><b>Migration source</b>: the <b>MonoGraph</b> SDL, the <b>BFF REST API</b>, or the service's own <b>subgraph REST API</b>.</li>
+        <li><b>Load spec &amp; pick operations</b>: load the SDL or OpenAPI file (or a sample) and tick the root fields / endpoints that move to this subgraph. Suggestions are pre-ticked, and GET / write endpoints become queries / mutations (flip the kind if needed). <span class="ui">Generate subgraph</span> derives the types, queries and mutations: only the types the operations reach are kept, and other applications' entities become <code>@key</code> reference stubs.</li>
+        <li><b>Review derived schema</b>: edit the generated rows in place and fix schema-standards errors (<span class="ui">Fix list nullability</span> rewrites list fields as <code>[T!]!</code>). Then click <span class="ui">Mark all rows Proposed</span>.</li>
+        <li><b>Save subgraph mapping</b>: downloads <code>&lt;application&gt;-subgraph.xlsx</code> with these sheets:
+          <ul>
+            <li><b>Onboarding</b>: your choices and progress.</li>
+            <li><b>Operations</b>: each source endpoint / root field → its GraphQL operation and registry ID.</li>
+            <li><b>Entities / Schema / Queries / Mutations</b>: the rows in registry format.</li>
+            <li><b>SourceSpec</b>: the source spec.</li>
+          </ul>
+          The 💾 button at the top saves at any step.</li>
+        <li><b>Merge into GQL Registry</b>: previews add / update / skip per row, then merges the Proposed rows:
+          <ul>
+            <li>Rows are matched on entity + type name and on operation name, so existing rows keep their IDs.</li>
+            <li>Operations owned by another entity, and types another entity already defines, are skipped with a note.</li>
+            <li>A BFF source also adds BffMappings rows.</li>
+          </ul>
+          <span class="ui">Save GQLRegistry.xlsx</span> writes the whole workbook (every sheet kept). <span class="ui">Open in Registry workbench</span> sends the rows to the embedded registry for approval.</li>
+      </ol></div>
     <div class="feat" id="mig-load"><h3>Load data <span class="where">tab</span></h3>
       <p>Load <code>GQLRegistry.xlsx</code> with <span class="ui">Choose file…</span>. When the pages are served over http(s), the workbook and MonoGraph schema load automatically from the same folder. Then, under <b>Domain details</b>, pick the <b>GQL Registry entity</b> you are migrating; its EntityID and domain details become the target for everything generated.</p></div>
     <div class="feat" id="mig-example"><h3>Load example <span class="where">header</span></h3>

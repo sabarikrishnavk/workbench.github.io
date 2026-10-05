@@ -103,6 +103,103 @@
   .counts .tag{ font-size: 12px; }
   .flag-yes{ color: var(--ok); }
   .flag-no{ color: var(--bad); }
+  /* Onboarding guide */
+  .wz-head{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .wz-head h2{ margin: 0; }
+  .wz-head .spacer, .wz-nav .spacer{ flex: 1; }
+  .wz-progress{ display: flex; align-items: center; gap: 10px; margin: 14px 0 8px; }
+  .wz-bar{ flex: 1; height: 10px; background: #eceef2; border-radius: 999px; overflow: hidden; }
+  .wz-bar span{ display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), #a78bfa); border-radius: 999px; transition: width .35s; }
+  .wz-pct{ font-weight: 700; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+  .wz-steps{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; list-style: none; padding: 0; margin: 0; counter-reset: wz; }
+  .wz-steps li{ position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 6px 34px; font-size: 12.5px; cursor: pointer; background: #fff; min-height: 42px; display: flex; align-items: center; line-height: 1.25; }
+  .wz-steps li::before{ counter-increment: wz; content: counter(wz); position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; border-radius: 50%; background: #e5e7eb; color: var(--muted); font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+  .wz-steps li.done::before{ content: "✓"; background: var(--ok); color: #fff; }
+  .wz-steps li.cur{ border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .wz-steps li.cur::before{ background: var(--accent); color: #fff; }
+  .wz-steps li.locked{ opacity: .5; cursor: not-allowed; }
+  .wz-ctx{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; font-size: 12px; }
+  .wz-ctx span{ border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: #fbfbfd; }
+  .wz-nav{ display: flex; align-items: center; gap: 10px; position: sticky; bottom: -16px; background: var(--bg); padding: 10px 0 12px; z-index: 2; }
+  .wz-cards{ display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 8px 0 12px; }
+  .wz-card{ border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; background: #fff; }
+  .wz-card:hover{ border-color: var(--accent); }
+  .wz-card.sel{ border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); background: #faf9ff; }
+  .wz-card h4{ margin: 0 0 4px; font-size: 14px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+  .wz-card p{ margin: 3px 0; font-size: 12.5px; color: var(--muted); }
+  .wz-chips{ display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+  .wz-chip{ border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; cursor: pointer; background: #fff; font-size: 13px; }
+  .wz-chip.sel{ background: var(--accent); color: #fff; border-color: var(--accent); }
+  .wz-ops tr.off td{ color: var(--muted); }
+  .wz-act-add{ color: var(--ok); font-weight: 600; } .wz-act-upd{ color: #2563eb; font-weight: 600; } .wz-act-skip{ color: var(--bad); font-weight: 600; }
+  #view-guide details summary{ cursor: pointer; }
+  /* Migration overview (moved from Code migration; animated by gql-onboarding.js) */
+  .wz-ovwrap>summary{ list-style: none; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .wz-ovwrap>summary::-webkit-details-marker{ display: none; }
+  .wz-ovwrap>summary h2{ margin: 0; }
+  .wz-ovwrap>summary::after{ content: "hide"; margin-left: auto; font-size: 12px; color: var(--muted); }
+  .wz-ovwrap:not([open])>summary::after{ content: "show"; }
+  .ov{ display: grid; grid-template-columns: minmax(190px, 1fr) 40px minmax(300px, 1.45fr) 40px minmax(210px, 1fr) 40px minmax(190px, 1fr); align-items: stretch; margin-top: 12px; }
+  .ov-col{ display: flex; flex-direction: column; gap: 14px; }
+  .ov-col .ov-node{ flex: 1; }
+  .ov-node{ position: relative; background: #fff; border: 1.5px solid #e2e5ea; border-radius: 14px; padding: 10px 12px; cursor: pointer; color: #64748b;
+    transition: border-color .6s ease, background-color .6s ease, box-shadow .6s ease, color .6s ease, opacity .6s ease; }
+  .ov-node h3{ margin: 0; font-size: 14.5px; text-align: center; color: #334155; display: flex; justify-content: center; align-items: center; gap: 6px; transition: color .6s; }
+  .ov-node h3 svg{ width: 18px; height: 18px; }
+  .ov-sub{ text-align: center; font-size: 11.5px; color: var(--muted); margin: 1px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-node.is-cur{ border-color: var(--accent); color: var(--accent); background: linear-gradient(180deg, #fff 0%, #faf7ff 100%); box-shadow: 0 0 0 4px var(--accent-soft); animation: ovglow 2.2s ease-in-out infinite; }
+  .ov-node.is-cur h3{ color: var(--accent); }
+  .ov-node.is-done{ border-color: #4ade80; color: #15803d; background: linear-gradient(180deg, #fff 0%, #f0fdf4 100%); }
+  .ov-node.is-done h3{ color: #166534; }
+  .ov-node.is-done h3::after{ content: "✓"; font-size: 12px; color: #fff; background: #22c55e; border-radius: 50%; width: 17px; height: 17px; display: inline-grid; place-items: center; }
+  .ov-node.is-back{ box-shadow: 0 0 0 4px var(--accent-soft); }
+  .ov-node.flash{ animation: ovflash .9s ease; }
+  .ov-node.is-done.flash{ animation: ovflashok .9s ease; }
+  @keyframes ovglow{ 0%,100%{ box-shadow: 0 0 0 4px var(--accent-soft); } 50%{ box-shadow: 0 0 0 7px rgba(112,72,232,.16); } }
+  @keyframes ovflash{ 0%{ transform: scale(1); } 35%{ transform: scale(1.03); box-shadow: 0 0 0 10px rgba(112,72,232,.28); } 100%{ transform: scale(1); } }
+  @keyframes ovflashok{ 0%{ transform: scale(1); } 35%{ transform: scale(1.03); box-shadow: 0 0 0 10px rgba(34,197,94,.3); } 100%{ transform: scale(1); } }
+  .ov-item{ display: flex; align-items: center; gap: 8px; padding: 4px 4px; border-radius: 8px; font-size: 12.5px; color: var(--ink); transition: background-color .6s, color .6s, opacity .6s; }
+  .ov-ic{ flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: #f1f3f6; color: #64748b; transition: background-color .6s, color .6s; }
+  .ov-ic svg{ width: 17px; height: 17px; }
+  .ov-lbl{ min-width: 0; line-height: 1.25; }
+  .ov-lbl small{ display: block; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px; }
+  .ov-item.pick{ background: var(--accent-soft); }
+  .ov-item.pick .ov-ic{ background: var(--accent); color: #fff; }
+  .ov-item.ok .ov-ic{ background: #22c55e; color: #fff; }
+  .ov-item.dim{ opacity: .45; }
+  .ov-div{ font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 6px 4px 2px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .ov-core{ width: 96px; height: 96px; margin: 4px auto 10px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #b8a4fb, #8b74d6 70%); color: #fff; display: grid; place-items: center; align-content: center; text-align: center; box-shadow: 0 0 0 8px #f3f0ff, 0 0 0 9px #e2d9ff; transition: background .6s, box-shadow .6s; }
+  .ov-core svg{ width: 34px; height: 34px; }
+  .ov-core b{ font-size: 11px; line-height: 1.2; padding: 0 6px; }
+  .ov-hub.is-cur .ov-core{ background: radial-gradient(circle at 35% 30%, #9775fa, #6741d9 70%); }
+  .ov-hub.is-done .ov-core{ background: radial-gradient(circle at 35% 30%, #4ade80, #16a34a 70%); box-shadow: 0 0 0 8px #dcfce7, 0 0 0 9px #86efac; }
+  .ov-steps{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .ov-step{ text-align: center; font-size: 10px; line-height: 1.2; color: var(--muted); cursor: pointer; }
+  .ov-step .si{ width: 30px; height: 30px; margin: 0 auto 3px; border-radius: 9px; border: 1px solid #e2e5ea; background: #f8fafc; color: #94a3b8; display: grid; place-items: center; transition: background-color .5s, color .5s, border-color .5s, transform .3s; }
+  .ov-step .si svg{ width: 16px; height: 16px; }
+  .ov-step.done .si{ background: #22c55e; border-color: #22c55e; color: #fff; }
+  .ov-step.cur .si{ background: var(--accent); border-color: var(--accent); color: #fff; transform: scale(1.12); animation: ovstep 1.6s ease-in-out infinite; }
+  .ov-step.cur{ color: var(--accent); font-weight: 600; }
+  @keyframes ovstep{ 0%,100%{ box-shadow: 0 0 0 0 rgba(112,72,232,.45); } 60%{ box-shadow: 0 0 0 6px rgba(112,72,232,0); } }
+  .ov-blue{ margin: 10px auto 0; border: 1px solid #d0bfff; border-radius: 999px; padding: 3px 12px; font-size: 12px; font-weight: 600; color: var(--accent); text-align: center; max-width: 100%; }
+  .ov-blue .mono{ display: block; font-weight: 400; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-conn{ position: relative; }
+  .ov-conn svg{ position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .ov-conn path{ fill: none; stroke: #cbd5e1; stroke-width: 2.5; vector-effect: non-scaling-stroke; transition: stroke .6s; }
+  .ov-conn path.flowing{ stroke: var(--accent); stroke-dasharray: 7 6; animation: ovdash .7s linear infinite; }
+  .ov-conn path.done{ stroke: #22c55e; }
+  @keyframes ovdash{ to{ stroke-dashoffset: -13; } }
+  .ov-tip{ position: absolute; right: -2px; transform: translateY(-50%); border: 6px solid transparent; border-left-color: #cbd5e1; border-right: 0; transition: border-color .6s; }
+  .ov-tip.flowing{ border-left-color: var(--accent); }
+  .ov-tip.done{ border-left-color: #22c55e; }
+  @media (max-width: 1100px){
+    .ov{ grid-template-columns: 1fr; gap: 0; }
+    .ov-conn{ height: 26px; } .ov-conn svg, .ov-conn .ov-tip{ display: none; }
+    .ov-conn::after{ content: ""; position: absolute; left: 50%; top: 2px; bottom: 2px; width: 2px; background: #cbd5e1; }
+    .ov-col{ flex-direction: row; } .ov-col .ov-node{ flex: 1; }
+  }
+  @media (prefers-reduced-motion: reduce){ .ov-node, .ov-step .si, .ov-conn path{ animation: none !important; transition: none !important; } }
+  @media (max-width: 1000px){ .wz-steps{ grid-template-columns: repeat(4, 1fr); } }
 </style>
 </head>
 <body>
@@ -120,7 +217,8 @@
   <span class="status" id="status">No data loaded.</span>
 </header>
 <nav>
-  <button data-view="load" class="active" data-help="mig-load">Load data</button>
+  <button data-view="guide" class="active" data-help="mig-guide">Onboarding guide</button>
+  <button data-view="load" data-help="mig-load">Load data</button>
   <button data-view="monograph" data-help="mig-monograph">MonoGraph schema</button>
   <button data-view="rest" data-help="mig-subgraphs">Subgraphs</button>
   <button data-view="edit" data-help="mig-fedgql">FedGQL subgraph</button>
@@ -129,7 +227,26 @@
 </nav>
 <main>
   <!-- Load ------------------------------------------------------------- -->
-  <section class="view active" id="view-load">
+  <!-- Onboarding guide (gql-onboarding.js) --------------------------- -->
+  <section class="view active" id="view-guide">
+    <div class="card">
+      <div class="wz-head"><h2>Onboarding guide: migrate an application to a FedGQL subgraph</h2><span class="spacer"></span>
+        <button id="wzSaveTop" title="Save the subgraph mapping workbook (resume it later in step 1)">💾 Save subgraph mapping</button>
+        <button id="wzRestart" title="Start the guide again">Restart</button></div>
+      <div class="wz-progress"><div class="wz-bar"><span id="wzBarFill"></span></div><span class="wz-pct" id="wzPct">0%</span></div>
+      <ol class="wz-steps" id="wzSteps"></ol>
+      <div class="wz-ctx" id="wzCtx"></div>
+    </div>
+    <details class="card wz-ovwrap" id="wzOvWrap" open>
+      <summary><h2>Migration overview</h2><span class="hint">source estate → onboarding guide → subgraph mapping &amp; GQL Registry → federated supergraph · click a stage or step to jump to it</span></summary>
+      <div id="wzOverview"></div>
+    </details>
+    <div class="card" id="wzBody"></div>
+    <div class="wz-nav"><button id="wzBack">← Back</button><span class="spacer"></span><span class="hint" id="wzHint"></span><button class="primary" id="wzNext">Next →</button></div>
+    <input type="file" id="wzFileInput" />
+  </section>
+
+  <section class="view" id="view-load">
     <div class="card">
       <h2>Load the sources</h2>
       <p class="desc">Everything runs in your browser — nothing is uploaded. The app also tries to
@@ -569,7 +686,7 @@ function targetEntityNames(){
 }
 
 /* ----------------------------- loading --------------------------------- */
-function persist(){ try{ localStorage.setItem(LS, JSON.stringify({monographText:state.monographText, entities:state.entities, schema:state.schema, reg:state.reg, regHeaders:state.regHeaders, mapping})); }catch(e){} }
+function persist(){ try{ localStorage.setItem(LS, JSON.stringify({monographText:state.monographText, entities:state.entities, schema:state.schema, reg:state.reg, regHeaders:state.regHeaders, regOrder:state.regOrder, mapping})); }catch(e){} }
 function migrateMapping(m){
   m=Object.assign(defaultMapping(), m||{});
   m.subgraphs=(m.subgraphs||[]).map(sg=>Object.assign({id:uid(),name:"subgraph",spec:"",ops:[],types:[]}, sg));
@@ -592,7 +709,8 @@ function restore(){
   const raw = localStorage.getItem(LS) || localStorage.getItem("gqlmig-v1"); if(!raw) return;
   try{ const d=JSON.parse(raw);
     state.entities=d.entities||[]; state.schema=d.schema||[];
-    state.reg=d.reg||{}; state.regHeaders=d.regHeaders||{};
+    state.reg=d.reg||{}; state.regHeaders=d.regHeaders||{}; state.regOrder=d.regOrder||Object.keys(state.reg);
+    if(state.reg.Entities) state.entities=state.reg.Entities;
     if(d.mapping) mapping=migrateMapping(d.mapping);
     if(d.monographText){ state.monographText=d.monographText; state.monograph=parseSDL(d.monographText); }
   }catch(e){}
@@ -600,8 +718,8 @@ function restore(){
 // sheetRows → common.js
 
 function loadRegWB(wb){
-  state.reg={}; state.regHeaders={};
-  for(const s of ["Entities","Schema","Queries","Mutations","AuthScopes"]){
+  state.reg={}; state.regHeaders={}; state.regOrder=[...wb.SheetNames];   // every sheet is kept so a merged registry can be saved whole
+  for(const s of wb.SheetNames){
     if(!wb.Sheets[s]) continue;
     state.reg[s]=sheetRows(wb,s);
     state.regHeaders[s]=(XLSX.utils.sheet_to_json(wb.Sheets[s],{header:1})[0]||[]).map(String);
@@ -705,7 +823,7 @@ async function tryAutoFetch(){
 }
 function clearAll(){ localStorage.removeItem(LS); localStorage.removeItem("gqlmig-v1"); state.monographText=""; state.monograph=null; state.entities=[]; state.schema=[]; state.reg={}; state.regHeaders={}; mapping=defaultMapping(); selmonograph=selRest=null; afterLoad(); }
 
-function afterLoad(){ persist(); renderStatus(); renderDatalists(); renderDomainDetails(); rendermonographList(); rendermonographDetail(); renderRestDetail(); renderCurrentSubgraph(); }
+function afterLoad(){ persist(); renderStatus(); renderDatalists(); renderDomainDetails(); rendermonographList(); rendermonographDetail(); renderRestDetail(); renderCurrentSubgraph(); if(typeof wzRender==="function") wzRender(); }
 function renderStatus(){
   const opCount=mapping.subgraphs.reduce((n,sg)=>n+sg.ops.length,0);
   const parts=[];
@@ -1165,9 +1283,11 @@ function buildSubgraphRows(sg, seed){
     // it returns (wrappers, response envelopes, arrays…). Non-focus: attribute by return-type entity.
     const eid = focusTN ? focusEntId : (entByName.get(baseType(o.entity||o.returns))||"");
     const args=(o.args||[]).map(a=>`${a.name}: ${a.type}`).join(", ");
-    const note=`from ${sg.name} ${o.method} ${o.path||""}`.trim()+(o.notes?` — ${o.notes}`:"");
+    const fromMono=o.method==="GQL";                          // op split out of the MonoGraph (Query.x / Mutation.x)
+    const note=(fromMono?`from MonoGraph ${o.path}`:`from ${sg.name} ${o.method} ${o.path||""}`.trim())+(o.notes?` — ${o.notes}`:"");
     const restRef=`${o.method||""} ${o.path||""}`.trim();     // source REST endpoint, e.g. "GET /offers"
-    const link=formatLinks([{ type:"REST", value:restRef }, { type:"Other", value:src+(o.path?(" "+o.path):"") }]);   // Links & References
+    const link=fromMono ? formatLinks([{ type:"monograph", value:o.path }, { type:"Other", value:src }])
+      : formatLinks([{ type:"REST", value:restRef }, { type:"Other", value:src+(o.path?(" "+o.path):"") }]);   // Links & References
     if(o.opKind==="query"){ if(qExist.has(o.name)) continue; out.Queries.push({ QueryID:cid("QRY", eid), EntityID:eid, Name:o.name, Parameters:args, ReturnType:o.returns||"", Description:note, ApprovalStatus:"Draft", Links:link }); qExist.add(o.name); }
     else { if(mExist.has(o.name)) continue; out.Mutations.push({ MutationID:cid("MUT", eid), EntityID:eid, Name:o.name, Parameters:args, ReturnType:o.returns||"", Description:note, ApprovalStatus:"Draft", Links:link }); mExist.add(o.name); }
   }
@@ -1294,8 +1414,16 @@ function applyRowValidation(sheet, id, viols){
 }
 
 /* --------------------- FedGQL subgraph + copy to registry ------------- */
+// The editable rows render into the Onboarding guide's review step while it is on screen, otherwise into
+// the FedGQL subgraph tab; the other host is cleared so element ids (row-…, stdSummary) stay unique.
+function curSgHost(){
+  const g=document.getElementById("wzCurSg"), e=document.getElementById("curSg");
+  const useG=!!g && document.getElementById("view-guide").classList.contains("active");
+  const other=useG?e:g; if(other) other.innerHTML=useG?'<div class="empty">This subgraph is open in the <b>Onboarding guide</b> (step 5).</div>':"";
+  return useG?g:e;
+}
 function renderCurrentSubgraph(){
-  const host=document.getElementById("curSg"); if(!host) return;
+  const host=curSgHost(); if(!host) return;
   const sg=migrationSubgraph();                             // same source of truth as Code migration
   if(!sg){ host.innerHTML='<div class="empty">Pick a GQL Registry entity to migrate on the <b>Load data</b> tab, then import its OpenAPI/Swagger spec.</div>'; return; }
   const rows=buildSubgraphRows(sg);
@@ -1407,5 +1535,6 @@ window.addEventListener("message", e=>{
 /* ------------------------------ boot ----------------------------------- */
 restore(); afterLoad(); tryAutoFetch();
 </script>
+<script src="gql-onboarding.js"></script>
 </body>
 </html>

@@ -91,6 +91,7 @@
   <a class="sub" href="#mig-fedgql">FedGQL subgraph</a>
   <a class="sub" href="#mig-copy">Copy to GQL Registry</a>
   <a class="grp" href="#code-migration">Code migration</a>
+  <a class="sub" href="#code-guide">Onboarding guide</a>
   <a class="sub" href="#code-inputs">Inputs</a>
   <a class="sub" href="#code-single">Single op</a>
   <a class="sub" href="#code-bff">BFF composite</a>
@@ -293,6 +294,25 @@
   <section id="code-migration">
     <h2>Code migration <small class="hint">subgraph-codemigration.html</small></h2>
     <p>Generates the code that moves callers from REST to FedGQL. It opens on its own, or embedded in the <b>Code migration</b> tab of GQL migration.</p>
+    <div class="feat" id="code-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
+      <p>An eight-step wizard with a progress bar and an animated <b>Migration overview</b>. It migrates one monolith endpoint at a time to its target subgraph, with the client and server code as separate steps:</p>
+      <ol>
+        <li><b>Load GQL Registry</b>: the FedGQL schema, each subgraph's ServiceType and the BffMappings sheet.</li>
+        <li><b>Monolith &amp; spec</b>, one of:
+          <ul>
+            <li>a <b>monolithic BFF</b> (composite endpoints);</li>
+            <li>a <b>legacy service / orchestrator REST API</b>;</li>
+            <li>the <b>MonoGraph</b> (its resolvers).</li>
+          </ul>
+          Load its OpenAPI spec or SDL, or a sample.</li>
+        <li><b>Endpoint &amp; operations</b>: pick the endpoint or root field and its FedGQL operation(s). Operations are matched by their <code>REST:</code> / <code>monograph:</code> links, and a BFF endpoint's existing BffMappings load with it.</li>
+        <li><b>Target service &amp; pattern</b>: the target's <b>Domain</b>, <b>Orchestrator</b> or <b>Integration</b> service type decides what its code may do. For a BFF, choose orchestration (an orchestrating mutation, with REST / gRPC per downstream call) or query stitching.</li>
+        <li><b>Review mapping</b>: name and type changes, the composed document, and a sequence trace.</li>
+        <li><b>Client code</b>: the current REST / MonoGraph call next to the FedGQL call, for JavaScript, Java, Android (Kotlin) or iOS (Swift).</li>
+        <li><b>Server code</b>: the current BFF handler / REST controller / MonoGraph resolver next to the target subgraph service, with its REST and GraphQL APIs and generated files, for Java, .NET or Node.js.</li>
+        <li><b>Save &amp; export</b>: the registry with <b>BffMappings</b> and a <b>CodeMigration</b> log sheet (.xlsx), plus a <b>code pack</b> (.md) for the teams.</li>
+      </ol>
+      <p>Each stage of the diagram turns purple while it's current and green when it's done. The connector into the next stage animates, and you can click a stage or step icon to jump to it. The <b>Workbench</b> tab keeps the full single-op / BFF composite tools and follows the guide's selection.</p></div>
     <div class="feat" id="code-inputs"><h3>Inputs</h3>
       <p>Load <code>GQLRegistry.xlsx</code>, which supplies the FedGQL operations and types, and the REST spec (OpenAPI or Swagger, in YAML or JSON). Pick the registry entity (subgraph) to limit the list to that subgraph's operations.</p></div>
     <div class="feat" id="code-example"><h3>Load example <span class="where">header</span></h3>

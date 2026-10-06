@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="common.js"></script>
 <link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="onboarding.css" />
 <style>
   :root{
     --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
@@ -96,6 +97,30 @@
 </header>
 
 <main>
+  <nav class="cm-tabs" id="cmTabs">
+    <button data-tab="guide" class="active" data-help="code-guide">Onboarding guide</button>
+    <button data-tab="workbench" data-help="code-inputs">Workbench</button>
+  </nav>
+
+  <!-- Onboarding guide (code-onboarding.js) ------------------------------ -->
+  <section id="cmGuide">
+    <div class="card">
+      <div class="wz-head"><h2>Onboarding guide: migrate a monolith endpoint to a FedGQL subgraph</h2><span class="spacer"></span>
+        <button id="cwRestart" title="Start the guide again">Restart</button></div>
+      <div class="wz-progress"><div class="wz-bar"><span id="cwBarFill"></span></div><span class="wz-pct" id="cwPct">0%</span></div>
+      <ol class="wz-steps wz-steps-8" id="cwSteps"></ol>
+      <div class="wz-ctx" id="cwCtx"></div>
+    </div>
+    <details class="card wz-ovwrap" id="cwOvWrap" open>
+      <summary><h2>Migration overview</h2><span class="hint">monolithic BFF / legacy REST / MonoGraph → code migration guide → client &amp; server code → federated supergraph · click a stage or step to jump to it</span></summary>
+      <div id="cwOverview"></div>
+    </details>
+    <div class="card" id="cwBody"></div>
+    <div class="wz-nav"><button id="cwBack">← Back</button><span class="spacer"></span><span class="hint" id="cwHint"></span><button class="primary" id="cwNext">Next →</button></div>
+    <input type="file" id="cwFileInput" hidden />
+  </section>
+
+  <div id="cmWorkbench" hidden>
   <div class="card">
     <h2>Inputs</h2>
     <p class="desc">Load the <b>FedGQL schema</b> (from <span class="mono">GQLRegistry.xlsx</span> — its
@@ -173,6 +198,7 @@
         <input id="bffName" class="cell" style="min-width:200px;border:1px solid var(--line)" oninput="setBffName(this.value)" onchange="render()" /></label>
     </div>
     <div id="bffEditor"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> and a REST spec above.</div></div>
+  </div>
   </div>
 </main>
 
@@ -1744,5 +1770,7 @@ loadBff();
 populateLangSelect();
 tryAutoFetch();
 </script>
+<script src="onboarding.js"></script>
+<script src="code-onboarding.js"></script>
 </body>
 </html>

@@ -517,8 +517,7 @@ function wzInit() {
     wzGo(w.step + 1);
   };
   document.getElementById("wzSaveTop").onclick = wzSaveMapping;
-  const ow = document.getElementById("wzOvWrap");                  // remember whether the overview is collapsed
-  if (ow) { try { if (localStorage.getItem("wz.ov.open") === "0") ow.open = false; } catch (_) {} ow.addEventListener("toggle", () => { try { localStorage.setItem("wz.ov.open", ow.open ? "1" : "0"); } catch (_) {} }); }
+  onbRememberOpen(document.getElementById("wzOvWrap"), "wz.ov.open");   // remember whether the overview is collapsed
   document.getElementById("wzRestart").onclick = () => { if (!confirm("Restart the onboarding guide? Generated subgraphs stay on the Subgraphs tab.")) return; mapping.wizard = null; wzResetFrom(0); WZ_PARSED = null; persist(); wzRender(); };
   const body = document.getElementById("wzBody");
   body.addEventListener("click", async e => {
@@ -562,30 +561,10 @@ function wzInit() {
    → subgraph mapping workbook + GQL Registry → federated supergraph. The stage boxes and connectors are
    built once and only their classes change, so colour changes animate: grey (to do) → purple, pulsing
    (current step) → green (done); the connector into the next stage animates while data is "in flight". */
-const WZ_FI = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-const WZ_ICON = {
-  upload: WZ_FI('<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>'),
-  app: WZ_FI('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/>'),
-  graph: WZ_FI('<path d="m12 2.5 8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><circle cx="12" cy="2.5" r="1.4"/><circle cx="20.2" cy="7.25" r="1.4"/><circle cx="20.2" cy="16.75" r="1.4"/><circle cx="12" cy="21.5" r="1.4"/><circle cx="3.8" cy="16.75" r="1.4"/><circle cx="3.8" cy="7.25" r="1.4"/>'),
-  layers: WZ_FI('<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>'),
-  spec: WZ_FI('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
-  swap: WZ_FI('<path d="M4 8h13l-3-3M20 16H7l3 3"/>'),
-  domain: WZ_FI('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>'),
-  source: WZ_FI('<path d="M5 4h5v5H5zM14 15h5v5h-5z"/><path d="M7.5 9v4a2 2 0 0 0 2 2H14"/>'),
-  pick: WZ_FI('<path d="M4 6h16M4 12h10M4 18h7"/><path d="m15 17 2 2 4-4"/>'),
-  diff: WZ_FI('<path d="M7 4v10M3 9h8M13 18h8"/><rect x="2" y="2" width="20" height="20" rx="3" opacity=".35"/>'),
-  save: WZ_FI('<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>'),
-  merge: WZ_FI('<path d="M6 3v6a6 6 0 0 0 6 6h6"/><path d="m15 12 3 3-3 3"/><circle cx="6" cy="19" r="2"/>'),
-  table: WZ_FI('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'),
-  key: WZ_FI('<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l2.5 2.5M14 9l2 2"/>'),
-  router: WZ_FI('<circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="5" r="2"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="19" r="2"/><path d="m5.5 6.5 4.3 3.7M18.5 6.5l-4.3 3.7M5.5 17.5l4.3-3.7M18.5 17.5l-4.3-3.7"/>'),
-  query: WZ_FI('<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="17.5" cy="16.5" r="2.5"/><path d="m19.3 18.3 2 2"/>'),
-  write: WZ_FI('<path d="M4 20h4l11-11-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'),
-  check: WZ_FI('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.7 2.7L16 9.8"/>'),
-};
+const WZ_ICON = ONB_ICON;                                        // shared icons (onboarding.js)
 const WZ_STEP_ICON = ["upload", "domain", "source", "pick", "diff", "save", "merge"];
 let WZ_OV_PREV = {};
-const wzOvItem = (icon, label, slot) => `<div class="ov-item" data-item="${slot}"><span class="ov-ic">${WZ_ICON[icon]}</span><span class="ov-lbl">${label}<small data-slot="${slot}"></small></span></div>`;
+const wzOvItem = onbItem;
 function wzOvBuild(host) {
   host.innerHTML = `<div class="ov">
     <div class="ov-node ov-src" data-node="src" data-go="2" title="Steps 1–4: registry, application, source and spec"><h3>Source estate</h3><div class="ov-sub">what exists today</div>
@@ -595,7 +574,7 @@ function wzOvBuild(host) {
     <div class="ov-conn"><svg viewBox="0 0 40 100" preserveAspectRatio="none"><path data-edge="e1" d="M0 50H40"/></svg><span class="ov-tip" data-edge="e1" style="top:50%"></span></div>
     <div class="ov-node ov-hub" data-node="hub" data-go="4" title="Step 5: review the derived schema"><h3>${WZ_ICON.swap} Onboarding guide</h3><div class="ov-sub">derive · review · validate against the FedGQL standards</div>
       <div class="ov-core">${WZ_ICON.graph}<b data-slot="core">Source → FedGQL</b></div>
-      <div class="ov-steps">${WZ_STEPS.map((s, i) => `<div class="ov-step" data-ostep="${i}" title="Step ${i + 1}: ${esc(s.t)}"><div class="si">${WZ_ICON[WZ_STEP_ICON[i]]}</div><span>${esc(s.t)}</span></div>`).join("")}</div>
+      ${onbStepsHTML(WZ_STEPS, WZ_STEP_ICON)}
       <div class="ov-blue">Migration blueprint<span class="mono" data-slot="blue"></span></div></div>
     <div class="ov-conn"><svg viewBox="0 0 40 100" preserveAspectRatio="none"><path data-edge="e2a" d="M0 50H20V25H40"/><path data-edge="e2b" d="M0 50H20V75H40"/></svg><span class="ov-tip" data-edge="e2a" style="top:25%"></span><span class="ov-tip" data-edge="e2b" style="top:75%"></span></div>
     <div class="ov-col">
@@ -608,8 +587,7 @@ function wzOvBuild(host) {
     <div class="ov-node ov-tgt" data-node="tgt" data-go="6" title="The finished federated subgraph"><h3>Federated supergraph</h3><div class="ov-sub">one graph behind the FedGQL router</div>
       ${wzOvItem("router", "FedGQL router", "tgt-router")}${wzOvItem("graph", "Subgraph", "tgt-sg")}${wzOvItem("key", "@key entity", "tgt-ent")}${wzOvItem("query", "Queries", "tgt-q")}${wzOvItem("write", "Mutations", "tgt-m")}${wzOvItem("check", "Approve in registry", "tgt-ok")}</div>
   </div>`;
-  host.addEventListener("click", e => { const st = e.target.closest("[data-ostep]"); if (st) { e.stopPropagation(); return wzGo(+st.dataset.ostep); } const n = e.target.closest("[data-go]"); if (n) wzGo(+n.dataset.go); });
-  host.addEventListener("animationend", e => { if (e.target.classList) e.target.classList.remove("flash"); });
+  onbWire(host, wzGo);
 }
 function wzOverview() {
   const host = document.getElementById("wzOverview"); if (!host) return;
@@ -618,24 +596,16 @@ function wzOverview() {
   const nq = sg ? sg.ops.filter(o => o.opKind === "query").length : 0, nm = sg ? sg.ops.length - nq : 0;
   // stage state: done / current (both can hold when the user steps back)
   const S = { src: [d[3], step <= 3], hub: [d[4], step === 4], map: [d[5], step === 5], reg: [d[6], step === 6], tgt: [d[6], false] };
-  for (const [k, [done, cur]] of Object.entries(S)) {
-    const el = host.querySelector(`[data-node="${k}"]`), sig = (done ? "d" : "") + (cur ? "c" : "");
-    el.classList.toggle("is-done", !!done); el.classList.toggle("is-cur", !!cur && !done); el.classList.toggle("is-back", !!cur && !!done);
-    const prev = WZ_OV_PREV[k];                                    // flash only when a stage becomes current or becomes done
-    if (prev != null && ((done && !prev.includes("d")) || (cur && !prev.includes("c")))) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
-    WZ_OV_PREV[k] = sig;
-  }
+  onbStages(host, S, WZ_OV_PREV);
   // connectors: green once the stage they feed is done, animated while that stage is current / next
-  const edge = (id, from, to, also) => { const [td, tc] = S[to], [fd] = S[from], st = td ? "done" : (tc || fd || also) ? "flowing" : "";
-    host.querySelectorAll(`[data-edge="${id}"]`).forEach(p => { p.classList.toggle("done", st === "done"); p.classList.toggle("flowing", st === "flowing"); }); };
-  edge("e1", "src", "hub"); edge("e2a", "hub", "map"); edge("e2b", "hub", "reg", step === 6); edge("e3", "reg", "tgt", step === 6);
-  host.querySelectorAll("[data-ostep]").forEach(x => { const i = +x.dataset.ostep; x.classList.toggle("done", !!d[i]); x.classList.toggle("cur", i === step); });
+  onbEdge(host, "e1", onbFlow(S, "src", "hub")); onbEdge(host, "e2a", onbFlow(S, "hub", "map")); onbEdge(host, "e2b", onbFlow(S, "hub", "reg", step === 6)); onbEdge(host, "e3", onbFlow(S, "reg", "tgt", step === 6));
+  onbSteps(host, d, step);
   // item states + live counts
-  const item = (slot, txt, ok, pick) => { const it = host.querySelector(`[data-item="${slot}"]`); if (!it) return; it.classList.toggle("ok", !!ok); it.classList.toggle("pick", !!pick); it.classList.toggle("dim", pick === false); const s = it.querySelector("small"); if (s) s.textContent = txt || ""; };
+  const item = (slot, txt, ok, pick) => onbItemSet(host, slot, txt, ok, pick);
   item("reg", state.entities.length ? `${state.entities.length} entities` : "load in step 1", d[0]);
   item("app", e ? `${e.BusinessApplication} · ${e.EntityID}` : "pick in step 2", d[1]);
   for (const k of Object.keys(WZ_SOURCES)) item("src-" + k, w.source === k ? (w.specName ? w.specName.split("/").pop() : "selected · load the spec") : "", w.source === k && d[3], w.source ? w.source === k : undefined);
-  const set = (slot, txt) => { const el = host.querySelector(`[data-slot="${slot}"]`); if (el) el.textContent = txt; };
+  const set = (slot, txt) => onbSlot(host, slot, txt);
   set("core", w.source ? `${{ monograph: "MonoGraph", bff: "BFF REST", rest: "REST" }[w.source]} → FedGQL` : "Source → FedGQL");
   set("blue", e && sg ? `${e.BusinessApplication} (${e.EntityID}) → ${sg.types.length} types · ${nq} Q · ${nm} M` : e ? `${e.BusinessApplication} (${e.EntityID}) → pick a source and operations` : "pick a domain and application");
   let rows = null, plan = null;

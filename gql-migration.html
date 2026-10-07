@@ -104,6 +104,46 @@
   .counts .tag{ font-size: 12px; }
   .flag-yes{ color: var(--ok); }
   .flag-no{ color: var(--bad); }
+  /* Per-row edit: read-only cells + a ✎ edit button next to the ID that opens a dialog */
+  td.ro{ vertical-align: top; }
+  td.ro .ro-pre{ display: block; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; max-height: 120px; overflow: auto; }
+  .id-cell{ display: flex; align-items: center; gap: 4px; }
+  .icon-btn{ border: none; background: transparent; padding: 2px 5px; color: var(--accent); cursor: pointer; font-size: 13px; border-radius: 5px; flex: none; }
+  .icon-btn:hover{ background: var(--accent-soft); }
+  /* Edit dialog (same pattern as workbench.html) */
+  .modal{ position: fixed; inset: 0; background: rgba(15,23,42,.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal[hidden]{ display: none; }
+  .modal-card{ background: #fff; border-radius: 12px; padding: 20px 22px; width: 680px; max-width: 92vw; max-height: 90vh; overflow: auto; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  .modal-card.editor{ width: 920px; }
+  .modal-card h2{ margin: 0 0 4px; font-size: 16px; }
+  .modal-card .re-ent{ margin: 0 0 12px; }
+  .modal-actions{ display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  /* Structured row editor (ported from workbench.html) */
+  .re-grid{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
+  .re-field{ display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  .re-field > span{ font-weight: 600; }
+  .re-field.wide{ grid-column: 1 / -1; }
+  .re-field input, .re-field select, .re-field textarea, .re-table input, .re-table textarea{ width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; font: inherit; color: var(--ink); background: #fff; box-sizing: border-box; }
+  .re-field textarea, .re-table textarea{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+  .re-sub{ margin: 14px 0 6px; font-size: 13px; }
+  .re-table-wrap{ border: 1px solid var(--line); border-radius: 8px; padding: 6px; overflow: auto; }
+  .re-table{ width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .re-table th{ text-align: left; font-weight: 600; color: var(--muted); padding: 4px; border-bottom: 1px solid var(--line); position: static; background: transparent; }
+  .re-table td{ padding: 3px 4px; vertical-align: top; }
+  .re-table td.re-act{ white-space: nowrap; width: 1%; }
+  .re-table input.mono, .re-table textarea{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .mini-add{ margin-top: 6px; border: 1px dashed var(--line); background: #fff; color: var(--muted); border-radius: 6px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
+  .mini-add:hover{ color: var(--accent); border-color: var(--accent); }
+  .re-issues{ margin-top: 8px; font-size: 12.5px; display: flex; flex-direction: column; gap: 3px; }
+  .re-issues .rvi .fix{ color: var(--muted); }
+  .modal-card pre.code{ max-height: 200px; overflow: auto; }
+  .editgrid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; align-items: start; }
+  .editgrid .efld{ display: flex; flex-direction: column; gap: 3px; }
+  .editgrid .efld > span{ font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+  .editgrid .efld-wide{ grid-column: 1 / -1; }
+  .editgrid .cell{ width: 100%; box-sizing: border-box; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
+  .editgrid textarea.cell{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; resize: vertical; min-height: 36px; }
+  .editgrid .lk-wrap{ display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
   @media (max-width: 1000px){ .wz-steps{ grid-template-columns: repeat(4, 1fr); } }
 </style>
 </head>
@@ -281,6 +321,7 @@
 <datalist id="dl-domains"></datalist>
 <datalist id="dl-entities"></datalist>
 <div class="toast" id="toast"></div>
+<div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
 
 <script>
 const LS = "gqlmig-v2";
@@ -307,6 +348,8 @@ function count(s, ch){ let n=0; for(const c of s) if(c===ch) n++; return n; }
 
 function q(s){ return JSON.stringify(s).replace(/"/g,'&quot;'); }
 function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1400); }
+function openModal(html){ const m=document.getElementById("modal"); document.getElementById("modalCard").innerHTML=html; m.hidden=false; }
+function closeModal(){ const m=document.getElementById("modal"); if(m){ m.hidden=true; const c=document.getElementById("modalCard"); c.classList.remove("editor"); c.innerHTML=""; } }
 // copyText → common.js
 
 // highlightSDL → common.js
@@ -756,6 +799,8 @@ document.getElementById("f-reg").addEventListener("change", e=>onFile(e.target,"
 document.getElementById("f-sgmig").addEventListener("change", e=>onFile(e.target,"sgmig"));
 document.getElementById("f-monograph").addEventListener("change", e=>onFile(e.target,"monograph"));
 document.getElementById("f-openapi").addEventListener("change", e=>{ const f=e.target.files[0]; if(f) importOpenAPI(f); e.target.value=""; });
+document.getElementById("modal").addEventListener("click", e=>{ if(e.target.id==="modal") closeModal(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !document.getElementById("modal").hidden) closeModal(); });
 
 /* ----------------------- migration-status tags ------------------------- */
 function statusTag(s){
@@ -1096,17 +1141,30 @@ function setRowOverride(sheet, id, field, value){
   persist();
   revalidateRow(sheet, id);                                 // onchange = blur, so re-run standards for this row + refresh banner
 }
+// Merge several fields of one row's override at once (used by the edit dialog); persists once.
+function setRowOverrides(sheet, id, obj){
+  if(!id) return;
+  const o=(mapping.overrides=mapping.overrides||{});
+  (o[sheet]=o[sheet]||{}); (o[sheet][id]=o[sheet][id]||{});
+  Object.assign(o[sheet][id], obj||{});
+  persist();
+}
 // Links & References editor in the subgraph tables: a LINK_TYPES dropdown + target per line,
 // saved back as "Type: target" lines through the same per-row override as the other cells.
 function linkLineHTML(l){
   const opts=LINK_TYPES.map(t=>`<option${t===(l&&l.type)?" selected":""}>${esc(t)}</option>`).join("");
-  return `<div class="lk-line"><select class="cell" onchange="commitLinksCell(this)">${opts}</select><input class="cell mono" value="${esc((l&&l.value)||"")}" placeholder="https://…" onchange="commitLinksCell(this)"><button class="rm-row" title="Remove link" onclick="const td=this.closest('td'); this.parentNode.remove(); commitLinksCell(td)">✕</button></div>`;
+  return `<div class="lk-line"><select class="cell" onchange="commitLinksCell(this)">${opts}</select><input class="cell mono" value="${esc((l&&l.value)||"")}" placeholder="https://…" onchange="commitLinksCell(this)"><button class="rm-row" title="Remove link" onclick="const w=this.closest('[data-sheet]'); this.closest('.lk-line').remove(); commitLinksCell(w)">✕</button></div>`;
 }
 function addLinkLine(btn){ btn.insertAdjacentHTML("beforebegin", linkLineHTML({type:LINK_TYPES[0], value:""})); btn.previousElementSibling.querySelector("input").focus(); }
+// Works whether the editor lives in a table cell (Entities, inline) or an edit-panel wrapper
+// (Schema/Queries/Mutations); when it's in the edit panel, mirror the value to the read-only cell.
 function commitLinksCell(el){
-  const td=el.closest("td");
-  const v=formatLinks([...td.querySelectorAll(".lk-line")].map(l=>({ type:l.querySelector("select").value, value:l.querySelector("input").value.trim() })));
-  setRowOverride(td.dataset.sheet, td.dataset.id, "Links", v);
+  const host=el.closest("[data-sheet]"); if(!host) return;
+  const v=formatLinks([...host.querySelectorAll(".lk-line")].map(l=>({ type:l.querySelector("select").value, value:l.querySelector("input").value.trim() })));
+  setRowOverride(host.dataset.sheet, host.dataset.id, "Links", v);
+  const disp=document.getElementById("row-"+host.dataset.sheet+"-"+host.dataset.id);
+  const dcell=disp && disp.querySelector('td[data-k="Links"]');
+  if(dcell && dcell!==host) updateDisplayCell(host.dataset.sheet, host.dataset.id, "Links", v);
 }
 function applyRowOverrides(out){
   const o=mapping.overrides||{};
@@ -1119,6 +1177,180 @@ function clearRowOverrides(){
   if(!Object.keys(mapping.overrides||{}).length){ toast("No edits to reset."); return; }
   if(!confirm("Discard all manual edits to the generated rows and regenerate from the spec?")) return;
   mapping.overrides={}; persist(); renderCurrentSubgraph(); toast("Edits reset.");
+}
+/* --- Per-row Edit dialog (Schema / Queries / Mutations) ---
+   A structured editor (ported from workbench.html): the Definition / Parameters is edited as one
+   row per field / value / parameter — Name · Args · Type · Directives · Description — not raw SDL.
+   Changes commit live into the row override and mirror onto the read-only table cell. */
+const RE_KINDS=["Key","Type","Enum","Input","Interface","Scalar","Reference","Extend"];
+const RE_APPROVALS=["Draft","Proposed","Approved","Deprecated"];
+const FIELD_RE=/^([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?\s*:\s*([^@#]+?)\s*((?:@.*)?)$/;
+function parseFieldLine(line){ const m=String(line).match(FIELD_RE); return m?{name:m[1],args:(m[2]||"").trim(),type:m[3].trim(),dirs:(m[4]||"").trim()}:{name:String(line).trim(),args:"",type:"",dirs:""}; }
+function fieldLine(f){ return `${f.name}${f.args?`(${f.args})`:""}: ${f.type||"String"}${f.dirs?" "+f.dirs:""}`; }
+// Split a Definition into its header (e.g. `@key(fields: "sku")`) and its described body entries.
+function splitDefinition(def, kind){
+  def=String(def||"");
+  if(kind==="Enum" && !/\{/.test(def)) return { head:"", entries:describedLines(def) };
+  const b=def.indexOf("{"), e=def.lastIndexOf("}");
+  if(b<0) return { head:def.trim(), entries:[] };
+  return { head:def.slice(0,b).trim(), entries:describedLines(def.slice(b+1, e>b?e:def.length)) };
+}
+function joinDefinition(kind, head, entries){
+  if(kind==="Enum") return formatDescribed(entries, "");                 // registry enums store bare values, one per line
+  if(kind==="Scalar") return String(head||"").trim();
+  return `${head?head+" ":""}{\n${formatDescribed(entries,"  ")}\n}`;
+}
+function rowEditorKind(sheet, kind){ return sheet!=="Schema" ? "params" : kind==="Enum" ? "values" : kind==="Scalar" ? "none" : "fields"; }
+// Open the structured edit dialog for one row; pre-fill Description from the row if it has none yet.
+function openRowEditor(sheet,id){
+  const sg=migrationSubgraph(); if(!sg) return;
+  const isSchema=sheet==="Schema";
+  const find=()=>(buildSubgraphRows(sg)[sheet]||[]).find(r=>String(r[OV_ID[sheet]])===String(id));
+  let row=find(); if(!row) return;
+  if(!String(row.Description||"").trim()){ const d=autoDescription(sheet,row); if(d){ setRowOverride(sheet,id,"Description",d); row=find()||row; } }
+  const draft={ Kind:row.Kind||"Type", TypeName:row.TypeName||"", Name:row.Name||"", ReturnType:row.ReturnType||"", Description:row.Description||"", ApprovalStatus:row.ApprovalStatus||"Draft" };
+  const parts = isSchema ? splitDefinition(row.Definition, draft.Kind) : { head:"", entries:describedLines(row.Parameters, true) };
+  let head = parts.head;
+  let entries = parts.entries.map(e => isSchema && draft.Kind!=="Enum"
+    ? { ...parseFieldLine(e.line), desc:e.desc||"" }
+    : (isSchema ? { name:e.line, desc:e.desc||"" }
+                : (()=>{ const i=e.line.indexOf(":"); return i<0 ? { name:e.line.trim(), type:"", desc:e.desc||"" } : { name:e.line.slice(0,i).trim(), type:e.line.slice(i+1).trim(), desc:e.desc||"" }; })()));
+  // Auto-populate each field / value / parameter description that is still empty.
+  const k0=rowEditorKind(sheet, draft.Kind), parentName=isSchema?draft.TypeName:draft.Name;
+  let filledField=false;
+  if(k0!=="none") for(const e of entries){ if(String(e.name||"").trim() && !String(e.desc||"").trim()){ const d=autoFieldDesc(e,k0,parentName); if(d){ e.desc=d; filledField=true; } } }
+  const what = isSchema?"type":(sheet==="Queries"?"query":"mutation");
+  document.getElementById("modalCard").classList.add("editor");
+  openModal(`<h2>Edit ${esc(what)} <span class="mono">${esc(id)}</span></h2>
+    <div class="re-ent hint">Entity <span class="mono">${esc(row.EntityID||"—")}</span> · changes save automatically</div>
+    <div class="re-grid" id="reHead"></div>
+    <div class="re-sub"><b id="reListTitle"></b> <span class="hint" id="reListHint"></span></div>
+    <div class="re-table-wrap" id="reTableWrap"><table class="re-table"><thead id="reTHead"></thead><tbody id="reBody"></tbody></table>
+      <button type="button" class="mini-add" id="reAdd"></button></div>
+    <div class="kv">SDL preview</div><pre class="code" id="rePreview"></pre>
+    <div class="re-issues" id="reIssues"></div>
+    <div class="modal-actions"><button class="primary" id="reDone">Done</button></div>`);
+  const headEl=document.getElementById("reHead");
+  const field=(label,el,wide)=>{ const w=document.createElement("label"); w.className="re-field"+(wide?" wide":""); const s=document.createElement("span"); s.textContent=label; w.append(s,el); headEl.appendChild(w); return el; };
+  const input=(v,ph)=>{ const i=document.createElement("input"); i.type="text"; i.value=v||""; if(ph) i.placeholder=ph; return i; };
+  const area=(v,ph,rows)=>{ const t=document.createElement("textarea"); t.value=v||""; t.rows=rows||2; if(ph) t.placeholder=ph; return t; };
+  const sel=(opts,v)=>{ const s=document.createElement("select"); for(const o of opts){ const op=document.createElement("option"); op.textContent=o; op.value=o; s.appendChild(op); } s.value=v||""; return s; };
+  const bind=(el,key,ev)=>{ el.addEventListener(ev||"input",()=>{ draft[key]=el.value; commit(); }); return el; };
+
+  if(isSchema){
+    const kindSel=field("Kind", sel(RE_KINDS, draft.Kind));
+    kindSel.addEventListener("change",()=>{ const prev=rowEditorKind(sheet,draft.Kind); draft.Kind=kindSel.value;
+      if(rowEditorKind(sheet,draft.Kind)!==prev) entries=entries.map(e=> draft.Kind==="Enum" ? { name:e.name||"", desc:e.desc||"" } : { name:e.name||"", args:e.args||"", type:e.type||"", dirs:e.dirs||"", desc:e.desc||"" });
+      renderList(); commit(); });
+    bind(field("Type name", input(draft.TypeName, "PascalCase")), "TypeName");
+    const h=field("Directives on the type", input(head, '@key(fields: "id")'));
+    h.addEventListener("input",()=>{ head=h.value; commit(); });
+  } else {
+    bind(field("Name", input(draft.Name, "camelCase")), "Name");
+    bind(field("Return type", input(draft.ReturnType, "Product / [Product] / Boolean")), "ReturnType");
+  }
+  bind(field("Approval status", sel(RE_APPROVALS, draft.ApprovalStatus)), "ApprovalStatus", "change");
+  bind(field("Description", area(draft.Description, `What this ${what} represents — becomes its SDL description`, 2), true), "Description");
+  const linksWrap=document.createElement("div"); linksWrap.className="lk-wrap"; linksWrap.dataset.sheet=sheet; linksWrap.dataset.id=id;
+  linksWrap.innerHTML=parseLinks(row.Links).map(linkLineHTML).join("")+`<button class="addrow" onclick="addLinkLine(this)">＋ link</button>`;
+  field("Links & References — docs and the REST / monograph operation this replaces", linksWrap, true);
+
+  function renderList(){
+    const k=rowEditorKind(sheet, draft.Kind);
+    const wrap=document.getElementById("reTableWrap"), thead=document.getElementById("reTHead"), body=document.getElementById("reBody");
+    const title=document.getElementById("reListTitle"), hint=document.getElementById("reListHint"), add=document.getElementById("reAdd");
+    wrap.hidden = k==="none"; title.textContent = k==="none"?"":k==="values"?"Enum values":k==="params"?"Parameters":"Fields";
+    hint.textContent = k==="none" ? "Scalars have no fields." : k==="fields" ? "One row per field · args like  storeId: ID!  · directives like  @external" : "One row per entry · the description becomes its SDL doc string";
+    add.textContent = k==="values"?"+ value":k==="params"?"+ parameter":"+ field";
+    const cols = k==="values"?["Value","Description"] : k==="params"?["Name","Type","Description"] : ["Name","Args","Type","Directives","Description"];
+    thead.innerHTML="<tr>"+cols.map(c=>`<th>${c}</th>`).join("")+"<th></th></tr>";
+    body.innerHTML="";
+    entries.forEach((e,i)=>{
+      const tr=document.createElement("tr");
+      const cell=(el)=>{ const td=document.createElement("td"); td.appendChild(el); tr.appendChild(td); return el; };
+      const txt=(key,ph)=>{ const el=input(e[key],ph); el.className="mono"; el.addEventListener("input",()=>{ e[key]=el.value; commit(); }); return cell(el); };
+      txt("name", k==="values"?"VALUE":"name");
+      if(k==="fields") txt("args","arg: Type");
+      if(k!=="values") txt("type","Type");
+      if(k==="fields") txt("dirs","@external");
+      const d=area(e.desc,"Description",1); d.addEventListener("input",()=>{ e.desc=d.value; commit(); }); cell(d);
+      const act=document.createElement("td"); act.className="re-act";
+      const btn=(label,title,fn,dis)=>{ const b=document.createElement("button"); b.type="button"; b.className="icon-btn"; b.textContent=label; b.title=title; b.disabled=!!dis; b.onclick=()=>{ fn(); renderList(); commit(); }; act.appendChild(b); };
+      btn("↑","Move up",()=>entries.splice(i-1,0,entries.splice(i,1)[0]), i===0);
+      btn("↓","Move down",()=>entries.splice(i+1,0,entries.splice(i,1)[0]), i===entries.length-1);
+      btn("✕","Remove",()=>entries.splice(i,1));
+      tr.appendChild(act); body.appendChild(tr);
+    });
+    add.onclick=()=>{ entries.push(rowEditorKind(sheet,draft.Kind)==="values"?{name:"",desc:""}:{name:"",args:"",type:"",dirs:"",desc:""}); renderList(); commit(); const ins=body.querySelectorAll("tr:last-child input"); if(ins[0]) ins[0].focus(); };
+  }
+  function buildRow(){
+    if(isSchema){
+      const k=rowEditorKind(sheet,draft.Kind);
+      const list=entries.filter(e=>String(e.name||"").trim()).map(e=>({ desc:String(e.desc||"").trim(), line: k==="values" ? e.name.trim() : fieldLine({ name:e.name.trim(), args:(e.args||"").trim(), type:(e.type||"").trim(), dirs:(e.dirs||"").trim() }) }));
+      return { Kind:draft.Kind, TypeName:draft.TypeName, Definition:joinDefinition(draft.Kind, head, k==="none"?[]:list), Description:draft.Description, ApprovalStatus:draft.ApprovalStatus };
+    }
+    const params=formatDescribed(entries.filter(e=>String(e.name||"").trim()).map(e=>({ desc:String(e.desc||"").trim(), line:`${e.name.trim()}: ${(e.type||"String").trim()}` })), "");
+    return { Name:draft.Name, ReturnType:draft.ReturnType, Parameters:params, Description:draft.Description, ApprovalStatus:draft.ApprovalStatus };
+  }
+  function preview(built){
+    let sdl;
+    if(isSchema){
+      const name=built.TypeName||"Type";
+      const kw = draft.Kind==="Input"?"input":draft.Kind==="Interface"?"interface":draft.Kind==="Enum"?"enum":draft.Kind==="Scalar"?"scalar":draft.Kind==="Extend"?"extend type":"type";
+      sdl = draft.Kind==="Scalar" ? `${built.Description?descLine(built.Description)+"\n":""}scalar ${name}`
+          : `${built.Description?descLine(built.Description)+"\n":""}${kw} ${name} ${built.Definition||""}`.trim();
+    } else {
+      const ret=built.ReturnType||"Boolean", params=describedLines(built.Parameters,true), anyDesc=params.some(p=>p.desc);
+      const args=!params.length?"":anyDesc?"(\n"+params.map(p=>(p.desc?"    "+descLine(p.desc)+"\n":"")+"    "+p.line).join("\n")+"\n  )":"("+params.map(p=>p.line).join(", ")+")";
+      sdl=`type ${sheet==="Queries"?"Query":"Mutation"} {\n${built.Description?"  "+descLine(built.Description)+"\n":""}  ${built.Name||"operation"}${args}: ${ret}\n}`;
+    }
+    document.getElementById("rePreview").innerHTML=highlightSDL(sdl);
+    let viols=[]; try{ viols=validateRow(sheet, Object.assign({}, row, built), buildStandardsContext(buildSubgraphRows(sg))); }catch(_){ viols=[]; }
+    document.getElementById("reIssues").innerHTML=(viols||[]).map(x=>`<div class="rvi"><span class="sev ${esc(x.severity)}">${esc(x.severity)}</span>${x.subject?`<span class="mono">${esc(x.subject.trim())}</span> `:""}${esc(x.message)}${x.fix?` <span class="fix">— ${esc(x.fix)}</span>`:""}</div>`).join("");
+  }
+  function commit(){
+    const built=buildRow();
+    setRowOverrides(sheet, id, built);                        // persist all edited fields at once
+    for(const kk of Object.keys(built)) updateDisplayCell(sheet, id, kk, built[kk]);  // mirror onto the table
+    revalidateRow(sheet, id);                                 // repaint the row's validation + top banner
+    preview(built);
+  }
+  renderList();
+  if(filledField) commit();                                   // persist the auto-filled field descriptions
+  else preview(buildRow());                                   // otherwise just show, no persist until an edit
+  document.getElementById("reDone").onclick=()=>{ closeModal(); renderCurrentSubgraph(); };
+}
+// A sensible default Description generated from the row itself (name/kind/fields), used to pre-fill
+// the Description field when a row has none yet (the "every element has a description" standard).
+function autoDescription(sheet,row){
+  if(sheet==="Schema"){
+    const kind=String(row.Kind||"Type"), name=String(row.TypeName||"").trim()||"This type", def=String(row.Definition||"");
+    if(/enum/i.test(kind)){ const vals=defBodyLines(def); return `${name} enumeration${vals.length?" with values: "+vals.join(", "):""}.`; }
+    const fs=fieldDefs(def).map(f=>f.name);
+    const kw=/input/i.test(kind) ? "input" : (/key|reference|extend/i.test(kind) ? "entity" : "type");
+    return `The ${name} ${kw}${fs.length?` with fields: ${fs.join(", ")}`:""}.`;
+  }
+  const name=String(row.Name||"").trim()||"operation", ret=row.ReturnType?` returning ${baseType(row.ReturnType)}`:"";
+  return `${sheet==="Mutations"?"Mutation":"Query"} ${name}${ret}.`;
+}
+// A default description for one field / enum value / parameter row in the edit dialog, from its
+// name (+ type) and owning type/operation — used to pre-fill a Description that is still empty.
+function autoFieldDesc(entry, kind, parentName){
+  const nm=String(entry.name||"").trim(); if(!nm) return "";
+  const of = parentName ? ` of ${parentName}` : "";
+  if(kind==="values") return `The ${nm} value${of}.`;
+  const t=entry.type?baseType(entry.type):"";
+  return `The ${nm} ${kind==="params"?"parameter":"field"}${t?` (${t})`:""}${of}.`;
+}
+// Repaint one read-only display cell after an edit-dialog change (keeps the table row in sync).
+function updateDisplayCell(sheet,id,field,value){
+  const row=document.getElementById("row-"+sheet+"-"+id); if(!row) return;
+  const td=row.querySelector('td[data-k="'+field+'"]'); if(!td) return;
+  value=value==null?"":String(value);
+  if(field==="Links"){ td.innerHTML=linksHTML(value)||'<span class="hint">—</span>'; return; }
+  if(value===""){ td.innerHTML='<span class="hint">—</span>'; return; }
+  if(/\n/.test(value) || td.querySelector(".ro-pre")){ td.innerHTML='<span class="ro-pre"></span>'; td.querySelector(".ro-pre").textContent=value; }
+  else td.textContent=value;
 }
 // User-added rows, scoped per subgraph → sheet. Appended in buildSubgraphRows before overrides so
 // they flow into validation / Copy / Export exactly like generated rows, and their cell edits still
@@ -1351,7 +1583,7 @@ function renderCurrentSubgraph(){
     const hit=vs.filter(v=>v.col===k); if(!hit.length) return "";
     return ` title="${esc(hit.map(v=>"["+v.severity+"] "+v.message).join(" — "))}"`;
   };
-  // Editable cell: read-only for id/FK columns, <input>/<textarea>/<select> for edit columns.
+  // Editable cell (inline mode — Entities): read-only for id/FK columns, inputs for edit columns.
   const cell=(sheet,r,c)=>{
     const id=r[OV_ID[sheet]], v=r[c.k]!=null?r[c.k]:"";
     const flag=cellFlag(sheet,id,c.k), tip=cellTitle(sheet,id,c.k), dk=`data-k="${esc(c.k)}"`;
@@ -1366,25 +1598,46 @@ function renderCurrentSubgraph(){
     if(c.ta) return `<td ${dk} class="${flag.trim()}"${tip}><textarea class="cell" rows="2" ${oc}>${esc(v)}</textarea></td>`;
     return `<td ${dk} class="${flag.trim()}"${tip}><input class="cell${c.mono?" mono":""}" value="${esc(v)}" ${oc}></td>`;
   };
-  // A data row followed, when it has violations, by an inline assertion row spanning the table.
-  const bodyRow=(sheet,cols,r)=>{
+  // Read-only display cell (editable mode — Schema/Queries/Mutations): shown until Edit is clicked.
+  const roCell=(sheet,r,c)=>{
+    const id=r[OV_ID[sheet]], v=r[c.k]!=null?String(r[c.k]):"";
+    const flag=cellFlag(sheet,id,c.k), tip=cellTitle(sheet,id,c.k), dk=`data-k="${esc(c.k)}"`;
+    let inner;
+    if(c.links) inner=linksHTML(v)||'<span class="hint">—</span>';
+    else if(c.ta) inner=v?`<span class="ro-pre">${esc(v)}</span>`:'<span class="hint">—</span>';
+    else inner=v!==""?esc(v):'<span class="hint">—</span>';
+    return `<td ${dk} class="ro ${c.mono?"mono":""}${flag}"${tip}>${inner}</td>`;
+  };
+  // One labeled field inside the expanded edit panel.
+  // ID cell with the ✎ edit button next to it (editable mode — opens the dialog); ✕ removes added rows.
+  const idCell=(sheet,r,c)=>{
+    const id=r[OV_ID[sheet]], flag=cellFlag(sheet,id,c.k), tip=cellTitle(sheet,id,c.k);
+    const rm=(addedIds[sheet] && addedIds[sheet].has(String(id)))
+      ? `<button class="rm-row" title="Remove this added row" onclick="removeAddedRow(${q(sheet)},${q(id)})">✕</button>` : "";
+    return `<td data-k="${esc(c.k)}" class="ro mono${flag}"${tip}><div class="id-cell"><button class="icon-btn row-edit" title="Edit this row" onclick="openRowEditor(${q(sheet)},${q(id)})">✎</button><span>${esc(id)}</span>${rm}</div></td>`;
+  };
+  // A data row (+ inline assertion row when it has violations). Editable mode = read-only cells with a
+  // ✎ button in the ID column that opens the edit dialog; non-editable (Entities) = inline cells.
+  const bodyRow=(sheet,cols,r,editable)=>{
     const id=r[OV_ID[sheet]], viols=(val.byRow[sheet]||{})[id]||[];
-    const main=`<tr id="row-${esc(sheet)}-${esc(id)}" data-cols="${cols.length}">${cols.map(c=>cell(sheet,r,c)).join("")}</tr>`;
-    const vr=viols.length?`<tr id="viol-${esc(sheet)}-${esc(id)}" class="rowviol ${worstSeverity(viols)==="error"?"error":"warn"}"><td colspan="${cols.length}">${rowViolInner(viols)}</td></tr>`:"";
+    const sev=worstSeverity(viols)==="error"?"error":"warn";
+    const cells=cols.map(c=> !editable ? cell(sheet,r,c) : (c.k===OV_ID[sheet] ? idCell(sheet,r,c) : roCell(sheet,r,c))).join("");
+    const main=`<tr id="row-${esc(sheet)}-${esc(id)}" data-cols="${cols.length}">${cells}</tr>`;
+    const vr=viols.length?`<tr id="viol-${esc(sheet)}-${esc(id)}" class="rowviol ${sev}"><td colspan="${cols.length}">${rowViolInner(viols)}</td></tr>`:"";
     return main+vr;
   };
-  const tbl=(sheet,cols,data,empty)=>`<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${esc(c.h)}</th>`).join("")}</tr></thead>
-    <tbody>${data.length?data.map(r=>bodyRow(sheet,cols,r)).join(""):`<tr><td colspan="${cols.length}" class="empty">${empty}</td></tr>`}</tbody></table></div>`;
-  host.innerHTML = `<h3 style="margin:0 0 2px">${esc(sg.name)} <small class="hint">· FedGQL subgraph${focusNote} · <span class="hint">cells are editable</span></small></h3>
+  const tbl=(sheet,cols,data,empty,editable)=>`<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${esc(c.h)}</th>`).join("")}</tr></thead>
+    <tbody>${data.length?data.map(r=>bodyRow(sheet,cols,r,editable)).join(""):`<tr><td colspan="${cols.length}" class="empty">${empty}</td></tr>`}</tbody></table></div>`;
+  host.innerHTML = `<h3 style="margin:0 0 2px">${esc(sg.name)} <small class="hint">· FedGQL subgraph${focusNote} · <span class="hint">Entities cells are editable; use ✎ Edit on a Schema / Query / Mutation row</span></small></h3>
     ${standardsPanelHTML(val)}
     <div class="kv">Entities (${rows.Entities.length})</div>
     ${tbl("Entities",[{h:"EntityID",k:"EntityID",mono:1},{h:"Name",k:"Name",mono:1},{h:"Experience Domain",k:"ExperienceDomain",edit:1},{h:"Business Application",k:"BusinessApplication",edit:1},{h:"Service Type",k:"ServiceType",sel:["","Domain","Integration","Orchestrator"]},{h:"Business Capability",k:"BusinessCapability",edit:1},{h:"Comments",k:"Comments",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Entities, "no @key entities")}
     <div class="kv">Schema — types / enums / inputs (${rows.Schema.length}) <button class="addrow" onclick="addSubgraphRow('Schema')" data-help="mig-add-rows">＋ Add type</button></div>
-    ${tbl("Schema",[{h:"SchemaID",k:"SchemaID",mono:1},{h:"Kind",k:"Kind",sel:["Key","Type","Input","Enum","Interface","Union","Scalar","Reference","Extend"]},{h:"Type name",k:"TypeName",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Definition",k:"Definition",mono:1,edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Schema, "no types")}
+    ${tbl("Schema",[{h:"SchemaID",k:"SchemaID",mono:1},{h:"Kind",k:"Kind",sel:["Key","Type","Input","Enum","Interface","Union","Scalar","Reference","Extend"]},{h:"Type name",k:"TypeName",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Definition",k:"Definition",mono:1,edit:1,ta:1},{h:"Description",k:"Description",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Schema, "no types", true)}
     <div class="kv">Queries (${rows.Queries.length}) <button class="addrow" onclick="addSubgraphRow('Queries')" data-help="mig-add-rows">＋ Add query</button></div>
-    ${tbl("Queries",[{h:"QueryID",k:"QueryID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Queries, "no queries")}
+    ${tbl("Queries",[{h:"QueryID",k:"QueryID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Description",k:"Description",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Queries, "no queries", true)}
     <div class="kv">Mutations (${rows.Mutations.length}) <button class="addrow" onclick="addSubgraphRow('Mutations')" data-help="mig-add-rows">＋ Add mutation</button></div>
-    ${tbl("Mutations",[{h:"MutationID",k:"MutationID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Mutations, "no mutations")}
+    ${tbl("Mutations",[{h:"MutationID",k:"MutationID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Description",k:"Description",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Mutations, "no mutations", true)}
     <div class="kv">AuthScopes (0)</div>
     <div class="empty">Subgraphs don't define auth scopes — add these in the <b>GQL Registry</b> after copying.</div>`;
 }

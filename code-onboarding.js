@@ -89,7 +89,7 @@ const cwPct = () => Math.round(100 * cwDone().filter(Boolean).length / CW_STEPS.
 function cwCanVisit(i) { const d = cwDone(); for (let j = 0; j < i; j++) if (!d[j]) return false; return true; }
 // Upstream change → later confirmations are stale.
 function cwResetFrom(from) { const w = cw(); if (from <= 1) { w.bffRef = ""; w.restRef = ""; w.monoRef = ""; w.gqlId = ""; } if (from <= 2) w.targetOk = false; w.reviewed = false; w.clientDone = false; w.serverDone = false; w.savedAt = ""; }
-function cwGo(i) { if (i < 0 || i >= CW_STEPS.length || !cwCanVisit(i)) return; cw().step = i; cwSync(); cwSave(); cwRender(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function cwGo(i) { if (i < 0 || i >= CW_STEPS.length || !cwCanVisit(i)) return; cw().step = i; cwSync(); cwSave(); cwRender(); const m = document.getElementById("cwMain"); if (m) m.scrollTop = 0; }
 // Mirror the guide's choices onto the workbench globals, so the Workbench tab shows the same mapping.
 function cwSync() {
   const w = cw();
@@ -107,7 +107,8 @@ function cwRender() {
   const w = cw(), done = cwDone();
   if (w.step > 0 && !cwCanVisit(w.step)) w.step = Math.max(0, done.indexOf(false));
   document.getElementById("cwBarFill").style.width = cwPct() + "%";
-  document.getElementById("cwPct").textContent = cwPct() + "%";
+  onbPct(document.getElementById("cwPct"), cwPct());   // pops when progress goes up
+  const ta = document.getElementById("cwTopApp"), tr = cwRestOp(); if (ta) ta.textContent = tr ? "· " + restRefOf(tr) : "· one endpoint at a time";
   document.getElementById("cwSteps").innerHTML = CW_STEPS.map((s, i) => `<li class="${done[i] ? "done" : ""}${i === w.step ? " cur" : ""}${cwCanVisit(i) ? "" : " locked"}" data-step="${i}">${esc(s.t)}</li>`).join("");
   const r = cwRestOp(), g = cwGql(), b = cwBff();
   document.getElementById("cwCtx").innerHTML = [
@@ -507,11 +508,19 @@ function cwOverview() {
 }
 
 /* ------------------------------ wiring --------------------------------- */
-function cwShowTab(t) {
-  document.querySelectorAll("#cmTabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === t));
-  document.getElementById("cmGuide").hidden = t !== "guide"; document.getElementById("cmWorkbench").hidden = t !== "workbench";
-  try { localStorage.setItem("cm-onb-tab", t); } catch (_) {}
-  if (t === "guide") cwRender(); else { cwSync(); render(); }
+// Header "Load example": sample registry + a sample spec + a ready-made endpoint, then the endpoint step.
+async function cwLoadExample(which) {
+  const b = await cwFetch("samples/GQLRegistry-sample.xlsx", true); if (!b) return;
+  cwLoadRegistry(b, "GQLRegistry-sample.xlsx");
+  const w = cw(), src = which === "bff" ? "bff" : which === "monograph" ? "monograph" : "rest";
+  w.source = src; CW_MONO = { ops: [], types: [] }; M.restOps = []; M.restTypes = [];
+  const p = src === "bff" ? "samples/bff-openapi.yaml" : src === "monograph" ? "samples/mono-graph.gql" : `samples/subgraph/${which}/openapi.yaml`;
+  const t = await cwFetch(p); if (!t) return;
+  cwLoadSpec(t, p);
+  if (src === "bff") cwPickEndpoint("POST /bff/checkout");
+  else if (src === "monograph") cwPickEndpoint("Query.product");
+  else { const r = M.restOps.find(o => M.gqlOps.some(g => refMatches(g, o))) || M.restOps[0]; if (r) cwPickEndpoint(restRefOf(r)); }
+  w.step = 2; cwSave(); cwRender(); toast(`Example loaded: ${p.split("/").slice(-2).join("/")}`);
 }
 function cwRestore() {
   const w = cw();
@@ -522,7 +531,6 @@ function cwRestore() {
 function cwInit() {
   const root = document.getElementById("cmGuide"); if (!root) return;
   cwRestore();
-  document.getElementById("cmTabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) cwShowTab(b.dataset.tab); });
   document.getElementById("cwSteps").addEventListener("click", e => { const li = e.target.closest("li[data-step]"); if (li) cwGo(+li.dataset.step); });
   document.getElementById("cwBack").onclick = () => cwGo(cw().step - 1);
   document.getElementById("cwNext").onclick = () => {
@@ -532,7 +540,8 @@ function cwInit() {
     cwGo(w.step + 1);
   };
   document.getElementById("cwRestart").onclick = () => { if (!confirm("Restart the code migration guide? The loaded registry and spec are kept.")) return; CW = null; try { localStorage.removeItem(CW_LS); } catch (_) {} const w = cw(); w.regName = M.sgName; cwSave(); cwRender(); };
-  onbRememberOpen(document.getElementById("cwOvWrap"), CW_OV);
+  // top band / work area layout, toolbar collapse, overview toggle, drag bar (shared: onboarding.js)
+  onbLayout({ root, top: document.getElementById("cwTop"), split: document.getElementById("cwHSplit"), ovBtn: document.getElementById("cwOvToggle"), chromeBtn: document.getElementById("chromeToggle"), key: "cm-onb" });
   const body = document.getElementById("cwBody");
   body.addEventListener("click", async e => {
     const el = e.target.closest("[data-act]"); if (!el || el.disabled) return;
@@ -562,8 +571,7 @@ function cwInit() {
     else if (el.id === "cwOwner") { setBffOwner(el.value); cwStale(); cwSave(); cwRender(); }
     else if (el.matches('[data-act="via"]')) { setBffField(+el.dataset.v, "via", el.value); cwStale(); cwSave(); cwRender(); }
   });
-  let tab = "guide"; try { tab = localStorage.getItem("cm-onb-tab") || "guide"; } catch (_) {}
-  cwShowTab(tab);
+  cwRender();
 }
 
 cwInit();   // last: the step / overview constants above must be initialised first

@@ -72,6 +72,7 @@
   <a class="grp" href="#workbench">Registry workbench</a>
   <a class="sub" href="#wb-load">Load / Export / Template</a>
   <a class="sub" href="#wb-sharepoint">SharePoint / Google Drive sync</a>
+  <a class="sub" href="#wb-guide">Onboarding guide</a>
   <a class="sub" href="#wb-registry">Registry grid</a>
   <a class="sub" href="#sheet-entities">Sheets</a>
   <a class="sub" href="#row-ids">Row IDs</a>
@@ -170,6 +171,31 @@
       <p><b>Pull &amp; merge</b>: download the latest workbook (for Drive, the link downloads the file directly and exports a Google Sheet as .xlsx), then select it. The workbench compares three versions: your last sync, your local edits and the shared copy. Changes from either side are merged. If a row changed on both sides, the shared version wins and your version is added as a separate “(local copy)” row, so nothing is lost.</p>
       <p><b>Save &amp; push</b>: downloads a version-bumped workbook. Upload it to the same SharePoint or Drive folder as a new file, so the version history is kept.</p></div>
 
+    <div class="feat" id="wb-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
+      <p>An eight-step wizard that onboards <b>one business application</b> (subgraph) at a time into the shared registry. It has a progress bar and an animated overview; the registry itself and the visualizer always cover <b>all</b> applications.</p>
+      <ol>
+        <li><b>Registry overview</b>: every application with its entities, types, operations, approval states and errors. Load a workbook, the example or the template here.</li>
+        <li><b>Business application</b>: pick one, or create a new one with its first entity, experience domain, service type and capability. You can also edit its entities or add more.</li>
+        <li><b>Types &amp; entities</b>: <code>@key</code> entities, types, inputs, enums and interfaces, edited with the field editor (live SDL preview and standards check). Borrow other applications' entities as <b>Reference</b> or <b>Extend</b> rows.</li>
+        <li><b>Queries</b> and 5. <b>Mutations</b>: the root operations, with parameters, return type and auth scopes.</li>
+        <li value="6"><b>Auth scopes</b>: a scope × persona grid. Scopes used by operations but not defined are flagged.</li>
+        <li><b>Review &amp; propose</b>: every standards issue for the application (✎ jumps to the row), its subgraph SDL, and <span class="ui">Propose</span> to move its Draft rows to Proposed (blocked while errors remain).</li>
+        <li><b>Save &amp; publish</b>: export the registry or Save &amp; push to SharePoint / Google Drive. Editing the application again makes this step pending.</li>
+      </ol>
+      <p><b>Layout:</b></p>
+      <ul>
+        <li><b>Top:</b> the animated progress (progress bar, step list, context and the onboarding overview). <span class="ui">Hide overview</span> collapses the overview, and dragging the bar between top and bottom resizes them (double-click resets).</li>
+        <li><b>Bottom left:</b> the current step.</li>
+        <li><b>Bottom right:</b> the schema visualizer.</li>
+        <li>The toolbar (Load / Export / Template / Example and the SharePoint / Google Drive bar) is collapsed; <span class="ui">▾ Toolbar</span> on the right of the tab bar shows it again.</li>
+      </ul>
+      <p>The <b>schema visualizer</b> on the right:</p>
+      <ul>
+        <li>Drag its edge to resize it; the ▶ / ◀ tab hides and shows it.</li>
+        <li>The application being onboarded is outlined in purple. Every type an edit changes flashes green, and the view re-centres on it (<span class="ui">Follow changes</span>).</li>
+        <li><span class="ui">Only this application</span> narrows the view to its types.</li>
+        <li>It's the same visualizer as <b>Federated Graph → Visualization</b> and moves back there when you open that tab.</li>
+      </ul></div>
     <div class="feat" id="wb-registry"><h3>Registry grid <span class="where">Registry tab</span></h3>
       <p>One tab per sheet. Every cell is editable in place, and dropdowns appear for entities (EntityID), Kind, Persona and Approval Status. Row colour follows Approval Status. Hover a column header to filter it Excel-style (▾), widen it (⤢) or hide it (×).</p></div>
     <div class="feat" id="wb-add-row"><h3>+ Add row</h3>
@@ -228,6 +254,8 @@
     <h2>GQL migration <small class="hint">gql-migration.html</small></h2>
     <p>Migrates one registry entity at a time: its service's OpenAPI spec becomes FedGQL registry rows, which you review, propose and copy into the registry.</p>
 
+    <p class="note">The separate <i>Load data</i>, <i>MonoGraph schema</i>, <i>Subgraphs</i>, <i>FedGQL subgraph</i>, <i>Code migration</i> and <i>GQL Registry</i> tabs are now steps of the <b>Onboarding guide</b>. The sections below describe the features those steps use.</p>
+    <p class="note"><b>Layout (all three tools):</b> the <b>top band</b> shows the animated progress: the progress bar, step list, context and overview. <span class="ui">Hide overview</span> collapses the overview, and the drag bar under the band resizes it (double-click resets). The current step fills the area below. The page toolbar is collapsed behind <span class="ui">▾ Toolbar</span>; header <span class="ui">Load example</span> starts the guide on the samples.</p>
     <div class="feat" id="mig-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
       <p>A seven-step wizard with a progress bar that onboards one application to a federated subgraph and fills the registry for you:</p>
       <p>The <b>Migration overview</b> diagram above the steps (moved here from Code migration) follows your progress:</p>
@@ -294,6 +322,7 @@
   <section id="code-migration">
     <h2>Code migration <small class="hint">subgraph-codemigration.html</small></h2>
     <p>Generates the code that moves callers from REST to FedGQL. It opens on its own, or embedded in the <b>Code migration</b> tab of GQL migration.</p>
+    <p class="note"><b>Layout (all three tools):</b> the <b>top band</b> shows the animated progress: the progress bar, step list, context and overview. <span class="ui">Hide overview</span> collapses the overview, and the drag bar under the band resizes it (double-click resets). The current step fills the area below. The page toolbar is collapsed behind <span class="ui">▾ Toolbar</span>; header <span class="ui">Load example</span> starts the guide on the samples.</p>
     <div class="feat" id="code-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
       <p>An eight-step wizard with a progress bar and an animated <b>Migration overview</b>. It migrates one monolith endpoint at a time to its target subgraph, with the client and server code as separate steps:</p>
       <ol>
@@ -312,7 +341,7 @@
         <li><b>Server code</b>: the current BFF handler / REST controller / MonoGraph resolver next to the target subgraph service, with its REST and GraphQL APIs and generated files, for Java, .NET or Node.js.</li>
         <li><b>Save &amp; export</b>: the registry with <b>BffMappings</b> and a <b>CodeMigration</b> log sheet (.xlsx), plus a <b>code pack</b> (.md) for the teams.</li>
       </ol>
-      <p>Each stage of the diagram turns purple while it's current and green when it's done. The connector into the next stage animates, and you can click a stage or step icon to jump to it. The <b>Workbench</b> tab keeps the full single-op / BFF composite tools and follows the guide's selection.</p></div>
+      <p>Each stage of the diagram turns purple while it's current and green when it's done. The connector into the next stage animates, and you can click a stage or step icon to jump to it.</p></div>
     <div class="feat" id="code-inputs"><h3>Inputs</h3>
       <p>Load <code>GQLRegistry.xlsx</code>, which supplies the FedGQL operations and types, and the REST spec (OpenAPI or Swagger, in YAML or JSON). Pick the registry entity (subgraph) to limit the list to that subgraph's operations.</p></div>
     <div class="feat" id="code-example"><h3>Load example <span class="where">header</span></h3>

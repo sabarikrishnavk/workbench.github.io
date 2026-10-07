@@ -156,167 +156,32 @@
     <option value="checkout">checkout</option><option value="cart">cart</option><option value="payments">payments</option>
     <option value="product">product</option><option value="pnp">pnp</option><option value="inventory">inventory</option><option value="search">search</option>
   </select>
-  <button onclick="loadExample(document.getElementById('exampleSg').value)" title="Load the samples/ registry and MonoGraph, and import the chosen subgraph's OpenAPI spec" data-help="mig-example">Load example</button>
+  <button onclick="wzLoadExample(document.getElementById('exampleSg').value)" title="Start the guide on the samples/ registry with the chosen application and its OpenAPI spec" data-help="mig-example">Load example</button>
   <a class="btn help-link" href="help.html#migration" target="_blank" rel="noopener" title="How to migrate a subgraph">❓ Help</a>
   <a class="btn help-link" href="demo.html#mig" target="_blank" rel="noopener" title="Slide walkthrough of the features">▶ Demo</a>
   <span class="status" id="status">No data loaded.</span>
 </header>
-<nav>
-  <button data-view="guide" class="active" data-help="mig-guide">Onboarding guide</button>
-  <button data-view="load" data-help="mig-load">Load data</button>
-  <button data-view="monograph" data-help="mig-monograph">MonoGraph schema</button>
-  <button data-view="rest" data-help="mig-subgraphs">Subgraphs</button>
-  <button data-view="edit" data-help="mig-fedgql">FedGQL subgraph</button>
-  <button data-view="codemap" data-help="code-migration">Code migration</button>
-  <button data-view="registry" data-help="mig-registry">GQL Registry</button>
-</nav>
 <main>
-  <!-- Load ------------------------------------------------------------- -->
-  <!-- Onboarding guide (gql-onboarding.js) --------------------------- -->
-  <section class="view active" id="view-guide">
-    <div class="card">
-      <div class="wz-head"><h2>Onboarding guide: migrate an application to a FedGQL subgraph</h2><span class="spacer"></span>
-        <button id="wzSaveTop" title="Save the subgraph mapping workbook (resume it later in step 1)">💾 Save subgraph mapping</button>
-        <button id="wzRestart" title="Start the guide again">Restart</button></div>
-      <div class="wz-progress"><div class="wz-bar"><span id="wzBarFill"></span></div><span class="wz-pct" id="wzPct">0%</span></div>
+  <!-- Onboarding guide (gql-onboarding.js): top band = animated progress, bottom = the current step -->
+  <section class="ob-layout" id="view-guide">
+    <div class="card ob-top" id="wzTop">
+      <div class="ob-top-row"><h2>GQL migration <span class="hint" id="wzTopApp"></span></h2>
+        <div class="wz-progress"><div class="wz-bar"><span id="wzBarFill"></span></div><span class="wz-pct" id="wzPct">0%</span></div>
+        <button id="wzSaveTop" title="Save the subgraph mapping workbook (resume it later in step 1)">💾 Save mapping</button>
+        <button id="wzRestart" title="Start the guide again">Restart</button>
+        <button class="copy-btn" id="wzOvToggle" title="Show / hide the animated overview">Hide overview</button>
+        <button class="chrome-toggle" id="chromeToggle" title="Show / hide the toolbar: Export subgraph, Load example, Help, Demo">▾ Toolbar</button></div>
       <ol class="wz-steps" id="wzSteps"></ol>
       <div class="wz-ctx" id="wzCtx"></div>
+      <div class="ob-ov" id="wzOvWrap"><div id="wzOverview"></div></div>
     </div>
-    <details class="card wz-ovwrap" id="wzOvWrap" open>
-      <summary><h2>Migration overview</h2><span class="hint">source estate → onboarding guide → subgraph mapping &amp; GQL Registry → federated supergraph · click a stage or step to jump to it</span></summary>
-      <div id="wzOverview"></div>
-    </details>
-    <div class="card" id="wzBody"></div>
-    <div class="wz-nav"><button id="wzBack">← Back</button><span class="spacer"></span><span class="hint" id="wzHint"></span><button class="primary" id="wzNext">Next →</button></div>
-    <input type="file" id="wzFileInput" />
-  </section>
-
-  <section class="view" id="view-load">
-    <div class="card">
-      <h2>Load the sources</h2>
-      <p class="desc">Everything runs in your browser — nothing is uploaded. The app also tries to
-        auto-load these files from the same folder / <span class="mono">../documents/</span> when served
-        over http(s); on <span class="mono">file://</span> pick them manually. Loaded data and your
-        migration mapping are cached in this browser.</p>
-      <div class="pickers">
-        <div class="picker">
-          <b>GQLRegistry.xlsx</b>
-          <span class="hint">target federated model — supplies the entities you migrate to</span>
-          <div class="st missing" id="st-reg">not loaded</div>
-          <button onclick="document.getElementById('f-reg').click()" data-help="mig-load">Choose file…</button>
-          <input type="file" id="f-reg" accept=".xlsx" />
-        </div>
-        <div class="picker">
-          <b>Subgraph migration (.xlsx)</b>
-          <span class="hint">optional — resume a work-in-progress <span class="mono">…-subgraph.xlsx</span> you exported earlier</span>
-          <div class="st missing" id="st-sgmig">not loaded</div>
-          <button onclick="document.getElementById('f-sgmig').click()" data-help="mig-resume">Choose file…</button>
-          <input type="file" id="f-sgmig" accept=".xlsx" />
-        </div>
-      </div>
-      <p style="margin-top:14px"><button class="danger" onclick="clearAll()" data-help="mig-clear">Clear cached data & mapping</button></p>
-    </div>
-
-    <div class="card">
-      <h2>Domain details</h2>
-      <p class="desc">Choose the <b>GQL Registry entity</b> this migration is for — its
-        <b>EntityID</b> and domain details become the target everything maps to. Then import the
-        OpenAPI/Swagger spec below: its types, queries and mutations are generated as
-        <span class="mono">SCH-/QRY-/MUT-&lt;EntityID&gt;-###</span> against that entity and can be
-        copied straight into the GQL Registry.</p>
-      <div id="domainDetails"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> above, then pick the entity to migrate.</div></div>
-    </div>
-
-    <div class="card">
-      <h2>Import subgraph — OpenAPI / Swagger</h2>
-      <p class="desc">Upload one OpenAPI/Swagger spec (JSON or YAML) per platform/<b>subgraph</b>. Each
-        spec becomes a subgraph and <b>creates an entity</b> mapped to the GQL Registry entity chosen
-        above: its component schemas expand into GraphQL <b>Types</b>, its GET operations into
-        <b>Queries</b> and its writes into <b>Mutations</b>. Manage imported subgraphs on the
-        <b>Subgraphs</b> tab.</p>
-      <div class="selrow">
-        <button class="primary" onclick="document.getElementById('f-openapi').click()" data-help="mig-import">Import OpenAPI spec (JSON/YAML)…</button>
-        <input type="file" id="f-openapi" accept=".json,.yaml,.yml,.txt" />
-        <span class="hint" id="openapiState"></span>
-      </div>
-    </div>
-  </section>
-
-  <!-- MonoGraph schema -------------------------------------------------- -->
-  <section class="view" id="view-monograph">
-    <div class="card" style="margin-bottom:10px">
-      <div class="picker">
-        <b>MonoGraph schema (schema.graphqls)</b>
-        <span class="hint">MonoGraph source SDL — the monolith to migrate from</span>
-        <div class="st missing" id="st-monograph">not loaded</div>
-        <button onclick="document.getElementById('f-monograph').click()" data-help="mig-monograph">Choose file…</button>
-        <input type="file" id="f-monograph" accept=".graphqls,.graphql,.gql,.txt" />
-      </div>
-    </div>
-    <div class="card"><div class="split">
-      <div class="side">
-        <div class="filters"><input id="monographFilter" placeholder="Search types & methods…" oninput="rendermonographList()" /></div>
-        <div class="list" id="monographList"></div>
-      </div>
-      <div class="detail" id="monographDetail"><div class="empty">Load the MonoGraph schema, then pick a type or method.</div></div>
+    <div class="ob-hsplit" id="wzHSplit" title="Drag to resize the progress and work areas · double-click to reset"></div>
+    <div class="ob-bottom"><div class="ob-main" id="wzMain">
+      <div class="card" id="wzBody"></div>
+      <div class="wz-nav"><button id="wzBack">← Back</button><span class="spacer"></span><span class="hint" id="wzHint"></span><button class="primary" id="wzNext">Next →</button></div>
     </div></div>
+    <input type="file" id="wzFileInput" hidden />
   </section>
-
-  <!-- Subgraphs (OpenAPI -> FedGQL) ------------------------------------ -->
-  <section class="view" id="view-rest">
-    <div class="card">
-      <h2>Subgraphs — OpenAPI → Federated GraphQL</h2>
-      <p class="desc">Migration is targeted <b>per subgraph application</b>, so the subgraph for the
-        GQL Registry entity you chose on the <b>Load data</b> tab loads here automatically. Each spec's
-        component schemas expand into GraphQL <b>Types</b> (with <b>@key</b> entities), GET
-        operations into <b>Queries</b> and writes into <b>Mutations</b>. Review it here, then export /
-        copy it from the <b>FedGQL subgraph</b> tab.</p>
-    </div>
-    <div class="card"><div class="detail" id="restDetail"><div class="empty">Pick a GQL Registry entity to migrate on the <b>Load data</b> tab, then import its OpenAPI/Swagger spec.</div></div></div>
-  </section>
-
-  <!-- FedGQL subgraph (migration data + copy) ------------------------- -->
-  <section class="view" id="view-edit">
-    <div class="card" style="margin-bottom:10px">
-      <h2>FedGQL subgraph — in migration</h2>
-      <p class="desc"><b>Step 1</b> review &amp; <b>edit</b> the generated rows below (cells are editable —
-        your edits are saved and used by Export / Copy). New rows load as <span class="mono">Draft</span> ·
-        <b>Step 2</b> set a row's <b>Approval</b> to <span class="mono">Proposed</span> when it's ready ·
-        <b>Step 3</b> copy into the <b>GQL Registry</b> — <b>only Proposed rows are validated and copied</b>.
-        Below is the subgraph selected on the <b>Subgraphs</b> tab, shown as the exact registry rows it produces.</p>
-      <div class="selrow">
-        <button onclick="exportSubgraph()" data-help="mig-export">Export subgraph xls</button>
-        <button class="primary" onclick="copyToRegistry()" data-help="mig-copy">Copy to GQL Registry →</button>
-        <button onclick="clearRowOverrides()" title="Discard manual edits and regenerate rows from the spec" data-help="mig-reset">Reset edits</button>
-      </div>
-    </div>
-    <div class="card"><div id="curSg"><div class="empty">Import or select a subgraph on the <b>Subgraphs</b> tab to see it here.</div></div></div>
-  </section>
-
-  <!-- Code migration (standalone tool, embedded) ----------------------- -->
-  <section class="view" id="view-codemap">
-    <div class="card" style="margin-bottom:10px">
-      <h2>Code migration — REST → FedGQL</h2>
-      <p class="desc">The code-migration tool is now a standalone app that loads its own
-        <b>GQLRegistry.xlsx</b> and REST OpenAPI/Swagger spec and generates both <b>client</b> and
-        <b>server</b> code. It opens embedded below, or in its own tab:
-        <a href="subgraph-codemigration.html" target="_blank" rel="noopener" data-help="code-migration">open full page ↗</a></p>
-    </div>
-    <iframe src="subgraph-codemigration.html" title="Subgraph code migration" style="width:100%;height:calc(100vh - 200px);border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>
-  </section>
-
-  <!-- GQL Registry (embedded registry app) ----------------------------- -->
-  <section class="view" id="view-registry">
-    <div class="card" style="margin-bottom:10px">
-      <h2>GQL Registry — validation &amp; approval</h2>
-      <p class="desc">The full schema-registry app, embedded. Copied subgraph rows land here as
-        <span class="mono">Proposed</span> for the approval flow, with live schema-standards
-        validation. Rows persist in the registry's own storage; export from it when approved.</p>
-    </div>
-    <iframe id="regFrame" src="workbench.html"
-      style="width:100%; height:calc(100vh - 250px); min-height:420px; border:1px solid var(--line); border-radius:10px; background:#fff"></iframe>
-  </section>
-
 </main>
 <datalist id="dl-domains"></datalist>
 <datalist id="dl-entities"></datalist>
@@ -795,10 +660,10 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
   b.classList.add("active"); document.getElementById("view-"+b.dataset.view).classList.add("active");
 });
-document.getElementById("f-reg").addEventListener("change", e=>onFile(e.target,"reg"));
-document.getElementById("f-sgmig").addEventListener("change", e=>onFile(e.target,"sgmig"));
-document.getElementById("f-monograph").addEventListener("change", e=>onFile(e.target,"monograph"));
-document.getElementById("f-openapi").addEventListener("change", e=>{ const f=e.target.files[0]; if(f) importOpenAPI(f); e.target.value=""; });
+document.getElementById("f-reg")?.addEventListener("change", e=>onFile(e.target,"reg"));
+document.getElementById("f-sgmig")?.addEventListener("change", e=>onFile(e.target,"sgmig"));
+document.getElementById("f-monograph")?.addEventListener("change", e=>onFile(e.target,"monograph"));
+document.getElementById("f-openapi")?.addEventListener("change", e=>{ const f=e.target.files[0]; if(f) importOpenAPI(f); e.target.value=""; });
 document.getElementById("modal").addEventListener("click", e=>{ if(e.target.id==="modal") closeModal(); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape" && !document.getElementById("modal").hidden) closeModal(); });
 
@@ -1003,7 +868,7 @@ function importOpenAPIText(text, fileName, sgName){
     mapping.focusEntity=target.id+"::"+entName;              // focus the migration on it
     applyRegistryToFocus();                                  // map it onto the chosen GQL Registry entity
     persist(); afterLoad();
-    document.getElementById("openapiState").textContent=`imported "${sgName}" — ${sg.types.length} types, ${sg.ops.length} ops`;
+    const os=document.getElementById("openapiState"); if(os) os.textContent=`imported "${sgName}" — ${sg.types.length} types, ${sg.ops.length} ops`;
     toast(`Imported subgraph ${sgName}`);
 }
 /* ----------------------------- Load example ------------------------------
@@ -1441,10 +1306,10 @@ function exportSubgraph(){
   const vcheck=validateSubgraphRows(buildSubgraphRows(sg));
   if(vcheck.errors.length){
     alert("This subgraph does not meet the FedGQL schema standards.\n\n"+vcheck.errors.length+" error"+(vcheck.errors.length>1?"s":"")+" must be fixed on the FedGQL subgraph tab before exporting:\n\n"+summarizeViolations(vcheck.errors)+"\n\nSee the highlighted cells and the issues panel on the FedGQL subgraph tab.");
-    document.querySelector('nav button[data-view="edit"]').click();
+    if(window.wzGo) wzGo(4);
     return;
   }
-  if(vcheck.warnings.length && !confirm(vcheck.warnings.length+" FedGQL standards warning"+(vcheck.warnings.length>1?"s":"")+" (export is allowed, but review these):\n\n"+summarizeViolations(vcheck.warnings)+"\n\nExport anyway?")) { document.querySelector('nav button[data-view="edit"]').click(); return; }
+  if(vcheck.warnings.length && !confirm(vcheck.warnings.length+" FedGQL standards warning"+(vcheck.warnings.length>1?"s":"")+" (export is allowed, but review these):\n\n"+summarizeViolations(vcheck.warnings)+"\n\nExport anyway?")) { if(window.wzGo) wzGo(4); return; }
   if(!confirm("Make sure EntityIDs (ENT-XXX) in this migration match GQLRegistry.xlsx before continuing.\n\nProceed?")) return;
 
   // Seed ID counters from any loaded registry so new rows continue cleanly.
@@ -1555,7 +1420,7 @@ function applyRowValidation(sheet, id, viols){
 // the FedGQL subgraph tab; the other host is cleared so element ids (row-…, stdSummary) stay unique.
 function curSgHost(){
   const g=document.getElementById("wzCurSg"), e=document.getElementById("curSg");
-  const useG=!!g && document.getElementById("view-guide").classList.contains("active");
+  const useG=!!g;   // the guide's review step hosts the editor whenever it is on screen
   const other=useG?e:g; if(other) other.innerHTML=useG?'<div class="empty">This subgraph is open in the <b>Onboarding guide</b> (step 5).</div>':"";
   return useG?g:e;
 }
@@ -1666,16 +1531,16 @@ function copyToRegistry(){
   const v=validateSubgraphRows(rows);
   if(v.errors.length){
     alert("The Proposed rows do not meet the FedGQL schema standards.\n\n"+v.errors.length+" error"+(v.errors.length>1?"s":"")+" must be fixed on the FedGQL subgraph tab before copying:\n\n"+summarizeViolations(v.errors)+"\n\nSee the highlighted cells and the issues panel on the FedGQL subgraph tab.");
-    document.querySelector('nav button[data-view="edit"]').click();
+    if(window.wzGo) wzGo(4);
     return;
   }
-  if(v.warnings.length && !confirm(v.warnings.length+" FedGQL standards warning"+(v.warnings.length>1?"s":"")+" (copy is allowed, but review these):\n\n"+summarizeViolations(v.warnings)+"\n\nCopy to the GQL Registry anyway?")) { document.querySelector('nav button[data-view="edit"]').click(); return; }
+  if(v.warnings.length && !confirm(v.warnings.length+" FedGQL standards warning"+(v.warnings.length>1?"s":"")+" (copy is allowed, but review these):\n\n"+summarizeViolations(v.warnings)+"\n\nCopy to the GQL Registry anyway?")) { if(window.wzGo) wzGo(4); return; }
   if(!confirm("Make sure EntityIDs (ENT-XXX) in this migration match GQLRegistry.xlsx before continuing.\n\nProceed?")) return;
   const frame=document.getElementById("regFrame");
   if(!frame || !frame.contentWindow){ alert("GQL Registry isn't loaded yet — open the GQL Registry tab and retry."); return; }
   frame.contentWindow.postMessage({ type:"fedgql-merge", rows }, "*");
   toast("Copied "+total+" rows to GQL Registry");
-  document.querySelector('nav button[data-view="registry"]').click();
+  document.querySelector('nav button[data-view="registry"]')?.click();
 }
 // Ack from the embedded registry with exact merged counts.
 window.addEventListener("message", e=>{

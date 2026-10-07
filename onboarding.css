@@ -104,7 +104,55 @@
 .wz-card.off{ opacity: .55; }
 .onb-chip{ display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); background: #fff; margin: 1px 2px; white-space: nowrap; }
 .onb-chip.ok{ color: #15803d; border-color: #86efac; background: #f0fdf4; }
-.cm-tabs{ display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: -4px 0 14px; }
-.cm-tabs button{ border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 9px 14px; background: transparent; color: var(--muted); font-weight: 550; }
-.cm-tabs button.active{ color: var(--accent); border-bottom-color: var(--accent); }
 @media (max-width: 1000px){ .wz-steps.wz-steps-8{ grid-template-columns: repeat(4, 1fr); } }
+
+/* ---------- Guide layout shared by all three pages ----------
+   Top band: animated progress (bar · steps · context · overview), a drag bar, then the work area.
+   The page toolbar (header) collapses behind a "▾ Toolbar" button. */
+body.chrome-collapsed > header, body.chrome-collapsed > .syncbar{ display: none; }
+.chrome-toggle{ align-self: center; font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); background: #fff; white-space: nowrap; }
+.chrome-toggle:hover{ color: var(--accent); border-color: var(--accent); }
+body.guide-on{ height: 100vh; overflow: hidden; }
+body.guide-on main{ flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 12px 16px; max-width: none; margin: 0; }
+.ob-layout:not(.view), .ob-layout.view.active{ display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.ob-top{ flex: none; margin: 0; padding: 10px 14px; overflow: auto; max-height: 52%; }
+.ob-layout.toph .ob-top{ height: var(--obtoph); max-height: none; }
+.ob-top-row{ display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ob-top-row h2{ margin: 0; font-size: 15px; white-space: nowrap; }
+.ob-top-row .wz-progress{ flex: 1; min-width: 220px; margin: 0; }
+.ob-top .wz-steps{ margin-top: 8px; }
+.ob-top .wz-steps li{ min-height: 34px; padding-top: 4px; padding-bottom: 4px; }
+.ob-top .wz-ctx{ margin-top: 6px; }
+.ob-top.ov-hidden .ob-ov{ display: none; }
+.ob-ov{ margin-top: 8px; }
+.ob-top .wz-bar{ height: 12px; }
+.ob-top .wz-bar span{ position: relative; overflow: hidden; }
+.ob-top .wz-bar span::after{ content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent); transform: translateX(-100%); animation: obShimmer 2.4s ease-in-out infinite; }
+@keyframes obShimmer{ to{ transform: translateX(100%); } }
+.ob-top .wz-steps li.cur{ animation: obStepPulse 2s ease-in-out infinite; }
+@keyframes obStepPulse{ 0%,100%{ box-shadow: 0 0 0 0 rgba(112,72,232,.35); } 50%{ box-shadow: 0 0 0 5px rgba(112,72,232,0); } }
+.wz-pct.bump{ animation: obBump .7s ease; }
+@keyframes obBump{ 40%{ transform: scale(1.35); color: var(--ok); } }
+.ob-ov .ov{ margin-top: 0; }
+.ob-ov .ov-node{ padding: 7px 10px; border-radius: 12px; }
+.ob-ov .ov-node h3{ font-size: 13.5px; }
+.ob-ov .ov-sub{ margin-bottom: 4px; }
+.ob-ov .ov-item{ padding: 2px 4px; gap: 6px; font-size: 12px; }
+.ob-ov .ov-ic{ width: 22px; height: 22px; border-radius: 6px; }
+.ob-ov .ov-ic svg{ width: 14px; height: 14px; }
+.ob-ov .ov-core{ width: 66px; height: 66px; margin: 2px auto 6px; box-shadow: 0 0 0 5px #f3f0ff, 0 0 0 6px #e2d9ff; }
+.ob-ov .ov-core svg{ width: 24px; height: 24px; } .ob-ov .ov-core b{ font-size: 10px; }
+.ob-ov .ov-step .si{ width: 26px; height: 26px; } .ob-ov .ov-step{ font-size: 9.5px; }
+.ob-ov .ov-blue{ margin-top: 6px; }
+.ob-hsplit{ flex: none; height: 12px; margin: 2px 0; cursor: row-resize; border-radius: 4px; background: linear-gradient(transparent 5px, #d6dae0 5px, #d6dae0 7px, transparent 7px); }
+.ob-hsplit:hover, .ob-hsplit.drag{ background: linear-gradient(transparent 4px, var(--accent) 4px, var(--accent) 8px, transparent 8px); }
+.ob-bottom{ flex: 1; min-height: 0; display: flex; }
+.ob-main{ flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; padding-right: 2px; }
+.ob-main > .card{ margin-bottom: 0; }
+.ob-main .wz-nav{ position: sticky; bottom: 0; margin-top: auto; padding: 10px 0 2px; background: var(--bg); }
+@media (max-width: 900px){
+  body.guide-on{ height: auto; overflow: auto; } body.guide-on main{ overflow: auto; display: block; }
+  .ob-layout:not(.view), .ob-layout.view.active{ display: block; } .ob-top{ max-height: none; } .ob-hsplit{ display: none; }
+  .ob-bottom{ display: block; } .ob-main{ overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce){ .ob-top .wz-bar span::after, .ob-top .wz-steps li.cur{ animation: none; } }

@@ -1,0 +1,72 @@
+# search subgraph — full-text indexing, fuzzy matching, filtering and facets (e.g. Elasticsearch
+# or Algolia). It doesn't duplicate product data: hits are Product references (the @key) that the
+# router hydrates from the product / pnp / inventory subgraphs.
+# Registry: ENT-004 ProductSearch (BusinessApplication "search").
+#
+# Fixed copy of subgraph.gql that passes the FedGQL schema standards (standards.json):
+#   • OP-SINGLE-INPUT — searchProducts takes one SearchProductsInput argument instead of four
+#   • ALL_ELEMENTS_REQUIRE_DESCRIPTION — every type, field, argument and input field is documented
+# Matches the ENT-004 rows of samples/GQLRegistry-sample-fixed.xlsx.
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key"])
+
+type Query {
+  """Main entry point for search and catalogue exploration."""
+  searchProducts(
+    """Search terms, filters and paging"""
+    input: SearchProductsInput!
+  ): SearchResponse!
+}
+
+"""Input for searchProducts."""
+input SearchProductsInput {
+  """Free-text search terms"""
+  query: String!
+  """Optional filters (brand, store stock)"""
+  filters: ProductFilterInput
+  """Page size; the service defaults to 20"""
+  limit: Int = 20
+  """Number of results to skip; defaults to 0"""
+  offset: Int = 0
+}
+
+"""One page of search results with facet counts."""
+type SearchResponse {
+  """Matching products in relevance order (Product references the router hydrates)"""
+  hits: [Product!]!
+  """Total number of matches across all pages"""
+  totalCount: Int!
+  """Facets for refining the search"""
+  facets: [SearchFacet!]!
+}
+
+"""A refinement dimension (e.g. brand) with its option counts."""
+type SearchFacet {
+  """Product field the facet groups by, e.g. brand"""
+  field: String!
+  """Values of the field with their match counts"""
+  options: [FacetOption!]!
+}
+
+"""One value of a facet with its match count."""
+type FacetOption {
+  """Facet value, e.g. a brand name"""
+  value: String!
+  """Number of matching products with this value"""
+  count: Int!
+}
+
+"""Reference stub so the router can link hits back to the product subgraph, which owns Product."""
+type Product @key(fields: "sku", resolvable: false) {
+  """Stock-keeping unit, the @key of Product (owned by the product subgraph)"""
+  sku: String!
+}
+
+"""Filters that narrow a product search."""
+input ProductFilterInput {
+  """Brands to include; an empty list means any brand"""
+  brand: [String!]!
+  """Only products in stock at this store"""
+  inStockAtStore: ID
+}

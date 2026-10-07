@@ -61,7 +61,7 @@ function wzResetFrom(from) {
   if (from <= 3) { w.sgId = ""; }
   w.reviewed = false; w.savedAt = ""; w.mergedAt = "";
 }
-function wzGo(i) { const w = wz(); if (i < 0 || i >= WZ_STEPS.length || !wzCanVisit(i)) return; w.step = i; persist(); wzRender(); const m = document.querySelector("main"); if (m) m.scrollTop = 0; }
+function wzGo(i) { const w = wz(); if (i < 0 || i >= WZ_STEPS.length || !wzCanVisit(i)) return; w.step = i; persist(); wzRender(); const m = document.getElementById("wzMain"); if (m) m.scrollTop = 0; }
 
 /* ------------------------------ render --------------------------------- */
 function wzRender() {
@@ -69,7 +69,8 @@ function wzRender() {
   const w = wz(), done = wzDone(), pct = wzPct();
   if (w.step > 0 && !wzCanVisit(w.step)) w.step = done.indexOf(false) < 0 ? 0 : done.indexOf(false);
   document.getElementById("wzBarFill").style.width = pct + "%";
-  document.getElementById("wzPct").textContent = pct + "%";
+  onbPct(document.getElementById("wzPct"), pct);   // pops when progress goes up
+  const ta = document.getElementById("wzTopApp"), te = wzEntity(); if (ta) ta.textContent = te ? `· ${te.BusinessApplication} (${te.EntityID})` : "· one application at a time";
   document.getElementById("wzSteps").innerHTML = WZ_STEPS.map((s, i) => `<li class="${done[i] ? "done" : ""}${i === w.step ? " cur" : ""}${wzCanVisit(i) ? "" : " locked"}" data-step="${i}" title="${esc(s.t)}">${esc(s.t)}</li>`).join("");
   const e = wzEntity(), sg = wzSg();
   document.getElementById("wzCtx").innerHTML = [
@@ -208,7 +209,7 @@ function wzStepReview() {
   h += `<div class="selrow"><span class="counts"><span class="tag ${v.errors.length ? "off" : "on"}">${v.errors.length} errors</span><span class="tag ${v.warnings.length ? "bff" : "on"}">${v.warnings.length} warnings</span><span class="tag ${nProp === nAll ? "on" : "tbc"}">${nProp} of ${nAll} rows Proposed</span></span>
     ${v.errors.some(x => x.ruleId === "NULL-ARRAY-NONNULL") ? `<button data-act="fix-arrays" title="Rewrite list fields in the type definitions as [Type!]! (house standard NULL-ARRAY-NONNULL)">Fix list nullability → [T!]!</button>` : ""}
     <button class="primary" data-act="propose-all">Mark all rows Proposed</button><button data-act="draft-all">Set all back to Draft</button>
-    <button data-act="open-editor">Open in the FedGQL subgraph tab</button></div>`;
+</div>`;
   h += `<details style="margin-bottom:10px"><summary><b>Generated federated SDL</b></summary><pre class="code" style="max-height:40vh">${highlightSDL(subgraphSDL(sg))}</pre></details>`;
   h += `<div id="wzCurSg"></div>`;
   return h;
@@ -235,7 +236,7 @@ function wzStepMerge() {
     : `<div class="empty">Nothing is marked Proposed. Go back to step 5 and click <b>Mark all rows Proposed</b>.</div>`;
   h += `<div class="selrow" style="margin-top:12px"><button class="primary" data-act="merge"${v.errors.length || !plan.items.some(i => i.action !== "skip") ? " disabled" : ""}>Merge ${plan.items.filter(i => i.action !== "skip").length} rows into the GQL Registry</button>
     <button data-act="save-reg"${w.mergedAt ? "" : " disabled"}>💾 Save GQLRegistry.xlsx</button>
-    <button data-act="to-workbench"${w.mergedAt ? "" : " disabled"} title="Send the merged rows to the embedded registry workbench for validation and approval">Open in Registry workbench</button>
+    <button data-act="to-workbench"${w.mergedAt ? "" : " disabled"} title="Open the registry workbench in a new tab with the merged rows, for validation and approval">Open in Registry workbench</button>
     <button data-act="save-map">Save subgraph mapping again</button></div>`;
   if (w.mergedAt) h += `<div class="stdpanel ok">✅ Merged into the loaded registry at ${esc(new Date(w.mergedAt).toLocaleString())}. Save <span class="mono">GQLRegistry.xlsx</span> to keep it, then approve the Proposed rows in the registry workbench. Click <b>Onboard another application</b> to start again with the same registry.</div>`;
   return h;
@@ -497,11 +498,23 @@ function wzSaveRegistry() {
   const name = wz().regFile || "GQLRegistry.xlsx";
   XLSX.writeFile(wb, name); toast("Saved " + name);
 }
+// Open the registry workbench in a new tab and hand it the merged rows (it upserts them and acks).
 function wzToWorkbench() {
-  const m = wz().lastMerged; const frame = document.getElementById("regFrame");
-  if (!m || !frame || !frame.contentWindow) return;
-  frame.contentWindow.postMessage({ type: "fedgql-merge", rows: m }, "*");
-  document.querySelector('nav button[data-view="registry"]').click();
+  const m = wz().lastMerged; if (!m) return;
+  const win = window.open("workbench.html", "_blank");
+  if (!win) { toast("Allow pop-ups to open the registry workbench"); return; }
+  let tries = 0; const iv = setInterval(() => { try { win.postMessage({ type: "fedgql-merge", rows: m }, "*"); } catch (_) {} if (++tries > 30) clearInterval(iv); }, 400);
+  const ack = e => { if (e.data && e.data.type === "fedgql-merged") { clearInterval(iv); window.removeEventListener("message", ack); } };
+  window.addEventListener("message", ack);
+}
+// Header "Load example": sample registry + the chosen application + its OpenAPI spec, then pick operations.
+async function wzLoadExample(sgName) {
+  const b = await wzFetch("samples/GQLRegistry-sample.xlsx", true); if (!b) return;
+  wzLoadRegistry(b, "GQLRegistry-sample.xlsx");
+  const w = wz(), e = state.entities.find(x => String(x.BusinessApplication || "").trim() === sgName); if (!e) return;
+  Object.assign(w, { entityId: String(e.EntityID), domain: String(e.ExperienceDomain || ""), newEntity: false, source: "rest" }); mapping.migrationEntityId = w.entityId; wzResetFrom(2);
+  const p = `samples/subgraph/${sgName}/openapi.yaml`, t = await wzFetch(p); if (!t) return;
+  wzSetSpec(t, p); persist(); wzGo(3); toast(`Example: ${sgName} (${e.EntityID}) from its REST API — pick the operations`);
 }
 
 /* ------------------------------ wiring --------------------------------- */
@@ -517,7 +530,8 @@ function wzInit() {
     wzGo(w.step + 1);
   };
   document.getElementById("wzSaveTop").onclick = wzSaveMapping;
-  onbRememberOpen(document.getElementById("wzOvWrap"), "wz.ov.open");   // remember whether the overview is collapsed
+  // top band / work area layout, toolbar collapse, overview toggle, drag bar (shared: onboarding.js)
+  onbLayout({ root, top: document.getElementById("wzTop"), split: document.getElementById("wzHSplit"), ovBtn: document.getElementById("wzOvToggle"), chromeBtn: document.getElementById("chromeToggle"), key: "gql-onb" });
   document.getElementById("wzRestart").onclick = () => { if (!confirm("Restart the onboarding guide? Generated subgraphs stay on the Subgraphs tab.")) return; mapping.wizard = null; wzResetFrom(0); WZ_PARSED = null; persist(); wzRender(); };
   const body = document.getElementById("wzBody");
   body.addEventListener("click", async e => {
@@ -537,7 +551,6 @@ function wzInit() {
     else if (a === "propose-all") wzSetAllStatus("Proposed");
     else if (a === "fix-arrays") wzFixArrays();
     else if (a === "draft-all") wzSetAllStatus("Draft");
-    else if (a === "open-editor") { document.querySelector('nav button[data-view="edit"]').click(); }
     else if (a === "save-map") wzSaveMapping();
     else if (a === "merge") wzMerge();
     else if (a === "save-reg") wzSaveRegistry();
@@ -552,7 +565,6 @@ function wzInit() {
   // edits in the review grid make the last save / merge stale
   body.addEventListener("change", e => { if (wz().step === 4 && e.target.closest("#wzCurSg")) { const w = wz(); w.savedAt = ""; w.mergedAt = ""; } }, true);
   // re-render whichever view is opened, so the shared subgraph editor lands in the visible host
-  document.querySelectorAll("nav button[data-view]").forEach(b => b.addEventListener("click", () => { if (b.dataset.view === "guide") wzRender(); else if (b.dataset.view === "edit") renderCurrentSubgraph(); }));
   wzRender();
 }
 

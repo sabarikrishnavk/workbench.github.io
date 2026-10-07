@@ -73,3 +73,38 @@ function onbRememberOpen(el, key) {
   try { if (localStorage.getItem(key) === "0") el.open = false; } catch (_) {}
   el.addEventListener("toggle", () => { try { localStorage.setItem(key, el.open ? "1" : "0"); } catch (_) {} });
 }
+
+/* ---------- Guide layout (top band / work area) ----------
+   Wires the toolbar collapse, the overview show / hide and the drag bar between the top band and the
+   work area; all three are remembered per page (key). onChange runs after the layout changes size. */
+function onbLayout({ root, top, split, ovBtn, chromeBtn, key, onChange }) {
+  const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (_) {} return null; };
+  const fire = () => { if (onChange) setTimeout(onChange, 60); };
+  document.body.classList.add("guide-on");
+  if (ovBtn && top) {
+    const setOv = hide => { top.classList.toggle("ov-hidden", hide); ovBtn.textContent = hide ? "Show overview" : "Hide overview"; ls(key + "-ov", hide ? "0" : "1"); };
+    setOv(ls(key + "-ov") === "0"); ovBtn.onclick = () => { setOv(!top.classList.contains("ov-hidden")); fire(); };
+  }
+  if (chromeBtn) {
+    const setC = hide => { document.body.classList.toggle("chrome-collapsed", hide); chromeBtn.textContent = hide ? "▾ Toolbar" : "▴ Hide toolbar"; ls(key + "-chrome", hide ? "1" : "0"); };
+    setC(ls(key + "-chrome") !== "0"); chromeBtn.onclick = () => { setC(!document.body.classList.contains("chrome-collapsed")); fire(); };
+  }
+  if (split && root && top) {
+    const setTop = px => { root.classList.toggle("toph", !!px); if (px) root.style.setProperty("--obtoph", px + "px"); else root.style.removeProperty("--obtoph"); };
+    setTop(+ls(key + "-toph") || 0);
+    split.addEventListener("pointerdown", ev => {
+      ev.preventDefault(); try { split.setPointerCapture(ev.pointerId); } catch (_) {} split.classList.add("drag");
+      const t0 = top.getBoundingClientRect().top, H = root.getBoundingClientRect().height;
+      const move = e => setTop(Math.round(Math.min(H - 220, Math.max(90, e.clientY - t0))));
+      const up = () => { split.removeEventListener("pointermove", move); split.removeEventListener("pointerup", up); split.classList.remove("drag"); ls(key + "-toph", String(parseInt(root.style.getPropertyValue("--obtoph"), 10) || 0)); fire(); };
+      split.addEventListener("pointermove", move); split.addEventListener("pointerup", up);
+    });
+    split.addEventListener("dblclick", () => { setTop(0); ls(key + "-toph", null); fire(); });
+  }
+}
+// Progress percentage that "pops" when it goes up.
+function onbPct(el, pct) {
+  if (!el) return;
+  if (el.textContent && parseInt(el.textContent, 10) < pct) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+  el.textContent = pct + "%";
+}

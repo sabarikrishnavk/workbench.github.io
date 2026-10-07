@@ -87,119 +87,36 @@
   <span class="spacer"></span>
   <select id="exampleSpec" title="Which sample REST spec to load with the sample registry">
     <option value="bff">BFF (composite · checkout)</option>
+    <option value="monograph">MonoGraph (resolver · product)</option>
     <option value="cart">cart (single op)</option><option value="checkout">checkout (single op)</option><option value="payments">payments (single op)</option>
     <option value="product">product (single op)</option><option value="pnp">pnp (single op)</option><option value="inventory">inventory (single op)</option><option value="search">search (single op)</option>
   </select>
-  <button onclick="loadExample(document.getElementById('exampleSpec').value)" title="Load samples/GQLRegistry-sample.xlsx and the chosen sample REST spec" data-help="code-example">Load example</button>
+  <button onclick="cwLoadExample(document.getElementById('exampleSpec').value)" title="Start the guide on samples/GQLRegistry-sample.xlsx with the chosen sample spec and endpoint" data-help="code-example">Load example</button>
   <a class="btn help-link" href="help.html#code-migration" target="_blank" rel="noopener" title="How to generate migration code">❓ Help</a>
   <a class="btn help-link" href="demo.html#code" target="_blank" rel="noopener" title="Slide walkthrough of the features">▶ Demo</a>
   <span class="status" id="status">load a registry and a REST spec to begin</span>
 </header>
 
 <main>
-  <nav class="cm-tabs" id="cmTabs">
-    <button data-tab="guide" class="active" data-help="code-guide">Onboarding guide</button>
-    <button data-tab="workbench" data-help="code-inputs">Workbench</button>
-  </nav>
-
-  <!-- Onboarding guide (code-onboarding.js) ------------------------------ -->
-  <section id="cmGuide">
-    <div class="card">
-      <div class="wz-head"><h2>Onboarding guide: migrate a monolith endpoint to a FedGQL subgraph</h2><span class="spacer"></span>
-        <button id="cwRestart" title="Start the guide again">Restart</button></div>
-      <div class="wz-progress"><div class="wz-bar"><span id="cwBarFill"></span></div><span class="wz-pct" id="cwPct">0%</span></div>
+  <!-- Onboarding guide (code-onboarding.js): top band = animated progress, bottom = the current step -->
+  <section class="ob-layout" id="cmGuide">
+    <div class="card ob-top" id="cwTop">
+      <div class="ob-top-row"><h2>Code migration <span class="hint" id="cwTopApp"></span></h2>
+        <div class="wz-progress"><div class="wz-bar"><span id="cwBarFill"></span></div><span class="wz-pct" id="cwPct">0%</span></div>
+        <button id="cwRestart" title="Start the guide again">Restart</button>
+        <button class="copy-btn" id="cwOvToggle" title="Show / hide the animated overview">Hide overview</button>
+        <button class="chrome-toggle" id="chromeToggle" title="Show / hide the toolbar: Load example, Help, Demo">▾ Toolbar</button></div>
       <ol class="wz-steps wz-steps-8" id="cwSteps"></ol>
       <div class="wz-ctx" id="cwCtx"></div>
+      <div class="ob-ov" id="cwOvWrap"><div id="cwOverview"></div></div>
     </div>
-    <details class="card wz-ovwrap" id="cwOvWrap" open>
-      <summary><h2>Migration overview</h2><span class="hint">monolithic BFF / legacy REST / MonoGraph → code migration guide → client &amp; server code → federated supergraph · click a stage or step to jump to it</span></summary>
-      <div id="cwOverview"></div>
-    </details>
-    <div class="card" id="cwBody"></div>
-    <div class="wz-nav"><button id="cwBack">← Back</button><span class="spacer"></span><span class="hint" id="cwHint"></span><button class="primary" id="cwNext">Next →</button></div>
+    <div class="ob-hsplit" id="cwHSplit" title="Drag to resize the progress and work areas · double-click to reset"></div>
+    <div class="ob-bottom"><div class="ob-main" id="cwMain">
+      <div class="card" id="cwBody"></div>
+      <div class="wz-nav"><button id="cwBack">← Back</button><span class="spacer"></span><span class="hint" id="cwHint"></span><button class="primary" id="cwNext">Next →</button></div>
+    </div></div>
     <input type="file" id="cwFileInput" hidden />
   </section>
-
-  <div id="cmWorkbench" hidden>
-  <div class="card">
-    <h2>Inputs</h2>
-    <p class="desc">Load the <b>FedGQL schema</b> (from <span class="mono">GQLRegistry.xlsx</span> — its
-      Schema / Queries / Mutations sheets) and the <b>existing REST API</b> (OpenAPI/Swagger). Then map a
-      REST operation to a GraphQL operation and generate <b>client</b> or <b>server</b> code.</p>
-    <div class="pickers">
-      <div class="picker">
-        <b>GQLRegistry.xlsx</b>
-        <label class="btn" for="f-reg" style="margin-top:6px;display:inline-block" data-help="code-inputs">Choose .xlsx…</label>
-        <input type="file" id="f-reg" accept=".xlsx" />
-        <div class="st missing" id="st-reg">not loaded</div>
-      </div>
-      <div class="picker">
-        <b>REST spec (OpenAPI / Swagger)</b>
-        <label class="btn" for="f-rest" style="margin-top:6px;display:inline-block" data-help="code-inputs">Choose .yaml/.json…</label>
-        <input type="file" id="f-rest" accept=".yaml,.yml,.json" />
-        <div class="st missing" id="st-rest">not loaded</div>
-      </div>
-    </div>
-    <div class="selrow" style="margin-top:10px;align-items:center">
-      <label><b data-help="code-modes">Mode</b>
-        <div class="seg" id="modeSeg">
-          <button data-mode="single" class="active" onclick="setMode('single')">Single op</button>
-          <button data-mode="bff" onclick="setMode('bff')">BFF composite</button>
-        </div></label>
-      <span class="spacer"></span>
-      <button class="btn" id="btnExport" onclick="exportRegistryWithBff()" title="Export the loaded registry with a BffMappings sheet" data-help="code-export">Export registry + BFF mappings (.xlsx)</button>
-    </div>
-    <p class="hint" style="margin:6px 0 0"><b>Single op</b>: map one REST operation to one FedGQL op and generate the
-      subgraph service (REST API + GraphQL API).
-      <b>BFF composite</b>: map one BFF REST endpoint to FedGQL ops from different subgraphs. An endpoint with logic
-      becomes an <b>orchestrator subgraph</b> that calls other services over REST / gRPC. A read-only endpoint
-      becomes <b>query stitching</b>: the front end sends one federated query.</p>
-  </div>
-
-  <div class="card" id="domainCard">
-    <h2>Subgraph / domain</h2>
-    <p class="desc">Pick the <b>GQL Registry entity</b> (subgraph) to migrate — the GraphQL operations
-      below are scoped to that entity, and its domain details are shown for context.</p>
-    <div id="domainDetails"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> above, then pick a subgraph.</div></div>
-  </div>
-
-  <div class="card" id="selCard">
-    <div class="selrow">
-      <label for="selRest"><b data-help="code-single">REST API operation</b>
-        <select id="selRest" onchange="setSelRest(this.value)"></select></label>
-      <label for="selGql"><b>GraphQL operation</b>
-        <select id="selGql" onchange="setSelGql(this.value)"></select></label>
-      <label for="codeOut"><b>Output</b>
-        <select id="codeOut" onchange="setOut(this.value)">
-          <option>Client</option>
-          <option>Server</option>
-        </select></label>
-      <label for="codeLang"><b>Language</b>
-        <select id="codeLang" onchange="setLang(this.value)"></select></label>
-    </div>
-    <p class="hint" style="margin:0">Server code turns the subgraph's current REST controllers into one service that hosts
-      both the REST API and the GraphQL API (queries &amp; mutations) on a shared service layer
-      (Java = Spring MVC + Spring for GraphQL, .NET = ASP.NET Core + Hot Chocolate, Node.js = Express + Apollo Server).
-      Subgraphs call each other over REST or gRPC only, never GraphQL.</p>
-  </div>
-
-  <div class="card" id="codeCard"><div id="codeMap"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> and a REST spec above to generate code.</div></div></div>
-
-  <div class="card" id="bffCard" style="display:none">
-    <h2>BFF composite → FedGQL set</h2>
-    <p class="desc">Pick the <b>BFF REST endpoint</b> to migrate, then add the FedGQL queries &amp;
-      mutations (from any subgraph) it composes. Choose an <b>orchestrating mutation</b> to move the BFF logic into
-      that op's subgraph, and set <b>Call via</b> (REST / gRPC) for each downstream service. Without one, the front
-      end stitches the queries through the router. The mappings are saved to a <span class="mono">BffMappings</span> sheet on export.</p>
-    <div class="selrow">
-      <label for="bffSel"><b data-help="code-bff">BFF REST endpoint</b>
-        <select id="bffSel" onchange="setBffRef(this.value)"></select></label>
-      <label for="bffName"><b>Composite operation name</b>
-        <input id="bffName" class="cell" style="min-width:200px;border:1px solid var(--line)" oninput="setBffName(this.value)" onchange="render()" /></label>
-    </div>
-    <div id="bffEditor"><div class="empty">Load <span class="mono">GQLRegistry.xlsx</span> and a REST spec above.</div></div>
-  </div>
-  </div>
 </main>
 
 <div class="toast" id="toast"></div>
@@ -1077,7 +994,7 @@ function renderMain(){
   applyMode();
   if(mode==="bff"){ renderBff(); return; }
   renderDomain();
-  const host=document.getElementById("codeMap");
+  const host=document.getElementById("codeMap"); if(!host) return;   // the single-op workbench view is gone; the guide renders its own steps
   const selR=document.getElementById("selRest"), selG=document.getElementById("selGql");
   const clearSel=()=>{ if(selR) selR.innerHTML=""; if(selG) selG.innerHTML=""; };
   const gqlOps=scopedGqlOps(), restOps=M.restOps;
@@ -1763,8 +1680,8 @@ function opMenuHtml(){
 }
 
 /* ------------------------------ boot ----------------------------------- */
-document.getElementById("f-reg").addEventListener("change", e=>onReg(e.target));
-document.getElementById("f-rest").addEventListener("change", e=>onRest(e.target));
+document.getElementById("f-reg")?.addEventListener("change", e=>onReg(e.target));
+document.getElementById("f-rest")?.addEventListener("change", e=>onRest(e.target));
 document.addEventListener("click", e=>{ if(openMenu && !e.target.closest(".op-picker")){ openMenu=false; if(mode==="bff") renderBff(); } });
 loadBff();
 populateLangSelect();

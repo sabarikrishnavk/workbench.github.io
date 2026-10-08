@@ -6,8 +6,10 @@
 <title>Data Mapping Registry</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 <script src="common.js"></script>
 <link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="onboarding.css" />
 <style>
   :root{
     --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
@@ -167,6 +169,92 @@
   .modal-card code{ background: #f1f3f5; padding: 0 4px; border-radius: 3px; font-size: 12px; }
   .modal-actions{ display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
   @media (max-width: 900px){ .grid2{ grid-template-columns: 1fr; } .cv-side{ width: 100%; max-width: 100%; } }
+  /* ---- Onboarding guide (dm-onboarding.js) + lineage drawer (same slider as workbench.html's visualizer) ---- */
+  nav .spacer{ flex: 1; }
+  nav .chrome-toggle{ align-self: center; padding: 3px 9px; font-size: 12px; }
+  #view-guide{ --obw: 44%; }
+  #view-guide .wz-steps{ grid-template-columns: repeat(7, 1fr); }
+  .ob-drawer{ position: relative; flex: none; width: 34px; align-self: stretch; margin-left: 14px; transition: width .32s ease; display: flex; }
+  .ob-drawer.open{ width: var(--obw); }
+  .ob-drawer.resizing{ transition: none; }
+  .ob-drawer-in{ flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; box-shadow: -6px 0 18px rgba(15,23,42,.06); overflow: hidden; }
+  .ob-drawer:not(.open) .ob-drawer-in, .ob-drawer:not(.open) .ob-grip{ display: none; }
+  .ob-tab{ position: absolute; left: -14px; top: 14px; z-index: 3; padding: 6px 7px; border-radius: 8px; font-size: 12px; background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 2px 8px rgba(112,72,232,.3); }
+  .ob-drawer:not(.open) .ob-tab{ position: static; writing-mode: vertical-rl; transform: rotate(180deg); padding: 10px 6px; height: max-content; }
+  .ob-drawer.open .ob-tab-closed, .ob-drawer:not(.open) .ob-tab-open{ display: none; }
+  .ob-grip{ width: 8px; margin-right: 2px; cursor: col-resize; border-radius: 4px; background: linear-gradient(90deg, transparent 3px, #d6dae0 3px, #d6dae0 5px, transparent 5px); }
+  .ob-grip:hover{ background: linear-gradient(90deg, transparent 2px, var(--accent) 2px, var(--accent) 6px, transparent 6px); }
+  .ob-drawer-head{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; font-size: 13px; }
+  .ob-drawer-head .spacer{ flex: 1; }
+  .ob-drawer-head .chk{ font-size: 12px; display: inline-flex; gap: 4px; align-items: center; }
+  .ob-drawer-head button{ padding: 3px 8px; }
+  .ob-mine-key{ display: inline-block; width: 14px; height: 10px; border: 2px solid var(--accent); border-radius: 3px; vertical-align: middle; background: #f3efff; }
+  .dg-lin-bar{ display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; font-size: 12px; }
+  .dg-lin-bar select{ padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12px; max-width: 220px; background: #fff; }
+  .dg-lin-bar .seg button{ padding: 3px 9px; font-size: 12px; }
+  .dg-lin-wrap{ position: relative; flex: 1; min-height: 240px; border: 1px solid var(--line); border-radius: 8px; background: #fbfbfd; overflow: hidden; }
+  .dg-lin-canvas{ position: absolute; inset: 0; cursor: grab; }
+  .dg-lin-canvas.panning{ cursor: grabbing; }
+  .dg-lin-canvas svg{ width: 100%; height: 100%; display: block; }
+  .dg-lin-legend{ position: absolute; left: 8px; bottom: 6px; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--muted); background: rgba(255,255,255,.85); padding: 3px 6px; border-radius: 6px; max-width: calc(100% - 16px); }
+  .dg-lin-legend i{ display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+  .dg-lin-foot{ margin-top: 4px; font-size: 11.5px; }
+  .dgl text{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .dgl .node rect{ fill: #fff; stroke: #d6dae0; stroke-width: 1.2; }
+  .dgl .node{ cursor: pointer; }
+  .dgl .node:hover rect{ stroke: var(--accent); }
+  .dgl .node .bar{ stroke: none; }
+  .dgl .node .t{ font-size: 12px; font-weight: 700; fill: #1f2933; }
+  .dgl .node .s{ font-size: 10.5px; fill: #6b7280; }
+  .dgl .node.mine rect.box{ stroke: var(--accent); stroke-width: 2.4; fill: #faf7ff; filter: drop-shadow(0 0 5px rgba(112,72,232,.35)); }
+  .dgl .node.dim{ opacity: .45; }
+  .dgl .node.changed rect.box{ animation: dgFlash 1.8s ease; }
+  @keyframes dgFlash{ 0%{ stroke: #22c55e; stroke-width: 5; fill: #dcfce7; } 60%{ stroke: #22c55e; stroke-width: 3.5; } 100%{ } }
+  .dgl .edge{ fill: none; stroke-width: 1.7; opacity: .85; }
+  .dgl .edge.cross{ stroke-width: 2.6; }
+  .dgl .edge.noflow{ stroke-dasharray: 5 4; }
+  .dgl .elbl rect{ fill: #fff; stroke-width: 1; }
+  .dgl .elbl text{ font-size: 10px; font-weight: 600; }
+  .dgl .lane{ font-size: 10.5px; font-weight: 700; letter-spacing: .05em; fill: #9aa3ae; }
+  .dg-tbl{ width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .dg-tbl th, .dg-tbl td{ border-top: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+  .dg-tbl th{ background: #fafbfc; font-weight: 600; color: var(--muted); font-size: 11.5px; position: sticky; top: 0; z-index: 1; }
+  .dg-tbl input, .dg-tbl select, .dg-tbl textarea{ width: 100%; min-width: 70px; box-sizing: border-box; padding: 3px 5px; border: 1px solid transparent; border-radius: 5px; font: inherit; font-size: 12.5px; background: transparent; color: var(--ink); }
+  .dg-tbl input:hover, .dg-tbl select:hover, .dg-tbl textarea:hover{ border-color: var(--line); }
+  .dg-tbl input:focus, .dg-tbl select:focus, .dg-tbl textarea:focus{ border-color: var(--accent); background: #fff; outline: none; }
+  .dg-tbl textarea{ min-height: 28px; resize: vertical; }
+  .dg-tbl td.ro{ color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; white-space: nowrap; }
+  .dg-tbl td.act{ white-space: nowrap; width: 1%; }
+  .dg-tbl tr.cur td{ background: #faf7ff; }
+  .dg-scroll{ max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .dg-row{ display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .dg-row select, .dg-row input{ padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12.5px; background: #fff; }
+  .dg-kinds{ display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+  .dg-kind{ border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 12.5px; background: #fff; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .dg-kind:hover{ border-color: var(--accent); color: var(--accent); }
+  .dg-kind i{ width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .dg-kind.off{ opacity: .55; }
+  .dg-pill{ display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: #fff; white-space: nowrap; }
+  .dg-cross{ background: #c2410c; } .dg-same{ background: #64748b; } .dg-int{ background: #94a3b8; }
+  .dg-mx td, .dg-mx th{ text-align: center; } .dg-mx td.hot{ background: #fff7ed; font-weight: 700; color: #c2410c; } .dg-mx td.self{ background: #f1f5f9; }
+  .dg-note{ border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 12.5px; background: #fbfbfd; }
+  .dg-note.warn{ border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+  .dg-note.ok{ border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+  .dg-iss{ font-size: 11.5px; color: var(--warn); }
+  /* per-type dataset dialog (dm-types.js) */
+  .modal-card.dt-wide{ width: 1120px; max-height: 92vh; }
+  .dt-core{ grid-template-columns: 2fr 1fr 1.4fr 1fr; }
+  .dt-spec{ grid-template-columns: repeat(3, 1fr); }
+  .dt-tabs{ display: flex; gap: 4px; align-items: center; margin: 12px 0 6px; border-bottom: 1px solid var(--line); }
+  .dt-tabs button{ border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; padding: 5px 12px; font-size: 12.5px; margin-bottom: -1px; }
+  .dt-tabs button.active{ border-color: var(--line); background: #fff; color: var(--accent); font-weight: 600; }
+  .dt-fields{ max-height: 42vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .dt-src{ width: 100%; box-sizing: border-box; min-height: 300px; max-height: 46vh; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.45; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; white-space: pre; tab-size: 2; }
+  textarea.dt-src{ resize: vertical; background: #fbfbfd; }
+  .dt-err{ color: var(--bad); font-size: 12.5px; min-height: 16px; margin-top: 6px; }
+  .dg-counts{ display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .dg-counts span, .dg-tag{ display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; font-size: 12px; background: #fff; margin: 1px 0; }
+  @media (max-width: 900px){ .ob-drawer.open{ width: 100%; } }
 </style>
 </head>
 <body>
@@ -186,17 +274,54 @@
 </header>
 
 <nav id="nav">
+  <button data-view="guide" class="active">Onboarding guide</button>
   <button data-view="flows">Domains &amp; apps</button>
-  <button data-view="canvas" class="active">Mapping canvas</button>
+  <button data-view="canvas">Mapping canvas</button>
   <button data-view="registry">Registry</button>
   <button data-view="lineage">Lineage</button>
   <button data-view="events">Kafka &amp; schemas</button>
   <button data-view="issues">Issues <span class="cnt" id="issueCnt" hidden></span></button>
+  <span class="spacer"></span>
+  <button class="chrome-toggle" id="chromeToggle" title="Show / hide the toolbar: Load / Export / Template / Example / Clear / Help">▾ Toolbar</button>
 </nav>
 
 <main>
+  <!-- ============ Onboarding guide (dm-onboarding.js) ============
+       One domain → one business application at a time. Top: animated progress; bottom: the current step
+       (left) and the lineage visualizer drawer (right), which slides in like workbench.html's visualizer. -->
+  <section class="view active ob-layout" id="view-guide">
+    <div class="card ob-top" id="dgTop">
+      <div class="ob-top-row"><h2>Data mapping guide <span class="hint" id="dgTopApp"></span></h2>
+        <div class="wz-progress"><div class="wz-bar"><span id="dgBarFill"></span></div><span class="wz-pct" id="dgPct">0%</span></div>
+        <button id="dgRestart" title="Start the guide again (the registry is kept)">Restart</button>
+        <button class="copy-btn" id="dgOvToggle" title="Show / hide the animated overview">Hide overview</button></div>
+      <ol class="wz-steps" id="dgSteps"></ol>
+      <div class="wz-ctx" id="dgCtx"></div>
+      <div class="ob-ov" id="dgOvWrap"><div id="dgOverview"></div></div>
+    </div>
+    <div class="ob-hsplit" id="dgHSplit" title="Drag to resize the progress and work areas · double-click to reset"></div>
+    <div class="ob-bottom">
+      <div class="ob-main" id="dgMain">
+        <div class="card" id="dgBody"></div>
+        <div class="wz-nav"><button id="dgBack">← Back</button><span class="spacer"></span><span class="hint" id="dgHint"></span><button class="primary" id="dgNext">Next →</button></div>
+      </div>
+      <aside class="ob-drawer open" id="dgDrawer" aria-label="Lineage visualizer">
+        <button class="ob-tab" id="dgDrawerToggle" title="Show / hide the lineage visualizer"><span class="ob-tab-open">▶</span><span class="ob-tab-closed">◀ Lineage</span></button>
+        <div class="ob-grip" id="dgGrip" title="Drag to resize"></div>
+        <div class="ob-drawer-in">
+          <div class="ob-drawer-head"><b>Lineage visualizer</b><span class="hint"><span class="ob-mine-key"></span> <span id="dgLinMine"></span></span><span class="spacer"></span>
+            <label class="chk" title="Scope the lineage to what the current step is about"><input type="checkbox" id="dgLinFollow" checked /> Follow guide</label>
+            <button id="dgLinFitBtn" title="Fit to view">⤢</button><button id="dgLinSvgBtn" title="Download as SVG">⤓</button></div>
+          <div class="dg-lin-bar" id="dgLinBar"></div>
+          <div class="dg-lin-wrap" id="dgLinWrap"><div class="dg-lin-canvas" id="dgLinCanvas"></div><div class="dg-lin-legend" id="dgLinLegend"></div></div>
+          <div class="hint dg-lin-foot" id="dgLinFoot"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
   <!-- ============ Mapping canvas ============ -->
-  <section class="view active" id="view-canvas">
+  <section class="view" id="view-canvas">
     <div class="cv-bar">
       <label>Focus <select id="cvFocus">
         <option value="all">All datasets</option>
@@ -338,18 +463,25 @@ const seqOf = (list, v) => { const i = list.findIndex(x => KN(x) === KN(v)); ret
 const withSeq = (list, v) => { const t = String(v == null ? "" : v).trim(); if (!t || list.includes(t)) return t; const name = { "File / Feed": "CSV Schema" }[KN(t)] || KN(t); return list.find(x => KN(x) === name) || t; };
 const pad2 = n => String(parseInt(n, 10) || 0).padStart(2, "0");
 const APP_COLOR = { "Domain service": "#2563eb", "Orchestrator service": "#0d9488", "Integration service": "#c2410c", BFF: "#0891b2", "FedGQL router": "#7048e8", Frontend: "#059669", "Core system": "#b45309", "Third party": "#78716c" };
-const API_KINDS = ["REST Request", "REST Response", "GQL Query", "GQL Mutation", "GQL Type"];
+// An HTTP API dataset is a request or a response; its style (REST or GraphQL) is on the dataset (Spec.Style).
+const API_KINDS = ["HTTP Request", "HTTP Response", "GQL Type"];
 const APP_KINDS = {
-  "Domain service": [...API_KINDS, "DB Table", "DB Collection", "Kafka Event", "Search Index"],
+  "Domain service": [...API_KINDS, "DB Table", "DB Collection", "Kafka Event", "Search Index", "Databricks Table"],
   "Orchestrator service": [...API_KINDS, "DB Table", "DB Collection", "Kafka Event"],
-  "Integration service": ["REST Request", "REST Response", "Kafka Event", "CSV Schema", "JSON Schema", "DB Table", "DB Collection"],
-  BFF: ["REST Request", "REST Response"],
-  "FedGQL router": ["GQL Query", "GQL Mutation", "GQL Type"],
+  "Integration service": ["HTTP Request", "HTTP Response", "Kafka Event", "CSV Schema", "JSON Schema", "DB Table", "DB Collection", "Databricks Table"],
+  BFF: ["HTTP Request", "HTTP Response"],
+  "FedGQL router": ["HTTP Request", "HTTP Response", "GQL Type"],
   Frontend: ["UI Component", "UI Form"],
-  "Core system": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "REST Request", "REST Response", "Kafka Event"],
-  "Third party": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "REST Request", "REST Response", "Kafka Event"],
+  "Core system": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP Request", "HTTP Response", "Kafka Event"],
+  "Third party": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP Request", "HTTP Response", "Kafka Event"],
 };
-const DS_KINDS = ["01-DB Table", "02-DB Collection", "03-CSV Schema", "04-JSON Schema", "05-Kafka Event", "06-REST Request", "07-REST Response", "08-GQL Query", "09-GQL Mutation", "10-GQL Type", "11-MDM Entity", "12-PIM Entity", "13-ERP Object", "14-Search Index", "15-UI Component", "16-UI Form", "17-Other"];
+const DS_KINDS = ["01-DB Table", "02-DB Collection", "03-CSV Schema", "04-JSON Schema", "05-Kafka Event", "06-HTTP Request", "07-HTTP Response", "08-GQL Type", "09-MDM Entity", "10-PIM Entity", "11-ERP Object", "12-Search Index", "13-UI Component", "14-UI Form", "15-Databricks Table", "16-Other"];
+// Kinds before REST and GraphQL were merged into HTTP Request / Response: [new kind, style, GraphQL operation type].
+// A GQL query dataset held the response selection, a GQL mutation dataset the input, so they map to response / request.
+const LEGACY_KINDS = { "REST Request": ["HTTP Request", "REST"], "REST Response": ["HTTP Response", "REST"], "GQL Query": ["HTTP Response", "GraphQL", "query"], "GQL Mutation": ["HTTP Request", "GraphQL", "mutation"] };
+function migrateKind(d) { const m = LEGACY_KINDS[KN(d.Kind)]; if (!m) return; d.Kind = m[0]; d.Spec = Object.assign({ Style: m[1] }, m[2] ? { OpType: m[2] } : {}, d.Spec || {}); }
+// REST or GraphQL: the dataset's own style, else read from its Location ("GET /path" vs "field(args): Type").
+function dsStyle(d) { if (!d) return ""; if (d.Spec && d.Spec.Style) return d.Spec.Style; const l = String(d.Location || "").trim(); return /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s|^\//i.test(l) ? "REST" : /^\w+\s*(\(|:\s*\S)/.test(l) ? "GraphQL" : "REST"; }
 const TRANSFORMS = ["Direct", "Rename", "Type cast", "Trim", "Format", "Enum map", "Lookup", "Unit conversion", "Concat", "Split", "Derive", "Aggregate", "Filter", "Default", "Constant", "Generate", "Mask", "Hash", "Encrypt"];
 const PATTERNS = ["REST API", "GraphQL", "Kafka event", "File (CSV)", "CDC", "Internal"];
 const CLASSES = ["Public", "Internal", "Confidential", "PII"];
@@ -397,8 +529,8 @@ function kindLayer(kind) {
   if (/^(MDM|PIM|ERP)/.test(k)) return "core";
   if (/Schema$/.test(k)) return "int";
   if (/^Kafka/.test(k)) return "event";
-  if (/^DB/.test(k)) return "db";
-  if (/^REST/.test(k)) return "rest";
+  if (/^DB|^Databricks/.test(k)) return "db";
+  if (/^REST|^HTTP/.test(k)) return "rest";
   if (/^GQL/.test(k)) return "gql";
   if (/^UI/.test(k)) return "ui";
   return "down";
@@ -414,7 +546,7 @@ function emptyDB() { const d = {}; DM_ORDER.forEach(s => d[s] = []); return d; }
 function ensureIds(db) {
   DM_ORDER.forEach(s => { db[s] = db[s] || []; db[s].forEach(r => { if (!r._id) r._id = uid(); }); });
   // numbered Kinds / AppTypes (older workbooks used the plain names), two-digit DomainNo, upper-case codes
-  db.Datasets.forEach(d => d.Kind = withSeq(DS_KINDS, d.Kind));
+  db.Datasets.forEach(d => { migrateKind(d); d.Kind = withSeq(DS_KINDS, d.Kind); });
   db.Applications.forEach(a => a.AppType = withSeq(APP_TYPES, a.AppType));
   db.Domains.forEach(d => { if (/^\d+$/.test(String(d.DomainNo || "").trim())) d.DomainNo = pad2(d.DomainNo); d.Code = String(d.Code || "").trim().toUpperCase(); });
   return db;
@@ -474,7 +606,7 @@ const attrsOf = id => DB.Attributes.filter(a => a.DatasetID === id);
 const attrAt = (ds, p) => DB.Attributes.find(a => a.DatasetID === ds && a.Path === p);
 const akey = (ds, p) => ds + "|" + p;
 const dsLabel = d => d ? d.Name || d.DatasetID : "";
-const dsLayer = d => kindLayer(d && KN(d.Kind));
+const dsLayer = d => d && /^HTTP/.test(KN(d.Kind)) ? (dsStyle(d) === "GraphQL" ? "gql" : "rest") : kindLayer(d && KN(d.Kind));
 function nextId(sheet) {
   const def = DM[sheet], used = new Set(DB[sheet].map(r => r[def.id]));
   let n = DB[sheet].length + 1, id;
@@ -518,7 +650,7 @@ function compatible(a, b) {
 }
 
 /* ------------------------------ Validation ---------------------------- */
-const TARGET_KINDS = new Set(["UI Component", "GQL Query", "GQL Type", "REST Response", "Search Index", "Kafka Event"]);
+const TARGET_KINDS = new Set(["UI Component", "HTTP Response", "GQL Type", "Search Index", "Kafka Event"]);
 let ISSUES = null;
 function issues() {
   if (ISSUES) return ISSUES;
@@ -573,8 +705,9 @@ function issues() {
     else if (!f) add("warning", "Mappings", m, `${m.MappingID}: unknown FlowID "${m.FlowID}"`, at);
     else if ((sd && f.SourceAppID && sd.AppID !== f.SourceAppID && !noSrc) || (td && f.TargetAppID && td.AppID !== f.TargetAppID)) add("warning", "Mappings", m, `${m.MappingID}: datasets are not owned by flow ${f.FlowID}'s applications (${f.SourceAppID} → ${f.TargetAppID})`, at);
     else if (sd && td && !noSrc) {
-      const need = { "Kafka event": [k => k === "Kafka Event", "a Kafka Event"], "File (CSV)": [k => k === "CSV Schema" || k === "JSON Schema", "a CSV / JSON Schema"], GraphQL: [k => /^GQL/.test(k), "a GraphQL"], "REST API": [k => /^REST|Entity$|^ERP/.test(k), "a REST (or core entity API)"] }[f.Pattern];
-      if (need && ![KN(sd.Kind), KN(td.Kind)].some(need[0])) add("warning", "Mappings", m, `${m.MappingID}: flow ${f.FlowID} is ${f.Pattern} but neither ${dsLabel(sd)} nor ${dsLabel(td)} is ${need[1]} dataset`, at);
+      const http = (d, st) => /^HTTP/.test(KN(d.Kind)) && dsStyle(d) === st;
+      const need = { "Kafka event": [d => KN(d.Kind) === "Kafka Event", "a Kafka Event"], "File (CSV)": [d => /^(CSV|JSON) Schema$/.test(KN(d.Kind)), "a CSV / JSON Schema"], GraphQL: [d => http(d, "GraphQL") || /^GQL/.test(KN(d.Kind)), "a GraphQL HTTP"], "REST API": [d => http(d, "REST") || /Entity$|^ERP/.test(KN(d.Kind)), "a REST HTTP (or core entity API)"] }[f.Pattern];
+      if (need && ![sd, td].some(need[0])) add("warning", "Mappings", m, `${m.MappingID}: flow ${f.FlowID} is ${f.Pattern} but neither ${dsLabel(sd)} nor ${dsLabel(td)} is ${need[1]} dataset`, at);
     }
     const sig = [m.SourceDatasetID, m.SourcePath, m.TargetDatasetID, m.TargetPath].join("|");
     if (!noSrc && seenM[sig]) add("warning", "Mappings", m, `${m.MappingID}: duplicates ${seenM[sig]}`, at); seenM[sig] = m.MappingID;
@@ -1405,7 +1538,7 @@ function traceCSV() {
 /*                          DOMAINS & APPLICATIONS                        */
 /* ===================================================================== */
 let mmdSrc = "";
-const KIND_SHORT = k => ({ "CSV Schema": "CSV", "JSON Schema": "JSON",  "REST Request": "REST", "REST Response": "REST", "GQL Query": "GraphQL", "GQL Mutation": "GraphQL", "GQL Type": "GraphQL", "DB Table": "DB", "DB Collection": "DB", "Kafka Event": "Kafka", "File / Feed": "File", "UI Component": "UI", "UI Form": "UI", "MDM Entity": "MDM", "PIM Entity": "PIM", "ERP Object": "ERP", "Search Index": "Index" }[KN(k)] || KN(k) || "?");
+const KIND_SHORT = k => ({ "CSV Schema": "CSV", "JSON Schema": "JSON",  "HTTP Request": "HTTP", "HTTP Response": "HTTP", "GQL Type": "GraphQL", "DB Table": "DB", "DB Collection": "DB", "Kafka Event": "Kafka", "File / Feed": "File", "UI Component": "UI", "UI Form": "UI", "MDM Entity": "MDM", "PIM Entity": "PIM", "ERP Object": "ERP", "Search Index": "Index" }[KN(k)] || KN(k) || "?");
 const atypeHTML = t => t ? `<span class="atype" style="background:${APP_COLOR[KN(t)] || "#64748b"}">${esc(t)}</span>` : `<span class="atype" style="background:#9ca3af">no type</span>`;
 function appRowHTML(a) {
   const ds = DB.Datasets.filter(d => d.AppID === a.AppID), byK = {};
@@ -1549,13 +1682,14 @@ function generate(d, fmt) {
     const emit = (node, name, kw) => { const lines = []; for (const k of node.kids.values()) { let t = k.kids.size ? emit(k, pascal(k.name), kw) : gq(k.attr || {}); if (k.arr) t = `[${t}!]`; const req = k.attr ? k.attr.Required === "Y" : true; if (k.attr && k.attr.Description) lines.push(`  """${k.attr.Description.replace(/"""/g, "'")}"""`); lines.push(`  ${ident(k.name)}: ${t}${req ? "!" : ""}`); } types.push(`${kw} ${name} {\n${lines.join("\n")}\n}`); return name; };
     const loc = S(d.Location), m = loc.match(/^(\w+)\s*(\(.*\))?\s*:\s*\[?(\w+)/);
     const kids = [...tree.kids.values()];
-    if ((KN(d.Kind) === "GQL Query" || KN(d.Kind) === "GQL Mutation") && kids.length === 1 && kids[0].kids.size) {
+    const gqlOp = /^HTTP/.test(KN(d.Kind)) && dsStyle(d) === "GraphQL", isReq = /Request/.test(KN(d.Kind)), opType = (d.Spec || {}).OpType || "query";
+    if (gqlOp && kids.length === 1 && kids[0].kids.size) {
       const root = kids[0], ret = m ? m[3] : pascal(root.name);
-      const isInput = KN(d.Kind) === "GQL Mutation" || root.name === "input";
+      const isInput = isReq || root.name === "input";
       if (isInput) { const inName = (loc.match(/:\s*(\w+Input)!?\s*\)/) || [])[1] || pascal((m ? m[1] : "op") + "Input"); emit(root, inName, "input"); }
       else emit(root, ret, "type");
-      types.push(`extend type ${KN(d.Kind) === "GQL Mutation" ? "Mutation" : "Query"} {\n  ${loc || root.name + ": " + ret}\n}`);
-    } else emit(tree, recName, KN(d.Kind) === "GQL Mutation" ? "input" : "type");
+      types.push(`extend type ${opType === "mutation" ? "Mutation" : opType === "subscription" ? "Subscription" : "Query"} {\n  ${loc || root.name + ": " + ret}\n}`);
+    } else emit(tree, recName, gqlOp && isReq ? "input" : "type");
     return `# Generated from ${d.DatasetID} (${KN(d.Kind)})\n` + types.join("\n\n");
   }
   if (fmt === "ddl") {
@@ -1608,12 +1742,13 @@ const GUIDE = [
   ["Sheet", "Purpose"],
   ["Domains", "Business domains with a two-digit DomainNo and a unique 5-letter Code; DomainID = DOM-<no>-<code> (e.g. DOM-04-PRODT)."],
   ["Applications", "Step 1: every application with its domain and numbered AppType (01-Domain service … 08-Third party). AppID = APP-<domain no>-<domain code>-<type no>, e.g. APP-04-PRODT-01; a second app of the same type in the domain gets -02. A service owns its REST + GraphQL API, database and produced events."],
-  ["Kinds", "Dataset kinds are numbered: 01-DB Table, 02-DB Collection, 03-CSV Schema, 04-JSON Schema, 05-Kafka Event, 06-REST Request, 07-REST Response, 08-GQL Query, 09-GQL Mutation, 10-GQL Type, 11-MDM Entity, 12-PIM Entity, 13-ERP Object, 14-Search Index, 15-UI Component, 16-UI Form, 17-Other. Datasets, Attributes and Events are exported grouped by application and kind."],
+  ["Kinds", "Dataset kinds are numbered: 01-DB Table, 02-DB Collection, 03-CSV Schema, 04-JSON Schema, 05-Kafka Event, 06-HTTP Request, 07-HTTP Response, 08-GQL Type, 09-MDM Entity, 10-PIM Entity, 11-ERP Object, 12-Search Index, 13-UI Component, 14-UI Form, 15-Databricks Table, 16-Other. An HTTP Request / Response is a REST or a GraphQL API call (its Style, in the HTTP APIs sheet); older REST Request / Response and GQL Query / Mutation kinds are converted on load."],
   ["Datasets", "A structure owned by an application: MDM entity, PIM family, Kafka event, DB table/collection, REST request/response, GQL query/mutation, UI component/form."],
   ["Attributes", "Fields of a dataset. Path is dotted; [] marks an array (images[].url). TermID links the attribute to the business glossary."],
   ["Mappings", "Source-to-target mapping (STTM): SourceDatasetID + SourcePath → TargetDatasetID + TargetPath, with Transformation and Rule. Empty source = Constant / Generate."],
   ["Flows", "Integration flows between two applications with their pattern: REST API, GraphQL, Kafka event, File (CSV), CDC, or Internal (inside one application)."],
   ["Events", "Kafka schema-registry entries: topic, subject, format, compatibility, version, partition key, consumers. The producer is the application owning the event dataset."],
+  ["Type sheets", "Per-type detail of the datasets, editable here or in the dataset dialog: HTTP APIs (each request / response with its style: a REST operation (method, path, status) or a GraphQL operation (query / mutation, parameters, return type), one row per field), GQL Schema (GraphQL types as in GQLRegistry.xlsx), Database (tables and collections, ER columns with PK / FK), Kafka Avro (record fields), Databricks (Delta table columns), Files (CSV / JSON columns). On Load .xlsx they update the Datasets and Attributes sheets."],
   ["Rules", "Front ends integrate only via the BFF (REST) or the FedGQL router (GraphQL). Core / third-party systems feed integration services via REST API, Kafka event or File (CSV). Domain services expose REST / GraphQL over their own database and publish Kafka events."],
   ["BusinessTerms", "Business glossary / canonical data dictionary; SourceOfTruth is the application that masters the value."],
   ["", ""],
@@ -1641,6 +1776,7 @@ function buildWorkbook(db) {
     XLSX.utils.book_append_sheet(wb, ws, s);
   });
   const g = XLSX.utils.aoa_to_sheet(GUIDE); g["!cols"] = [{ wch: 16 }, { wch: 140 }]; XLSX.utils.book_append_sheet(wb, g, "Guide");
+  if (typeof dtSheets === "function") dtSheets(wb, db);   // per-type sheets (GQL, REST, Database, Kafka Avro, Databricks, Files): dm-types.js
   return wb;
 }
 // SheetJS CE can't write data validation, so patch each sheet's XML in the zip (as workbench.html does).
@@ -1665,8 +1801,10 @@ function addListValidations(data, db) {
   });
   return XLSX.CFB.write(zip, { fileType: "zip", type: "array", compression: true });
 }
-function writeWorkbook(db, name) {
-  let data = XLSX.write(buildWorkbook(db), { bookType: "xlsx", type: "array" });
+// extra(wb): appends more sheets after the Guide (the dropdown validations address sheets 1–8 by position).
+function writeWorkbook(db, name, extra) {
+  const wbk = buildWorkbook(db); if (extra) extra(wbk);
+  let data = XLSX.write(wbk, { bookType: "xlsx", type: "array" });
   try { data = addListValidations(data, db); } catch (e) { console.warn("Dropdown validation skipped:", e); }
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
@@ -1678,6 +1816,7 @@ function readWorkbook(file) {
       let found = 0;
       const SHEET_ALIAS = { Applications: ["Systems"] }, COL_ALIAS = { AppID: ["SystemID"], SourceAppID: ["SourceSystemID"], TargetAppID: ["TargetSystemID"] }, norm = x => x.replace(/\s+/g, "").toLowerCase();
       DM_ORDER.forEach(s => { const names = [s, ...(SHEET_ALIAS[s] || [])].map(norm), name = wb.SheetNames.find(n => names.includes(norm(n))); if (!name) return; found++; db[s] = sheetRows(wb, name).map(row => { const o = {}; DM[s].cols.forEach(c => { const keys = [c.key, ...(COL_ALIAS[c.key] || [])].map(norm), k = Object.keys(row).find(x => keys.includes(norm(x))); o[c.key] = k ? String(row[k]).trim() : ""; }); return o; }).filter(o => Object.values(o).some(v => v)); });
+      if (typeof dtReadSheets === "function") found += dtReadSheets(wb, db);   // per-type sheets win over Datasets / Attributes
       if (!found) { toast("No registry sheets found in that workbook"); return; }
       pushUndo(); DB = ensureIds(db); try { localStorage.setItem(LS_FILE, file.name); } catch (x) {}
       CV.sel = null; CV.fitPending = true; save(); renderAll(); toast(`Loaded ${file.name}`);
@@ -1689,15 +1828,17 @@ function readWorkbook(file) {
 /* ===================================================================== */
 /*                               SHELL / NAV                              */
 /* ===================================================================== */
-let currentView = "canvas";
+let currentView = "guide";
 function showView(v, noRender) {
   currentView = v;
+  document.body.classList.toggle("guide-on", v === "guide");
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
   document.querySelectorAll(".view").forEach(s => s.classList.toggle("active", s.id === "view-" + v));
   if (!noRender) renderView();
 }
 function renderView() {
-  if (currentView === "canvas") renderCanvas();
+  if (currentView === "guide") { if (typeof dgRender === "function") dgRender(); }
+  else if (currentView === "canvas") renderCanvas();
   else if (currentView === "registry") renderGrid();
   else if (currentView === "lineage") renderLineage();
   else if (currentView === "flows") renderFlows();
@@ -1705,11 +1846,17 @@ function renderView() {
   renderIssues();
 }
 function renderAll() { setStatus(); renderView(); }
-function openModal(html) { document.getElementById("modalCard").innerHTML = html; document.getElementById("modal").hidden = false; }
+function openModal(html) { const c = document.getElementById("modalCard"); c.className = "modal-card"; c.innerHTML = html; document.getElementById("modal").hidden = false; }
 function closeModal() { document.getElementById("modal").hidden = true; }
 function helpHTML() {
   return `<h2>Data Mapping Registry: how to use it</h2>
   <p>One Excel workbook (<code>DataMappingRegistry.xlsx</code>) records how each business attribute moves between applications, layer by layer. Everything runs in the browser and is cached in local storage. The workbook is the copy you share.</p>
+  <h3>Onboarding guide</h3>
+  <ul><li>The <b>Onboarding guide</b> tab walks one domain and one business application at a time: domain &amp; business terms → business application → datasets and their types (DB table / collection, CSV, JSON, Kafka event, REST, GQL, MDM / PIM / ERP, UI) → attributes tagged with terms → integration mapping with applications in any domain → lineage → export schemas and save as Excel (.xlsx) and Markdown (.md).</li>
+  <li><b>Dataset details by type:</b> adding a dataset in step 3 (or <b>✎ Details</b>) opens a dialog shaped by its type: an HTTP request / response as a REST operation (OpenAPI) or a GraphQL operation (SDL), a GraphQL type, ER columns (PK, FK, not null, default) for DB tables and collections, an Avro record plus the Databricks StructType for Kafka events, a Delta table for Databricks and columns for CSV / JSON files. Its <b>Source</b> tab edits the same thing as GraphQL SDL, OpenAPI YAML, SQL DDL, MongoDB $jsonSchema, Avro JSON, Databricks SQL or YAML: paste one and click <i>Apply to fields</i>.</li>
+  <li><b>HTTP APIs:</b> an API call is an <b>HTTP Request</b> and / or an <b>HTTP Response</b> dataset whose style is REST or GraphQL, so both are mapped the same way. <b>⇪ Import from API spec</b> (step 3) loads an OpenAPI spec or a GraphQL schema, lets you pick operations and builds their request and response datasets.</li>
+  <li><b>Type sheets:</b> Export .xlsx adds HTTP APIs, GQL Schema (as in GQLRegistry.xlsx), Database, Kafka Avro, Databricks and Files. They can be edited in Excel; Load .xlsx reads them back into the datasets and attributes.</li>
+  <li>The <b>lineage visualizer</b> slides in on the right (drag its edge to resize, ◀ / ▶ to hide). Pick the level (applications, datasets, attributes) and what to trace (everything, a domain, an application, a business term, an integration flow or a dataset), or click a box to trace from it. Thick arrows cross domains.</li></ul>
   <h3>Step 1: register domains and applications</h3>
   <ul><li>Every application belongs to one <b>domain</b> and has a numbered <b>AppType</b>: 01-Domain service, 02-Orchestrator service, 03-Integration service, 04-BFF, 05-FedGQL router, 06-Frontend, 07-Core system or 08-Third party.</li>
   <li><b>IDs:</b> a domain has a two-digit number and a unique 5-letter code, giving <code>DOM-04-PRODT</code>. Its applications are <code>APP-04-PRODT-&lt;type no&gt;</code>, so <code>APP-04-PRODT-01</code> is the Product domain service and <code>APP-04-PRODT-03</code> its integration service; a second app of the same type gets <code>-02</code>. New apps get their ID automatically, IDs follow domain / type changes, and <b>Apply ID convention</b> renames older IDs (every reference is updated).</li>
@@ -1856,6 +2003,18 @@ function exampleDB() {
     ["weightGrams", "int", "N", "Public", "BT-WEIGHT", "325", ""],
     ["countryOfOrigin", "string", "N", "Public", "BT-ORIGIN", "VN", ""],
     ["sourceUpdatedAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", "Latest of the source timestamps"],
+  ]);
+  DS("DBX-PRODUCT", "APP-04-PRODT-03", "bronze.product_ingested (Delta)", "18-Databricks Table", "retail.bronze.product_ingested", "Delta", "1", "Product events landed in the lakehouse by Auto Loader, partitioned by ingest date.", "Proposed");
+  A("DBX-PRODUCT", [
+    ["sku", "STRING", "Y", "Internal", "BT-SKU", "10023456", ""],
+    ["gtin", "STRING", "N", "Public", "BT-GTIN", "", ""],
+    ["brand.code", "STRING", "Y", "Internal", "BT-BRAND-CODE", "", ""],
+    ["brand.name", "STRING", "N", "Public", "BT-BRAND-NAME", "", ""],
+    ["status", "STRING", "Y", "Internal", "BT-STATUS", "ACTIVE|INACTIVE|DISCONTINUED", ""],
+    ["title", "STRING", "N", "Public", "BT-TITLE", "", ""],
+    ["weight_grams", "INT", "N", "Public", "BT-WEIGHT", "", ""],
+    ["source_updated_at", "TIMESTAMP", "Y", "Internal", "BT-UPDATED", "", ""],
+    ["ingest_date", "DATE", "Y", "Internal", "", "", "Partition column"],
   ]);
   DS("DB-PRODUCT", "APP-04-PRODT-01", "product (table)", "01-DB Table", "product_db.public.product", "SQL", "12", "Product Service schema (Flyway V12).");
   A("DB-PRODUCT", [
@@ -2004,6 +2163,7 @@ function exampleDB() {
   FL("FL-MDM-INT", "MDM → Product Integration (Kafka)", "APP-01-MSTDT-07", "APP-04-PRODT-03", "Kafka event", "Kafka Streams consumer", "Real-time", "Integration service consumes mdm.product.golden.v1.");
   FL("FL-PIM-INT", "PIM → Product Integration (REST API)", "APP-01-MSTDT-07-02", "APP-04-PRODT-03", "REST API", "Akeneo REST API, delta poll", "Every 5 min", "Reads products updated since the last poll.", "Proposed");
   FL("FL-SUP-INT", "Supplier feed → Product Integration (CSV)", "APP-01-MSTDT-08", "APP-04-PRODT-03", "File (CSV)", "SFTP + Spring Batch", "Daily 02:00", "Supplier logistics extract joined by GTIN.", "Proposed");
+  FL("FL-INT-LAKE", "Product Integration → lakehouse (Databricks)", "APP-04-PRODT-03", "APP-04-PRODT-03", "Internal", "Databricks Auto Loader (Kafka source)", "Streaming", "Lands product.ingested.v1 in the bronze Delta table for analytics.", "Proposed");
   FL("FL-INT-PRD", "Product Integration → Product Service (Kafka)", "APP-04-PRODT-03", "APP-04-PRODT-01", "Kafka event", "Spring Kafka consumer", "Real-time", "Product Service upserts the canonical product.");
   FL("FL-PRD-REST", "Product DB → REST API", "APP-04-PRODT-01", "APP-04-PRODT-01", "Internal", "Spring Data JPA + MapStruct", "On request", "Entity → REST DTO.");
   FL("FL-PRD-GQL", "Product DB → product subgraph", "APP-04-PRODT-01", "APP-04-PRODT-01", "Internal", "DGS data fetchers", "On request", "Entity → GraphQL type.");
@@ -2059,6 +2219,17 @@ function exampleDB() {
     ["NET_WEIGHT_G", "weightGrams", "Default", "Used only when MDM has no weight; round to int"],
     ["COUNTRY_OF_ORIGIN", "countryOfOrigin", "Direct"],
   ], "Proposed");
+  M("FL-INT-LAKE", "KFK-PRODUCT-INGESTED", "DBX-PRODUCT", [
+    ["sku", "sku", "Direct", ""],
+    ["gtin", "gtin", "Direct", ""],
+    ["brand.code", "brand.code", "Direct", ""],
+    ["brand.name", "brand.name", "Direct", ""],
+    ["status", "status", "Direct", ""],
+    ["title", "title", "Direct", ""],
+    ["weightGrams", "weight_grams", "Rename", ""],
+    ["sourceUpdatedAt", "source_updated_at", "Type cast", "timestamp-millis → TIMESTAMP"],
+    ["", "ingest_date", "Derive", "to_date(source_updated_at)"],
+  ]);
   M("FL-INT-PRD", "KFK-PRODUCT-INGESTED", "DB-PRODUCT", [
     ["sku", "sku", "Direct", "Upsert key"],
     ["gtin", "gtin", "Direct"],
@@ -2209,6 +2380,9 @@ load();
 wireShell(); wireGrid(); wireCanvas();
 renderAll();
 </script>
+<script src="onboarding.js"></script>
+<script src="dm-types.js"></script>
+<script src="dm-onboarding.js"></script>
 <script src="versions.js" defer></script>
 </body>
 </html>

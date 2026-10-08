@@ -28,7 +28,7 @@ const CW_SOURCES = {
   monograph: { t: "MonoGraph (monolithic GraphQL server)", icon: "🧱", need: "The MonoGraph schema (schema.graphqls / mono-graph.gql).",
     d: "Each root field's resolver moves out of the monolith into the subgraph that owns it, as defined by its service type: a Domain service resolves it from its own data, an Orchestrator calls other services over REST / gRPC, and an Integration service wraps the external API. Clients switch from the MonoGraph URL to the router." },
 };
-const CW_SAMPLES = { monograph: ["samples/mono-graph.gql"], bff: ["samples/bff-openapi.yaml"], rest: ["product", "pnp", "inventory", "search", "cart", "payments", "checkout"].flatMap(n => [`samples/subgraph/${n}/openapi.yaml`, `samples/subgraph/${n}/openapi-fixed.yaml`]) };
+const CW_SAMPLES = { monograph: ["samples/mono-graph.gql"], bff: ["samples/bff-openapi.yaml"], rest: ["product", "pnp", "inventory", "search", "cart", "payments", "checkout"].map(n => `samples/subgraph/${n}/openapi.yaml`) };
 const CW_SVC = {
   Domain: { icon: "db", d: "Owns its data. The endpoint's business logic stays in this service, which serves REST and GraphQL over its own database and calls no other subgraph." },
   Orchestrator: { icon: "saga", d: "Coordinates other services. It runs the former BFF / orchestrator logic and calls the other subgraph services over REST or gRPC, never through the router, with compensation for failed writes." },
@@ -97,131 +97,6 @@ function cwSync() {
   else if (w.source) { mode = "single"; const g = cwGql(), r = cwRestOp(); if (g) { selGql = g.id; selEntity = String(g.EntityID || ""); } if (r && !r.mono) selRest = r.id; }
 }
 
-/* ------------- REST orchestrator → GQL orchestrator suggestion ---------------
-   A legacy REST endpoint that orchestrates other APIs (cart → inventory → payments …) lists them here:
-   from the spec's x-orchestrates extension, or added by hand from the registry's REST-linked operations.
-   From the reads / writes and the services they hit, the guide suggests the FedGQL pattern:
-     • reads only            → FedGQL query routing (one federated query; the router plans the fan-out by @key)
-     • one write (+ reads)   → an Orchestrator subgraph whose mutation calls the Domain / Integration services
-     • several writes        → the same Orchestrator subgraph running a saga (compensate in reverse order).
-   Kept per endpoint in the guide state (cw().orch). */
-const CW_PATTERNS = {
-  route: { icon: "router", t: "FedGQL query routing", d: "No orchestrator code. The front end sends one federated query; the router's query planner fetches from each subgraph and joins the entities by @key." },
-  orch: { icon: "saga", t: "Orchestrator subgraph", d: "A mutation on an Orchestrator subgraph. Its service calls the Domain / Integration services over REST or gRPC (never through the router) and returns one result." },
-  saga: { icon: "saga", t: "Orchestrator subgraph + saga", d: "The Orchestrator subgraph runs the writes as a saga: each step is a local transaction with a compensating action, undone in reverse order when a later step fails." },
-};
-const cwOrchKey = () => { const w = cw(), r = cwRestOp(); return w.source === "rest" && r ? restRefOf(r) : ""; };
-const cwOpById = id => M.gqlOps.find(g => String(g.id) === String(id)) || null;
-function cwOrchCallFrom(x) {
-  const o = typeof x === "string" ? { call: x } : (x || {}), ref = String(o.call || o.ref || "").trim().replace(/\s+/, " ");
-  const g = M.gqlOps.find(q => restRefsOf(q).includes(ref)) || (o.op ? M.gqlOps.find(q => q.Name === o.op) : null);
-  const method = (ref.match(/^(\w+)\s/) || [])[1] || "";
-  return { ref, service: String(o.service || (g ? subgraphOf(g.EntityID) : "")), kind: g ? (g.kind === "query" ? "read" : "write") : (/^GET$/i.test(method) ? "read" : "write"), gqlId: g ? g.id : "" };
-}
-function cwOrch() {
-  const k = cwOrchKey(); if (!k) return null;
-  const w = cw(); w.orch = w.orch || {};
-  if (!w.orch[k]) { const r = cwRestOp(); w.orch[k] = { calls: (r.orchestrates || []).map(cwOrchCallFrom).filter(c => c.ref) }; }
-  return w.orch[k];
-}
-// Where a downstream call lands after the migration: its FedGQL op's subgraph and service type.
-function cwCallTarget(c) {
-  const g = cwOpById(c.gqlId);
-  return g ? { sg: subgraphOf(g.EntityID), type: cwSvcOf(g.EntityID).type, g } : { sg: c.service || "external system", type: c.service ? "unmapped" : "Integration", g: null };
-}
-// A compensating operation for a write: the inverse verb on the same noun, looked up in the registry.
-const CW_INVERSE = [["create", ["delete", "cancel", "remove"]], ["add", ["remove", "delete"]], ["reserve", ["release", "cancel"]], ["process", ["refund", "void", "cancel"]],
-  ["capture", ["refund", "void"]], ["charge", ["refund"]], ["authorize", ["void", "cancel"]], ["clear", ["restore"]], ["place", ["cancel"]], ["submit", ["cancel"]], ["book", ["cancel"]],
-  ["adjust", ["adjust"]], ["update", ["update"]], ["set", ["set"]], ["remove", ["add", "restore"]], ["delete", ["restore", "create"]]];
-function cwCompensation(c) {
-  const t = cwCallTarget(c), name = t.g ? t.g.Name : c.ref.split(/[\/\s]/).filter(Boolean).pop() || "step";
-  const hit = CW_INVERSE.find(([v]) => name.toLowerCase().startsWith(v));
-  if (!hit) return { name: `undo ${name}`, found: false };
-  const noun = name.slice(hit[0].length), cands = [].concat(...hit[1].map(v => [v + noun, v + noun.replace(/To([A-Z])/, "From$1")]));
-  for (const cand of cands) { const g = M.gqlOps.find(q => q.kind === "mutation" && q.Name.toLowerCase() === cand.toLowerCase()); if (g && g.Name !== name) return { name: g.Name, found: true, sg: subgraphOf(g.EntityID) }; }
-  return { name: hit[0] === hit[1][0] ? `${name} (reverse the change)` : cands[0], found: hit[0] === hit[1][0], sg: t.sg };
-}
-function cwOrchAdvice() {
-  const r = cwRestOp(), o = cwOrch(); if (!r || !o || !o.calls.length) return null;
-  const calls = o.calls, reads = calls.filter(c => c.kind === "read"), writes = calls.filter(c => c.kind === "write");
-  const tg = calls.map(cwCallTarget), sgs = [...new Set(tg.map(t => t.sg))], writeSgs = [...new Set(writes.map(c => cwCallTarget(c).sg))];
-  const epWrite = !!r.method && r.method !== "GET", g = cwGql(), home = g ? subgraphOf(g.EntityID) : "", homeType = g ? cwSvcOf(g.EntityID).type : "";
-  const pattern = !writes.length ? "route" : writes.length >= 2 ? "saga" : "orch";
-  const why = [], todo = [];
-  why.push(`${restRefOf(r)} calls ${calls.length} API${calls.length === 1 ? "" : "s"} today: ${reads.length} read${reads.length === 1 ? "" : "s"} and ${writes.length} write${writes.length === 1 ? "" : "s"} across ${sgs.length} service${sgs.length === 1 ? "" : "s"} (${sgs.join(", ")}).`);
-  if (pattern === "route") {
-    why.push("Every downstream call is a read, so the orchestration can move into the router: one federated query, no orchestrator code to run or deploy.");
-    if (reads.length > 1) why.push("Reads that use an earlier result (e.g. stock per cart line) become entity references: expose the key on the first type and let the other subgraph extend it by @key, so the router chains the fetches.");
-    if (epWrite) todo.push(`${r.method} has no side effects here: expose it as a query, not a mutation.`);
-  } else {
-    why.push(pattern === "saga" ? `${writes.length} writes${writeSgs.length > 1 ? ` in ${writeSgs.length} services (${writeSgs.join(", ")})` : ""} cannot share one database transaction, so they run as a saga with compensations.` : "One write, so a plain orchestrating mutation is enough; no compensation is needed if the write is the last step.");
-    if (reads.length) why.push(`The ${reads.length} read${reads.length === 1 ? "" : "s"} before the write${writes.length === 1 ? "" : "s"} are calls from the orchestrator service too, not a second round trip from the client.`);
-    if (home && homeType !== "Orchestrator") todo.push(`${home} is a ${homeType} service: set its ServiceType to Orchestrator in the GQL registry, or create a separate orchestrator subgraph for this mutation.`);
-    if (!epWrite) todo.push(`GET ${r.path} writes data: make it a mutation.`);
-    todo.push("Accept an idempotency key on the mutation and pass it to every downstream write.");
-    if (pattern === "saga") todo.push("Persist the saga state (step, outcome) so a crash resumes or compensates, and publish events through an outbox.");
-  }
-  const integ = [...new Set(tg.filter(t => t.type === "Integration").map(t => t.sg))];
-  if (integ.length) todo.push(`${integ.join(", ")} ${integ.length === 1 ? "is an Integration service" : "are Integration services"}: add timeouts, retries with backoff and a circuit breaker around the external system.`);
-  const unmapped = calls.filter(c => !c.gqlId); if (unmapped.length) todo.push(`${unmapped.length} call${unmapped.length === 1 ? " has" : "s have"} no FedGQL operation yet (${unmapped.map(c => c.ref).join(", ")}): onboard ${unmapped.length === 1 ? "it" : "them"} with the GQL migration guide first.`);
-  return { r, calls, reads, writes, sgs, pattern, why, todo, home, homeType, g };
-}
-// Draft federated query for the routing pattern: every read's FedGQL op in one document.
-function cwRouteDoc(A) {
-  const vars = new Map(), fields = [];
-  for (const c of A.reads) { const g = cwOpById(c.gqlId); if (!g || g.kind !== "query") continue;
-    const ps = parseGqlParams(g.Parameters || ""); ps.forEach(p => vars.set(p.name, p.type));
-    fields.push(`  ${g.Name}${ps.length ? "(" + ps.map(p => `${p.name}: $${p.name}`).join(", ") + ")" : ""} {\n    # select the fields the screen needs — served by ${subgraphOf(g.EntityID)}\n    __typename\n  }`); }
-  const name = cap(camel(cap(slug(A.r.name || "Composite").replace(/ /g, ""))));
-  return `query ${name}${vars.size ? "(" + [...vars].map(([n, t]) => `$${n}: ${t}`).join(", ") + ")" : ""} {\n${fields.join("\n") || "  # map the reads to FedGQL queries in step 3"}\n}`;
-}
-// Current (REST orchestrator → APIs) vs target (router → subgraphs / orchestrator subgraph) flowchart.
-function cwOrchMermaid(A) {
-  const q = s => `"${mmMsg(s)}"`, L = ["flowchart LR"], ids = {}, sid = (pre, n) => { const k = pre + n; if (!(k in ids)) ids[k] = pre + Object.keys(ids).filter(x => x.startsWith(pre)).length; return ids[k]; };
-  L.push(`  subgraph CUR[${q("Today · REST orchestrator")}]`, "    direction TB", `    C0[${q("Web / mobile client")}] -->|${q(restRefOf(A.r))}| O0[${q((A.home || "service") + " orchestrator")}]`);
-  const seenC = new Set();
-  A.calls.forEach((c, i) => { const t = cwCallTarget(c), id = sid("A", t.sg); if (!seenC.has(id)) { L.push(`    ${id}[(${q(t.sg + " API")})]`); seenC.add(id); } L.push(`    O0 -->|${q(`${i + 1}. ${c.ref}`)}| ${id}`); });
-  L.push("  end", `  subgraph TGT[${q("Target · " + CW_PATTERNS[A.pattern].t)}]`, "    direction TB", `    C1[${q("Web / mobile client")}] --> R1{{${q("FedGQL router")}}}`);
-  const seenT = new Set(), node = t => { const id = sid("T", t.sg); if (!seenT.has(id)) { L.push(`    ${id}[${q(`${t.sg} subgraph · ${t.type}`)}]`); seenT.add(id); } return id; };
-  if (A.pattern === "route") {
-    L.push(`    C1 -.- N1[${q("one federated query")}]`);
-    A.calls.forEach(c => { const t = cwCallTarget(c); L.push(`    R1 -->|${q((t.g ? t.g.Name : c.ref) + " · @key")}| ${node(t)}`); });
-  } else {
-    L.push(`    R1 -->|${q("mutation " + (A.g ? A.g.Name : A.r.name))}| K1[${q(`${A.home || "orchestrator"} subgraph · Orchestrator${A.pattern === "saga" ? " · saga" : ""}`)}]`);
-    A.calls.forEach((c, i) => { const t = cwCallTarget(c), id = node(t); L.push(`    K1 -->|${q(`${i + 1}. ${t.g ? t.g.Name : c.ref} · REST/gRPC`)}| ${id}`); });
-    if (A.pattern === "saga") A.writes.slice(0, -1).forEach(c => { const t = cwCallTarget(c), comp = cwCompensation(c); L.push(`    K1 -.->|${q("undo: " + comp.name)}| ${node(t)}`); });
-  }
-  L.push("  end", `  CUR ==>|${q("migrate")}| TGT`, "  classDef rec fill:#ccfbf1,stroke:#0f766e,color:#134e4a;", A.pattern === "route" ? "  class R1 rec;" : "  class K1 rec;");
-  return L.join("\n");
-}
-function cwOrchCaptureHTML() {
-  const o = cwOrch(); if (!o) return "";
-  const r = cwRestOp(), fromSpec = (r.orchestrates || []).length;
-  const opt = (sel, list) => list.map(g => `<option value="${esc(g.id)}"${String(g.id) === String(sel) ? " selected" : ""}>${esc(g.kind)} ${esc(g.Name)} · ${esc(subgraphOf(g.EntityID))}</option>`).join("");
-  const rows = o.calls.map((c, i) => { const t = cwCallTarget(c);
-    return `<tr><td>${i + 1}</td><td class="mono">${esc(c.ref)}</td><td>${esc(t.sg)} ${t.g ? `<span class="stype ${esc(t.type.toLowerCase())}">${esc(t.type)}</span>` : ""}</td>
-      <td><select data-act="oc-kind" data-v="${i}"><option value="read"${c.kind === "read" ? " selected" : ""}>read</option><option value="write"${c.kind === "write" ? " selected" : ""}>write</option></select></td>
-      <td><select data-act="oc-gql" data-v="${i}"><option value="">— not in the registry —</option>${opt(c.gqlId, M.gqlOps)}</select>${c.gqlId ? "" : ' <span class="oc-miss">unmapped</span>'}</td>
-      <td style="white-space:nowrap"><button class="icon-btn" data-act="oc-up" data-v="${i}" title="Move up"${i ? "" : " disabled"}>↑</button><button class="rm-row" data-act="oc-rm" data-v="${i}" title="Remove">✕</button></td></tr>`; }).join("");
-  const cat = M.gqlOps.filter(g => restRefsOf(g).length && !o.calls.some(c => String(c.gqlId) === String(g.id)));
-  return `<div class="kv" style="margin-top:14px">Orchestration · APIs <span class="mono">${esc(restRefOf(r))}</span> calls today <span class="hint">${fromSpec ? `· ${fromSpec} read from <span class="mono">x-orchestrates</span> in the spec` : "· add them if this endpoint is an orchestrator; leave empty for a plain endpoint"}</span></div>
-    <div class="table-wrap"><table><thead><tr><th>#</th><th>Downstream API (today)</th><th>Service · type</th><th>Read / write</th><th>FedGQL operation (after migration)</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="empty">No downstream APIs: this endpoint migrates one-for-one.</td></tr>`}</tbody></table></div>
-    <div class="oc-add"><select id="ocCat">${cat.map(g => `<option value="${esc(g.id)}">${esc(subgraphOf(g.EntityID))} · ${esc(restRefsOf(g)[0])} → ${esc(g.kind)} ${esc(g.Name)}</option>`).join("")}</select><button data-act="oc-add-reg"${cat.length ? "" : " disabled"}>＋ Add registry API</button>
-      <span class="hint">or</span><input id="ocRef" placeholder="POST /fraud/check" style="width:170px" /><input id="ocSvc" placeholder="service (e.g. fraud)" style="width:150px" /><button data-act="oc-add-free">＋ Add API</button></div>`;
-}
-function cwOrchAdviceHTML(A, graphId) {
-  if (!A) return "";
-  const cards = Object.entries(CW_PATTERNS).map(([k, p]) => `<div class="wz-card${k === A.pattern ? " sel rec" : " off"}"><h4>${ONB_ICON[p.icon]} ${esc(p.t)}${k === A.pattern ? ' <span class="oc-rec">Suggested</span>' : ""}</h4><p>${esc(p.d)}</p></div>`).join("");
-  let h = `<div class="kv" style="margin-top:14px">GQL orchestrator suggestion for <span class="mono">${esc(restRefOf(A.r))}</span></div><div class="wz-cards oc-cards">${cards}</div>
-    <div class="pattern ${A.pattern === "route" ? "stitch" : "orch"}"><b>${esc(CW_PATTERNS[A.pattern].t)}</b><ul class="oc-why">${A.why.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
-  if (A.todo.length) h += `<div class="pattern warn"><b>To do</b><ul class="oc-why">${A.todo.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
-  if (A.pattern === "route") h += cwCode("Draft federated query · replaces the orchestrator route", cwRouteDoc(A), "", highlightSDL);
-  else h += `<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>#</th><th>Step in the ${A.pattern === "saga" ? "saga" : "orchestrating mutation"}</th><th>Service · type</th><th>Kind</th><th>${A.pattern === "saga" ? "Compensation (on a later failure)" : "Notes"}</th></tr></thead><tbody>${A.calls.map((c, i) => { const t = cwCallTarget(c), last = c === A.writes[A.writes.length - 1], comp = c.kind === "write" && !last ? cwCompensation(c) : null;
-      return `<tr><td>${i + 1}</td><td class="mono">${esc(t.g ? t.g.Name : c.ref)}</td><td>${esc(t.sg)} · ${esc(t.type)}</td><td><span class="oc-kind ${c.kind}">${c.kind}</span></td><td>${c.kind === "read" ? '<span class="hint">no compensation (read)</span>' : last ? '<span class="hint">pivot: last write, nothing after it can fail</span>' : A.pattern === "saga" ? `<span class="mono">${esc(comp.name)}</span>${comp.found ? ` <span class="hint">· ${esc(comp.sg || "")}</span>` : ` <span class="oc-miss">add to ${esc(comp.sg)}</span>`}` : ""}</td></tr>`; }).join("")}</tbody></table></div>`;
-  return h + mermaidBlock(graphId, "Current → target orchestration", "· today's REST fan-out beside the suggested FedGQL shape", cwOrchMermaid(A));
-}
-function cwOrchEdit(fn) { const o = cwOrch(); if (!o) return; fn(o.calls); cwStale(); cw().targetOk = false; cwSave(); cwRender(); }
-
 /* ------------------------------ render --------------------------------- */
 const cwH = (n, title, desc) => `<h2>Step ${n} of ${CW_STEPS.length} · ${esc(title)}</h2><p class="desc">${desc}</p>`;
 const cwCode = (title, code, hint, hl) => `<div><div class="code-head"><h3>${title}${hint ? ` <span class="hint">${hint}</span>` : ""}</h3><button class="copy-btn" onclick='copyText(${attrJson(code)})'>Copy</button></div><pre class="code">${hl ? hl(code) : esc(code)}</pre></div>`;
@@ -260,7 +135,6 @@ function cwRender() {
 function cwAfterRender() {
   const w = cw();
   if (w.step === 4) { const src = cwSeqSource(); if (src) renderBffGraph(src, "cwSeq"); }
-  if ((w.step === 3 || w.step === 4) && w.source === "rest") { const A = cwOrchAdvice(); if (A) renderBffGraph(cwOrchMermaid(A), w.step === 3 ? "cwOrchGraph" : "cwOrchGraph2"); }
 }
 
 function cwStepRegistry() {
@@ -326,7 +200,6 @@ function cwStepEndpoint() {
     const g = cwGql(), opts = M.gqlOps.map(o => `<option value="${esc(o.id)}"${g && g.id === o.id ? " selected" : ""}>${refMatches(o, cur) ? "★ " : ""}${esc(o.kind)} ${esc(o.Name)} · ${esc(subgraphOf(o.EntityID))}</option>`).join("");
     h += `<div class="selrow" style="margin-top:10px"><label>FedGQL operation for <span class="mono">${esc(restRefOf(cur))}</span><select id="cwGqlSel">${opts}</select></label>
       <span class="hint">${g ? (refMatches(g, cur) ? "★ matched by its REST: link" : "manual mapping: this operation's REST: link points elsewhere") : ""}</span></div>`;
-    h += cwOrchCaptureHTML();
   }
   return h;
 }
@@ -342,7 +215,6 @@ function cwStepTarget() {
     const o = subgraphModel(g.EntityID).ops.find(x => x.id === g.id), orch = o && orchestrationOf(o.id);
     const mono = w.source === "monograph", what = { Domain: "resolves it from its own database", Orchestrator: "runs the workflow and calls the other services over REST / gRPC", Integration: "calls the external system's API and maps the payload" }[st.type] || "";
     h += `<div class="pattern ${st.type === "Orchestrator" ? "orch" : "stitch"}"><b>Pattern: ${st.type === "Orchestrator" && orch ? "orchestration" : "one-for-one"}</b>: <span class="mono">${esc(restRefOf(cwRestOp()))}</span> → <span class="mono">${esc(g.kind)} ${esc(g.Name)}</span> on the <b>${esc(sg)}</b> ${esc(st.type)} service, which ${mono ? `takes the resolver out of the MonoGraph and ${what}, exposes it on its own GraphQL API (and a REST route), and joins the supergraph by <span class="mono">@key</span>` : "keeps the REST route and adds the GraphQL resolver over one shared service method"}.${orch ? ` It orchestrates ${orch.steps.length} downstream call(s) recorded in BffMappings (${esc(orch.ref)}).` : ""}</div>`;
-    h += cwOrchAdviceHTML(cwOrchAdvice(), "cwOrchGraph");
     return h;
   }
   const m = curBff(); if (!m) return h;
@@ -395,8 +267,6 @@ function cwStepReview() {
     const changed = m.ops.map(o => { const reg = M.gqlOps.find(x => String(x.id) === String(o.opId)); if (!reg) return null; const rs = M.restOps.find(x => refMatches(reg, x)) || cwRestOp(); const cx = buildOpCtx(reg, rs, sgReg); return `<tr><td><span class="badge ${o.kind}">${esc(o.kind)}</span> <span class="mono">${esc(o.name)}</span></td><td class="mono">${esc(cx.restReqLine)}</td><td>${cx.changes.length ? cx.changes.map(c => `${esc(c.label)}: <span class="mono">${esc(c.from)} → ${esc(c.to)}</span>`).join("<br>") : '<span class="hint">no changes</span>'}</td></tr>`; }).filter(Boolean).join("");
     h += `<div class="kv">Per-operation changes</div><div class="table-wrap"><table><thead><tr><th>FedGQL op</th><th>Legacy REST</th><th>Name / type changes</th></tr></thead><tbody>${changed}</tbody></table></div>`;
   }
-  const A = w.source === "rest" ? cwOrchAdvice() : null;
-  if (A) h += `<div class="pattern ${A.pattern === "route" ? "stitch" : "orch"}" style="margin-top:12px"><b>Orchestration: ${esc(CW_PATTERNS[A.pattern].t)}</b> · ${A.calls.length} downstream API${A.calls.length === 1 ? "" : "s"} (${A.reads.length} read, ${A.writes.length} write) across ${esc(A.sgs.join(", "))}.</div>` + mermaidBlock("cwOrchGraph2", "Current → target orchestration", "", cwOrchMermaid(A));
   h += `<div class="code-head" style="margin-top:12px"><h3>Sequence trace</h3></div><div id="cwSeq" style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;overflow:auto"></div>`;
   return h;
 }
@@ -555,11 +425,9 @@ function cwSummaryRow() {
   const ops = w.source === "bff" ? (m ? m.ops.map(o => `${o.kind} ${o.name}`).join(", ") : "") : g ? `${g.kind} ${g.Name}` : "";
   const tgtEnt = w.source === "bff" ? (orch ? orch.entityId : (bffOwnerOp(m) || (m && m.ops[0]) || {}).entityId) : g && g.EntityID;
   const plan = orch && orchestrationOf(orch.opId, w.bffRef), steps = plan ? plan.steps : [];
-  const A = w.source === "rest" ? cwOrchAdvice() : null;
   return { Endpoint: r ? restRefOf(r) : "", Source: { bff: "BFF", rest: "Legacy REST", monograph: "MonoGraph" }[w.source] || "", Spec: w.specName, FedGqlOps: ops,
-    Pattern: w.source === "bff" ? (orch ? "Orchestration" : "Query stitching") : A ? CW_PATTERNS[A.pattern].t : "One-for-one", TargetSubgraph: tgtEnt ? subgraphOf(tgtEnt) : "", ServiceType: tgtEnt ? cwSvcOf(tgtEnt).type : "",
-    Calls: steps.map(s => `${s.model.name} via ${s.via}`).join("; "),
-    OrchestratedApis: A ? A.calls.map(c => `${c.kind} ${c.ref} (${cwCallTarget(c).sg})`).join("; ") : "", GqlOrchestratorPattern: A ? CW_PATTERNS[A.pattern].t : "", ClientLang: w.clientLang, ServerLang: w.serverLang, Status: "Migrated (code generated)", Updated: new Date().toISOString() };
+    Pattern: w.source === "bff" ? (orch ? "Orchestration" : "Query stitching") : "One-for-one", TargetSubgraph: tgtEnt ? subgraphOf(tgtEnt) : "", ServiceType: tgtEnt ? cwSvcOf(tgtEnt).type : "",
+    Calls: steps.map(s => `${s.model.name} via ${s.via}`).join("; "), ClientLang: w.clientLang, ServerLang: w.serverLang, Status: "Migrated (code generated)", Updated: new Date().toISOString() };
 }
 function cwExport() {
   if (!M.wb) { toast("Load the registry first"); return; }
@@ -573,9 +441,8 @@ function cwExport() {
   cw().savedAt = new Date().toISOString(); cwSave(); cwRender(); toast(`Exported ${fname} (BffMappings + CodeMigration)`);
 }
 function cwPack() {
-  const w = cw(), row = cwSummaryRow(), A = w.source === "rest" ? cwOrchAdvice() : null;
-  const orchMd = A ? [`## Orchestration — ${CW_PATTERNS[A.pattern].t}`, "", ...A.why.map(x => `- ${x}`), ...A.todo.map(x => `- [ ] ${x}`), "", "```mermaid", cwOrchMermaid(A), "```", ""] : [];
-  const md = [`# Code migration — ${row.Endpoint}`, "", "| Field | Value |", "|---|---|", ...Object.entries(row).map(([k, v]) => `| ${k} | ${String(v).replace(/\|/g, "\\|")} |`), "", ...orchMd,
+  const w = cw(), row = cwSummaryRow();
+  const md = [`# Code migration — ${row.Endpoint}`, "", "| Field | Value |", "|---|---|", ...Object.entries(row).map(([k, v]) => `| ${k} | ${String(v).replace(/\|/g, "\\|")} |`), "",
     `## Client code (${w.clientLang})`, "", "```" + cwExt(w.clientLang), cwClientText(w.clientLang).trim(), "```", "",
     `## Server code (${w.serverLang})`, "", "```" + cwExt(w.serverLang), cwServerText(w.serverLang).trim(), "```", ""].join("\n");
   cwDownload(md, `code-migration-${cwSlug()}.md`);
@@ -588,14 +455,12 @@ function cwOvBuild(host) {
       ${onbItem("upload", "GQLRegistry.xlsx", "reg")}
       <div class="ov-div">migrate from</div>
       ${onbItem("layers", "Monolithic BFF", "src-bff")}${onbItem("spec", "Legacy service / orchestrator REST", "src-rest")}${onbItem("graph", "MonoGraph resolvers", "src-monograph")}
-      ${onbItem("swap", "Orchestrated APIs", "src-orch")}
       <div class="ov-div">called by</div>
       ${onbItem("devices", "Web &amp; mobile clients", "clients")}</div>
     ${onbConn([["e1", "M0 50H40", 50]])}
     <div class="ov-node ov-hub" data-node="hub" data-go="4" title="Steps 3–5: endpoint, target and review"><h3>${ONB_ICON.swap} Code migration guide</h3><div class="ov-sub">map · choose the target service · review</div>
       <div class="ov-core">${ONB_ICON.graph}<b data-slot="core">REST → FedGQL</b></div>
       ${onbStepsHTML(CW_STEPS, CW_STEP_ICON)}
-      ${onbItem("router", "Query routing", "pat-route")}${onbItem("saga", "Orchestrator subgraph", "pat-orch")}${onbItem("saga", "Saga", "pat-saga")}
       <div class="ov-blue">Migration blueprint<span class="mono" data-slot="blue"></span></div></div>
     ${onbConn([["e2a", "M0 50H20V25H40", 25], ["e2b", "M0 50H20V75H40", 75]])}
     <div class="ov-col">
@@ -637,10 +502,7 @@ function cwOverview() {
   const plan = orch && orchestrationOf(orch.opId, w.bffRef), nR = plan ? plan.steps.filter(s => s.via === "rest").length : 0, nG = plan ? plan.steps.filter(s => s.via === "grpc").length : 0;
   it("tgt-router", d[4] ? (w.source === "bff" && !orch ? "stitches by @key" : "routes the operation") : "", d[7]);
   it("tgt-sg", sgs.join(", "), d[7]);
-  const A = w.source === "rest" ? cwOrchAdvice() : null;
-  it("src-orch", A ? `${A.calls.length} APIs · ${A.sgs.join(", ")}` : w.source === "rest" && r ? "none (one-for-one)" : "", !!A && d[2], w.source === "rest" && r ? !!A : undefined);
-  for (const k of Object.keys(CW_PATTERNS)) it("pat-" + k, A && A.pattern === k ? `suggested · ${A.reads.length}R ${A.writes.length}W` : "", A && A.pattern === k && d[3], A ? A.pattern === k : undefined);
-  it("tgt-calls", plan ? `${nR} REST · ${nG} gRPC` : A ? (A.pattern === "route" ? `router plans ${A.sgs.length} subgraphs` : `${A.calls.length} calls from ${A.home || "orchestrator"}`) : w.source === "bff" ? "none (router stitches)" : "", d[7]);
+  it("tgt-calls", plan ? `${nR} REST · ${nG} gRPC` : w.source === "bff" ? "none (router stitches)" : "", d[7]);
   it("tgt-saved", w.savedAt ? "exported " + new Date(w.savedAt).toLocaleTimeString() : "", d[7]);
   it("tgt-ok", d[7] ? "when all clients use FedGQL" : "", false);
 }
@@ -698,10 +560,6 @@ function cwInit() {
     else if (a === "dl-client") cwDownload(cwClientText(w.clientLang), `client-${cwSlug()}.${cwExt(w.clientLang)}`);
     else if (a === "dl-server") cwDownload(cwServerText(w.serverLang), `server-${cwSlug()}.${cwExt(w.serverLang)}`);
     else if (a === "export") cwExport();
-    else if (a === "oc-rm") cwOrchEdit(c => c.splice(+v, 1));
-    else if (a === "oc-up") cwOrchEdit(c => c.splice(+v - 1, 0, c.splice(+v, 1)[0]));
-    else if (a === "oc-add-reg") { const g = cwOpById(document.getElementById("ocCat").value); if (g) cwOrchEdit(c => c.push({ ref: restRefsOf(g)[0], service: subgraphOf(g.EntityID), kind: g.kind === "query" ? "read" : "write", gqlId: g.id })); }
-    else if (a === "oc-add-free") { const ref = document.getElementById("ocRef").value.trim(), svc = document.getElementById("ocSvc").value.trim(); if (!ref) return toast("Enter the API, e.g. POST /fraud/check"); cwOrchEdit(c => c.push(Object.assign(cwOrchCallFrom({ call: ref, service: svc }), svc ? { service: svc } : {}))); }
     else if (a === "dl-pack") cwPack();
   });
   body.addEventListener("change", e => {
@@ -711,8 +569,6 @@ function cwInit() {
     else if (el.id === "cwBffName") { setBffName(el.value.trim()); cwStale(); cwSave(); cwRender(); }
     else if (el.id === "cwOrch") { setBffOrchestrator(el.value); cwStale(); cwSave(); cwRender(); }
     else if (el.id === "cwOwner") { setBffOwner(el.value); cwStale(); cwSave(); cwRender(); }
-    else if (el.matches('[data-act="oc-kind"]')) cwOrchEdit(c => { c[+el.dataset.v].kind = el.value; });
-    else if (el.matches('[data-act="oc-gql"]')) cwOrchEdit(c => { const x = c[+el.dataset.v], g = cwOpById(el.value); x.gqlId = el.value; if (g) { x.service = subgraphOf(g.EntityID); x.kind = g.kind === "query" ? "read" : "write"; } });
     else if (el.matches('[data-act="via"]')) { setBffField(+el.dataset.v, "via", el.value); cwStale(); cwSave(); cwRender(); }
   });
   cwRender();

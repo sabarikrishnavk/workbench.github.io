@@ -1,0 +1,138 @@
+# Fixed copy of openapi.yaml: the same REST API (paths, methods, payloads), annotated so the GQL migration
+# guide converts it into a subgraph that passes the FedGQL schema standards (standards.json):
+#   • ALL_ELEMENTS_REQUIRE_DESCRIPTION — every schema, property and parameter has a description
+#   • NULL-ARRAY-NONNULL — cart items are `nullable: false`, so items converts to [CartItem!]!
+#   • SCALAR-MONEY-NOT-DECIMAL — totalAmount / unitPrice use `x-graphql-type: Money`
+#   • OP-SINGLE-INPUT — `x-graphql-input` folds the {cartId}/{sku} path params (and the body) into one input
+#   • NAME-MUTATION-VERB — operationId clearCart → removeAllCartItems (operationIds are not on the wire)
+# Converts to the ENT-006 rows of samples/GQLRegistry-sample-fixed.xlsx.
+openapi: 3.0.3
+info:
+  title: Cart API
+  version: 1.2.0
+  description: Shopping carts and their lines.
+servers:
+  - url: https://cart.retail.example.com/v1
+security:
+  - oauth2: []
+paths:
+  /carts:
+    post:
+      operationId: createCart
+      summary: Start a cart for a (possibly anonymous) user.
+      requestBody:
+        required: true
+        description: "Optional shopper id"
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCartInput" }
+      responses:
+        "201":
+          description: Created cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart", x-graphql-type: "Cart!" }
+  /carts/{id}:
+    get:
+      operationId: cart
+      security: [{ oauth2: ["cart:read"] }]
+      x-nfr: { latencyP95Ms: 120, qps: 900, timeoutMs: 1000, cacheTtlS: 0, availability: "99.9%" }
+      summary: Fetch a cart with its lines.
+      parameters:
+        - { name: id, in: path, required: true, description: "Cart id from the session cookie", schema: { type: string, x-graphql-type: ID } }
+      responses:
+        "200":
+          description: Cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart" }
+  /carts/{cartId}/items:
+    post:
+      operationId: addItemToCart
+      security: [{ oauth2: ["cart:write"] }]
+      x-nfr: { latencyP95Ms: 250, qps: 300, timeoutMs: 2000, availability: "99.95%" }
+      x-rate-limit: { perClient: 20/s }
+      summary: Add a SKU to the cart.
+      x-graphql-input: { name: AddItemToCartInput, description: "Cart, SKU and quantity" }
+      parameters:
+        - { name: cartId, in: path, required: true, description: "Cart to add to", schema: { type: string, x-graphql-type: ID } }
+      requestBody:
+        required: true
+        description: "SKU and quantity to add"
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddItemToCartInput" }
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart", x-graphql-type: "Cart!" }
+    delete:
+      operationId: removeAllCartItems
+      summary: Empty the cart.
+      x-graphql-input: { name: RemoveAllCartItemsInput, description: "Cart to empty", typeDescription: "Identifies the cart to empty." }
+      parameters:
+        - { name: cartId, in: path, required: true, description: "Cart to empty", schema: { type: string, x-graphql-type: ID } }
+      responses:
+        "200":
+          description: Emptied cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart", x-graphql-type: "Cart!" }
+  /carts/{cartId}/items/{sku}:
+    delete:
+      operationId: removeItemFromCart
+      summary: Remove a SKU from the cart.
+      x-graphql-input: { name: RemoveItemFromCartInput, description: "Cart and SKU to remove", typeDescription: "The cart line to remove." }
+      parameters:
+        - { name: cartId, in: path, required: true, description: "Cart to remove the line from", schema: { type: string, x-graphql-type: ID } }
+        - { name: sku, in: path, required: true, description: "SKU of the line to remove", schema: { type: string } }
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cart", x-graphql-type: "Cart!" }
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.retail.example.com/oauth/token
+          scopes: { "cart:read": read carts, "cart:write": change carts, "checkout:write": place orders, "orders:read": read orders }
+  schemas:
+    Cart:
+      type: object
+      description: "A shopper's cart: its lines and running total."
+      required: [id, items, totalAmount]
+      properties:
+        id: { type: string, x-graphql-type: ID, description: "Cart id; the cart's unique key" }
+        userId: { type: string, description: "Shopper who owns the cart; empty for an anonymous cart" }
+        items:
+          type: array
+          description: "Lines in the cart; an empty list for an empty cart"
+          items: { $ref: "#/components/schemas/CartItem", nullable: false }
+        totalAmount: { type: number, x-graphql-type: Money, description: "Sum of all lines (quantity × unitPrice)" }
+    CartItem:
+      type: object
+      description: "One line of a cart: a SKU and its quantity."
+      required: [id, quantity, sku, unitPrice]
+      properties:
+        id: { type: string, x-graphql-type: ID, description: "Line id within the cart" }
+        quantity: { type: integer, description: "Number of units" }
+        sku: { type: string, description: "SKU of the product on this line" }
+        unitPrice: { type: number, x-graphql-type: Money, description: "Price of one unit when it was added" }
+    CreateCartInput:
+      type: object
+      description: "Input for createCart."
+      properties:
+        userId: { type: string, description: "Shopper id; leave empty for an anonymous cart" }
+    AddItemToCartInput:
+      type: object
+      description: "A SKU and quantity to add to a cart."
+      required: [sku, quantity]
+      properties:
+        sku: { type: string, description: "SKU to add" }
+        quantity: { type: integer, description: "Number of units to add" }

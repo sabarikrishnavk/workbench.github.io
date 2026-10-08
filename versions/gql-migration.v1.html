@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Archived v1 of gql-migration.html · 2026-10-08 · d92a77c. Frozen: don't edit. -->
+<base href="../">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>FedGQL Migration Workbench</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
-<script src="common.js"></script>
-<link rel="stylesheet" href="styles.css" />
-<link rel="stylesheet" href="onboarding.css" />
+<script src="versions/assets/gql-migration.v1/common.js"></script>
+<link rel="stylesheet" href="versions/assets/gql-migration.v1/styles.css" />
+<link rel="stylesheet" href="versions/assets/gql-migration.v1/onboarding.css" />
 <style>
   :root{
     --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
@@ -144,36 +146,6 @@
   .editgrid .cell{ width: 100%; box-sizing: border-box; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; }
   .editgrid textarea.cell{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; resize: vertical; min-height: 36px; }
   .editgrid .lk-wrap{ display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-  /* NFR comparison: REST endpoint (current) ↔ GQL operation (requirement), side by side */
-  .nfr-wrap{ border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0 0 14px; background: #fcfcfd; }
-  .nfr-wrap > summary{ cursor: pointer; font-size: 14px; }
-  .nfr-legend{ display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; font-size: 12px; }
-  .nfr-legend .spacer{ flex: 1; }
-  .nfr-kind{ font-size: 10.5px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; }
-  .nfr-kind.query{ background: #e3f6f8; color: var(--query); } .nfr-kind.mutation{ background: #fdf4e7; color: var(--mutation); }
-  .nfr-op{ border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; background: #fff; }
-  .nfr-op > summary{ cursor: pointer; padding: 7px 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
-  .nfr-op > summary .arrow{ color: var(--muted); }
-  .nfr-op .kpis{ margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
-  .nfr-kpi{ font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; color: var(--muted); white-space: nowrap; }
-  .nfr-kpi b.r{ color: #92400e; } .nfr-kpi b.g{ color: var(--accent); }
-  .nfr-kpi.gap{ color: var(--bad); border-color: #f0c9c9; background: #fdf3f3; }
-  .nfr-grid{ width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  .nfr-grid th, .nfr-grid td{ padding: 5px 8px; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
-  .nfr-grid th{ position: static; }
-  .nfr-grid th.rest{ background: #fef3c7; color: #92400e; width: 30%; }
-  .nfr-grid th.gql{ background: var(--accent-soft); color: var(--accent); width: 30%; }
-  .nfr-grid td.rest{ background: #fffdf5; }
-  .nfr-grid td.gql{ background: #fbfaff; }
-  .nfr-grid td.gql input{ width: 100%; box-sizing: border-box; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #fff; }
-  .nfr-grid td.gql input:focus{ border-color: var(--accent); outline: none; }
-  .nfr-grid td.gql input.empty{ border-color: #f0c9c9; background: #fdf3f3; }
-  .nfr-grid .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .nfr-src{ display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 0 5px; border-radius: 4px; margin-left: 4px; vertical-align: 1px; }
-  .nfr-src.spec{ background: #dcfce7; color: #166534; } .nfr-src.x-nfr{ background: #dbeafe; color: #1e40af; }
-  .nfr-src.estimated, .nfr-src.http{ background: #f1f5f9; color: #475569; }
-  .nfr-cmp{ color: var(--muted); font-size: 12px; }
-  .nfr-cmp.up{ color: #b45309; } .nfr-cmp.down{ color: var(--ok); } .nfr-cmp.miss{ color: var(--bad); font-weight: 600; } .nfr-cmp.new{ color: var(--accent); }
   @media (max-width: 1000px){ .wz-steps{ grid-template-columns: repeat(4, 1fr); } }
 </style>
 </head>
@@ -230,8 +202,8 @@ let selmonograph = null, selRest = null;
 const CANON_HEADERS = {
   Entities:  ["EntityID","Name","ExperienceDomain","BusinessApplication","ServiceType","BusinessCapability","Description","Contacts","ApprovalStatus","Comments","Links"],
   Schema:    ["SchemaID","EntityID","Kind","TypeName","Definition","Description","Contacts","ApprovalStatus","Comments","Links"],
-  Queries:   ["QueryID","EntityID","Name","Parameters","ReturnType","AuthScopes","Description","Contacts","ApprovalStatus","Comments","Links","NFR"],
-  Mutations: ["MutationID","EntityID","Name","Parameters","ReturnType","AuthScopes","Description","Contacts","ApprovalStatus","Comments","Links","NFR"],
+  Queries:   ["QueryID","EntityID","Name","Parameters","ReturnType","AuthScopes","Description","Contacts","ApprovalStatus","Comments","Links"],
+  Mutations: ["MutationID","EntityID","Name","Parameters","ReturnType","AuthScopes","Description","Contacts","ApprovalStatus","Comments","Links"],
   AuthScopes:["ScopeID","EntityID","Scope","Persona","Permission","Description","Contacts","ApprovalStatus","Comments","Links"],
 };
 
@@ -341,18 +313,6 @@ function jsonToFields(obj){
   return Object.entries(obj).map(([k,v])=>({name:k, type:jsonGqlType(v,k)}));
 }
 // One OpenAPI spec → one subgraph {id,name,spec,ops,types}
-/* Optional hints a spec can carry for a clean conversion (see the samples' openapi-fixed.yaml files):
-     description              on schemas, properties, parameters, requestBody → SDL descriptions
-     x-enum-descriptions      [..] aligned with enum (or {VALUE: text}) → enum value descriptions
-     items.nullable: false    → non-null list elements, e.g. [CartItem!]
-     x-graphql-type           on a schema / property / response → that GraphQL type (Money, Cart!, [Product!]!)
-     x-graphql-input          on an operation: Name | { name, description, typeDescription } → path / query
-                              params and the body are folded into one `input: Name!` argument. */
-function enumDescs(sch){
-  const x=sch && sch["x-enum-descriptions"]; if(!x) return {};
-  if(Array.isArray(x)) return Object.fromEntries((sch.enum||[]).map((v,i)=>[String(v), String(x[i]||"")]));
-  return Object.fromEntries(Object.entries(x).map(([k,v])=>[k,String(v||"")]));
-}
 function parseOpenAPI(text, sgName){
   let spec; text=String(text||"").trim();
   try{ spec = text.startsWith("{") ? JSON.parse(text) : jsyaml.load(text); }
@@ -371,34 +331,33 @@ function parseOpenAPI(text, sgName){
   // Resolve a schema to a GraphQL type string, registering inline objects/enums as named types.
   function resolveType(sch, fallback){
     if(!sch) return "String";
-    if(sch["x-graphql-type"]) return String(sch["x-graphql-type"]).trim();
     if(sch.$ref){ return refName(sch.$ref); }
-    if(Array.isArray(sch.enum)){ const nm=cap(fallback||"Enum"); addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String), desc:sch.description||"", valueDescs:enumDescs(sch)}); return nm; }
-    if(sch.type==="array"){ return "["+resolveType(sch.items, fallback)+(sch.items && sch.items.nullable===false?"!":"")+"]"; }
+    if(Array.isArray(sch.enum)){ const nm=cap(fallback||"Enum"); addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String)}); return nm; }
+    if(sch.type==="array"){ return "["+resolveType(sch.items, fallback)+"]"; }
     if(sch.type==="object" || sch.properties){
       const nm=cap(fallback||"Object");
       const fields=objFields(sch, nm);
       const k=entityKey(nm, fields);
-      addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[], desc:sch.description||""});
+      addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[]});
       return nm;
     }
     return gqlScalar(sch.type);
   }
   function objFields(sch, ownerName){
     const props=sch.properties||{}; const req=new Set(sch.required||[]);
-    return Object.entries(props).map(([k,v])=>{ let t=resolveType(v, ownerName+cap(k)); if(req.has(k) && !/!$/.test(t)) t+="!"; return {name:k, type:t, desc:(v&&v.description)||""}; });
+    return Object.entries(props).map(([k,v])=>{ let t=resolveType(v, ownerName+cap(k)); if(req.has(k)) t+="!"; return {name:k, type:t}; });
   }
   // 1) named component schemas → named GraphQL types
   for(const [name, sch] of Object.entries(comps)){
     const nm=cap(slug(name).replace(/ /g,"")) || name;
-    if(sch && Array.isArray(sch.enum)){ addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String), desc:sch.description||"", valueDescs:enumDescs(sch)}); continue; }
-    const s=derefSchema(sch, comps), desc=(sch&&sch.description)||s.description||"";
+    if(sch && Array.isArray(sch.enum)){ addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String)}); continue; }
+    const s=derefSchema(sch, comps);
     if(s.type==="object" || s.properties){
       const fields=objFields(s, nm);
-      if(inputNames.has(nm)) addType({name:nm, kind:"input", isEntity:false, key:"", fields, values:[], desc});
-      else { const k=entityKey(nm, fields); addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[], desc}); }
+      if(inputNames.has(nm)) addType({name:nm, kind:"input", isEntity:false, key:"", fields, values:[]});
+      else { const k=entityKey(nm, fields); addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[]}); }
     } else if(Array.isArray(s.enum)){
-      addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:s.enum.map(String), desc, valueDescs:enumDescs(s)});
+      addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:s.enum.map(String)});
     } else {
       // scalar / array alias — wrap so it survives as a type row
       addType({name:nm, kind:"type", isEntity:false, key:"", fields:[{name:"value", type:(resolveType(s, nm+"Value")||"String")}], values:[]});
@@ -420,146 +379,26 @@ function parseOpenAPI(text, sgName){
         if(!pr || pr.$ref) continue;
         if(["path","query"].includes(pr.in) || pr.in==null){
           const t=(pr.schema?resolveType(pr.schema, opName+cap(pr.name||"Arg")):gqlScalar(pr.type))||"String";
-          args.push({name:pr.name, type:t+(pr.required && !/!$/.test(t)?"!":""), desc:pr.description||""});
+          args.push({name:pr.name, type:t+(pr.required?"!":"")});
         }
       }
       const rb = op.requestBody && op.requestBody.content && op.requestBody.content["application/json"] && op.requestBody.content["application/json"].schema;
-      let bodyT=null;
-      if(rb){ const t=resolveType(rb, opName+"Input"); const it=byName[baseType(t)]; if(it && it.kind==="type"){ it.kind="input"; it.isEntity=false; it.key=""; } bodyT=it||null; args.push({name:"input", type:t+(op.requestBody.required?"!":""), desc:op.requestBody.description||""}); }
-      // x-graphql-input: fold the path / query params (and the body) into one input argument
-      const fold=op["x-graphql-input"];
-      if(fold){
-        const fo=typeof fold==="object" ? fold : { name:fold }, nm=String(fo.name||cap(opName)+"Input");
-        const params=args.filter(a=>!(bodyT && a.name==="input")).map(a=>({name:a.name, type:a.type, desc:a.desc||""}));
-        let it=byName[nm];
-        if(it && it===bodyT){ it.fields=[...params.filter(p=>!it.fields.some(f=>f.name===p.name)), ...it.fields]; }
-        else { const extra=bodyT ? bodyT.fields.filter(f=>!params.some(p=>p.name===f.name)) : [];
-          it=addType({name:nm, kind:"input", isEntity:false, key:"", fields:[...params, ...extra], values:[], desc:fo.typeDescription||(bodyT&&bodyT.desc)||`Input for ${opName}.`}); }
-        if(fo.typeDescription) it.desc=fo.typeDescription;
-        args.length=0; args.push({name:"input", type:nm+"!", desc:fo.description||(op.requestBody&&op.requestBody.description)||it.desc||""});
-      }
+      if(rb){ const t=resolveType(rb, opName+"Input"); const it=byName[baseType(t)]; if(it && it.kind==="type"){ it.kind="input"; it.isEntity=false; it.key=""; } args.push({name:"input", type:t+(op.requestBody.required?"!":"")}); }
       const bt=baseType(returns);
       const entity = byName[bt] ? bt : "";
       ops.push({ id:uid(), name:opName, method:String(method).toUpperCase(), path:p,
         opKind: String(method).toLowerCase()==="get"?"query":"mutation",
-        args, returns, entity, notes: op.summary||op.description||"",
-        restNfr: restNfr(Object.assign({}, op, { parameters:[...shared, ...(op.parameters||[])] }), method, p, spec, comps) });
+        args, returns, entity, notes: op.summary||op.description||"" });
     }
   }
   return { id:uid(), name:sgName, spec:"", ops, types };
 }
 
-/* --------------- Non-functional requirements (NFR) ---------------------
-   A "key: value" databag kept on Queries / Mutations rows only (registry column NFR). The REST baseline
-   is derived from the OpenAPI spec — security schemes + scopes, request / response sizes estimated from
-   the schemas, HTTP idempotency — plus an optional per-operation `x-nfr` extension (latencyP95Ms, qps,
-   timeoutMs, cacheTtlS, availability, rateLimit…). The GQL requirement is seeded from that baseline and
-   edited side by side in the guide's review step. */
-const NFR_KEYS=[
-  {k:"security", h:"Security / authN"},
-  {k:"scopes", h:"Auth scopes"},
-  {k:"dataClass", h:"Data classification"},
-  {k:"latencyP95Ms", h:"Latency p95 (ms)", num:1},
-  {k:"qps", h:"Peak QPS", num:1},
-  {k:"rateLimit", h:"Rate limit"},
-  {k:"requestBytes", h:"Request size (bytes)", num:1},
-  {k:"responseBytes", h:"Response size (bytes)", num:1},
-  {k:"timeoutMs", h:"Timeout (ms)", num:1},
-  {k:"cacheTtlS", h:"Cache TTL (s)", only:"query"},
-  {k:"idempotency", h:"Idempotency", only:"mutation"},
-  {k:"availability", h:"Availability"},
-  {k:"maxDepth", h:"Max query depth", gql:1},
-  {k:"maxComplexity", h:"Max query complexity", gql:1},
-];
-const nfrKeysFor=kind=>NFR_KEYS.filter(d=>!d.only || d.only===kind);
-function parseNfr(text){ const o={}; for(const l of String(text||"").split(/\r?\n/)){ const i=l.indexOf(":"); if(i>0){ const k=l.slice(0,i).trim(); if(k) o[k]=l.slice(i+1).trim(); } } return o; }
-function formatNfr(o){
-  const known=NFR_KEYS.map(d=>d.k), has=k=>o[k]!=null && String(o[k]).trim()!=="";
-  return [...known.filter(has), ...Object.keys(o).filter(k=>!known.includes(k) && has(k))].map(k=>`${k}: ${String(o[k]).trim()}`).join("\n");
-}
-// Rough JSON size of a schema instance (bytes): lists assume maxItems or 10 entries, strings maxLength or ~24 chars.
-function estSchemaBytes(sch, comps, depth, seen){
-  depth=depth||0; seen=seen||new Set();
-  if(!sch || depth>8) return 0;
-  if(sch.$ref){ const n=String(sch.$ref).split("/").pop(); if(seen.has(n)) return 40; const nx=new Set(seen); nx.add(n); return comps[n] ? estSchemaBytes(comps[n], comps, depth+1, nx) : 24; }
-  if(Array.isArray(sch.allOf)) return sch.allOf.reduce((a,s)=>a+estSchemaBytes(s,comps,depth+1,seen),0);
-  const alt=sch.oneOf||sch.anyOf; if(Array.isArray(alt)) return Math.max(0,...alt.map(s=>estSchemaBytes(s,comps,depth+1,seen)));
-  if(sch.type==="array" || sch.items){ const n=Math.min(sch.maxItems||10, 100); return 2+n*(estSchemaBytes(sch.items,comps,depth+1,seen)+1); }
-  if(sch.type==="object" || sch.properties){ let b=2; for(const [k,v] of Object.entries(sch.properties||{})) b+=k.length+4+estSchemaBytes(v,comps,depth+1,seen); return b; }
-  if(Array.isArray(sch.enum)) return 2+Math.max(4,...sch.enum.map(v=>String(v).length));
-  if(sch.type==="integer") return 8; if(sch.type==="number") return 10; if(sch.type==="boolean") return 5;
-  if(sch.maxLength) return Math.min(sch.maxLength,512)+2;
-  return {"date-time":26, date:12, uuid:38, email:32, uri:64}[sch.format]||24;
-}
-// REST baseline for one operation → { values:{key:value}, src:{key:"spec"|"x-nfr"|"estimated"|"http"} }.
-function restNfr(op, method, path, spec, comps){
-  const values={}, src={}, put=(k,v,s)=>{ if(v==null || v==="") return; values[k]=String(v); src[k]=s; };
-  const schemes=(spec.components && spec.components.securitySchemes) || spec.securityDefinitions || {};
-  const reqs=Array.isArray(op.security) ? op.security : (Array.isArray(spec.security) ? spec.security : null);
-  if(reqs){
-    if(!reqs.length || reqs.every(r=>!Object.keys(r||{}).length)) put("security","none (public)","spec");
-    else {
-      const names=[], scopes=[];
-      for(const r of reqs) for(const [nm,sc] of Object.entries(r||{})){ const s=schemes[nm]||{};
-        names.push(s.type==="http" ? `${cap(s.scheme||"http")}${s.bearerFormat?" "+s.bearerFormat:""}` : s.type==="oauth2" ? "OAuth2" : s.type==="apiKey" ? `API key (${s.in||"header"})` : s.type==="openIdConnect" ? "OpenID Connect" : nm);
-        scopes.push(...(sc||[])); }
-      put("security",[...new Set(names)].join(" or "),"spec"); if(scopes.length) put("scopes",[...new Set(scopes)].join(" "),"spec");
-    }
-  }
-  const json=c=>c && c["application/json"] && c["application/json"].schema;
-  const rb=op.requestBody && json(op.requestBody.content);
-  const params=(op.parameters||[]).filter(p=>p && !p.$ref && ["path","query"].includes(p.in));
-  put("requestBytes", Math.round(path.length+(rb?estSchemaBytes(rb,comps):0)+params.reduce((a,p)=>a+p.name.length+2+estSchemaBytes(p.schema||{type:p.type},comps),0)), "estimated");
-  const resp=(op.responses && (op.responses["200"]||op.responses["201"]||op.responses["2XX"]||op.responses.default))||{};
-  const rsch=json(resp.content) || resp.schema;
-  if(rsch) put("responseBytes", Math.round(estSchemaBytes(rsch,comps)), "estimated");
-  const m=String(method).toUpperCase();
-  if(m!=="GET"){ const key=(op.parameters||[]).some(p=>p && /idempotency-key/i.test(p.name||""));
-    put("idempotency", key ? "Idempotency-Key header" : ["PUT","DELETE"].includes(m) ? `idempotent (HTTP ${m})` : `not idempotent (HTTP ${m})`, key?"spec":"http"); }
-  const alias={ latency:"latencyP95Ms", latencyP95:"latencyP95Ms", p95:"latencyP95Ms", tps:"qps", rps:"qps", timeout:"timeoutMs", cacheTtl:"cacheTtlS", sla:"availability", classification:"dataClass" };
-  const x=op["x-nfr"]; if(x && typeof x==="object") for(const [k,v] of Object.entries(x)) put(alias[k]||k, v, "x-nfr");
-  const rl=op["x-rate-limit"]; if(rl) put("rateLimit", typeof rl==="object" ? Object.entries(rl).map(([k,v])=>`${k}=${v}`).join(" ") : rl, "x-nfr");
-  return { values, src };
-}
-// The GQL requirement seeded from the REST baseline (house defaults where the spec says nothing).
-const NFR_DEFAULTS={ query:{ latencyP95Ms:300, qps:200, timeoutMs:2000, cacheTtlS:60, availability:"99.9%", maxDepth:7, maxComplexity:1000 },
-  mutation:{ latencyP95Ms:800, qps:50, timeoutMs:5000, availability:"99.95%", maxDepth:5, maxComplexity:500 } };
-const NFR_ROUTER_MS=50;                                     // extra hop through the FedGQL router
-const PII_RE=/email|phone|mobile|address|birth|dob|card|pan$|cvv|iban|accountnumber|ssn|passport|firstname|lastname|fullname/i;
-function nfrPii(sg, o){
-  const by=Object.fromEntries((sg.types||[]).map(t=>[t.name,t])), seen=new Set(), q=[baseType(o.returns), ...(o.args||[]).map(a=>baseType(a.type))];
-  const names=(o.args||[]).map(a=>a.name);
-  while(q.length){ const n=q.pop(); if(!n || seen.has(n) || !by[n]) continue; seen.add(n); for(const f of (by[n].fields||[])){ names.push(f.name); q.push(baseType(f.type)); } }
-  return names.filter(n=>PII_RE.test(n));
-}
-function gqlNfrSeed(o, sg){
-  const r=(o.restNfr && o.restNfr.values)||{}, kind=o.opKind==="mutation"?"mutation":"query", d=NFR_DEFAULTS[kind], g={};
-  const app=String(sg.name||"app").toLowerCase().replace(/[^a-z0-9]+/g,"-"), pub=/none/.test(r.security||"");
-  g.security = pub ? "public — confirm with security review" : `${r.security?r.security+" ":""}JWT validated at the FedGQL router · @authenticated`;
-  g.scopes = r.scopes || `${app}:${kind==="mutation"?"write":"read"}`;
-  const pii=nfrPii(sg, o); g.dataClass = r.dataClass || (pii.length ? `Confidential (PII: ${[...new Set(pii)].slice(0,4).join(", ")})` : "Internal");
-  g.latencyP95Ms = r.latencyP95Ms ? (Number(r.latencyP95Ms)||0)+NFR_ROUTER_MS : d.latencyP95Ms;
-  g.qps = r.qps || d.qps;
-  g.rateLimit = r.rateLimit || `${g.qps} req/s per client at the router`;
-  if(r.requestBytes) g.requestBytes = Number(r.requestBytes)+250;   // operation document + variables
-  if(r.responseBytes) g.responseBytes = r.responseBytes;              // upper bound: clients select fewer fields
-  g.timeoutMs = r.timeoutMs || d.timeoutMs;
-  if(kind==="query") g.cacheTtlS = r.cacheTtlS || d.cacheTtlS;
-  else g.idempotency = /not idempotent/.test(r.idempotency||"") || !r.idempotency ? "idempotency key argument required" : r.idempotency;
-  g.availability = r.availability || d.availability;
-  g.maxDepth = d.maxDepth; g.maxComplexity = d.maxComplexity;
-  return g;
-}
-
 /* --------------- subgraph → federated SDL / registry rows --------------- */
 function typeKind(t){ if(t.ext) return t.ext.mode==="extend"?"Extend":"Reference"; return t.kind==="enum"?"Enum":(t.kind==="input"?"Input":(t.isEntity?"Key":"Type")); }
-// Field / enum-value body lines, each with its """description""" line when it has one.
-const fieldBody=t=>formatDescribed((t.fields||[]).map(f=>({ desc:f.desc||"", line:`${f.name}: ${f.type}` })), "  ");
-const enumBody=t=>formatDescribed((t.values||[]).map(v=>({ desc:(t.valueDescs||{})[v]||"", line:v })), "  ");
-function typeSDL(t){ const d=t.desc?descLine(t.desc)+"\n":""; return d+typeSDLBare(t); }
-function typeSDLBare(t){
-  if(t.kind==="enum") return `enum ${t.name} {\n${enumBody(t)}\n}`;
-  const body=fieldBody(t);
+function typeSDL(t){
+  if(t.kind==="enum") return `enum ${t.name} {\n${(t.values||[]).map(v=>"  "+v).join("\n")}\n}`;
+  const body=(t.fields||[]).map(f=>`  ${f.name}: ${f.type}`).join("\n");
   if(t.kind==="input") return `input ${t.name} {\n${body}\n}`;
   // borrowed entity from another subgraph: reference stub (resolvable:false) or field-contributing extend
   if(t.ext){ const key=t.key||keyOf(t.fields);
@@ -569,8 +408,8 @@ function typeSDLBare(t){
 }
 // registry Schema.Definition body (no leading `type Name`), matching GQLRegistry.xlsx
 function typeDefBody(t){
-  if(t.kind==="enum") return `{\n${enumBody(t)}\n}`;
-  const body=fieldBody(t);
+  if(t.kind==="enum") return `{\n${(t.values||[]).map(v=>"  "+v).join("\n")}\n}`;
+  const body=(t.fields||[]).map(f=>`  ${f.name}: ${f.type}`).join("\n");
   if(t.ext){ const key=t.key||keyOf(t.fields);
     const prefix = `@key(fields: "${key}"${t.ext.mode==="reference"?", resolvable: false":""}) `;
     return `${prefix}{\n${body}\n}`; }   // Kind column (Reference/Extend) distinguishes the two on reload
@@ -706,19 +545,19 @@ function loadRegWB(wb){
 // (also tolerates a full "type Name … { }" definition). Kind is the sheet's Key/Type/Input/Enum.
 function parseSubgraphDef(kind, name, def){
   def=String(def||"").trim(); const k=String(kind||"").toLowerCase();
-  let inner=(def.match(/\{([\s\S]*)\}/)||[,""])[1];
-  if(k==="enum" && !/\{/.test(def)) inner=def;   // registry enums store bare values
+  let inner=stripDescriptions((def.match(/\{([\s\S]*)\}/)||[,""])[1]);
+  if(k==="enum" && !/\{/.test(def)) inner=stripDescriptions(def);   // registry enums store bare values
   if(k==="enum"){
-    const ents=describedLines(inner).map(e=>({ v:e.line.replace(/,$/,"").trim(), d:e.desc })).filter(e=>e.v);
-    return { name, kind:"enum", isEntity:false, key:"", fields:[], values:ents.map(e=>e.v), valueDescs:Object.fromEntries(ents.filter(e=>e.d).map(e=>[e.v,e.d])), raw:"" };
+    const values=inner.split(/\r?\n/).map(s=>s.replace(/,$/,"").trim()).filter(Boolean);
+    return { name, kind:"enum", isEntity:false, key:"", fields:[], values, raw:"" };
   }
   // borrowed entity from another subgraph: Kind Reference/Extend (or the raw def gives it away)
   const extMode = k==="reference" ? "reference" : (k==="extend" ? "extend"
                 : (/^extend\s+type/.test(def) ? "extend" : (/resolvable:\s*false/.test(def) ? "reference" : "")));
   const isEntity = k==="key" || !!extMode || /@key/.test(def);
   const keyM = def.match(/@key\(fields:\s*"([^"]*)"\)/);
-  const fields=describedLines(inner).map(e=>{
-    const m=e.line.match(/^([A-Za-z_]\w*)\s*:\s*(.+?),?$/); return m?{name:m[1], type:m[2].trim(), desc:e.desc||""}:null;
+  const fields=inner.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(line=>{
+    const m=line.match(/^([A-Za-z_]\w*)\s*:\s*(.+?),?$/); return m?{name:m[1], type:m[2].trim()}:null;
   }).filter(Boolean);
   const kind2 = k==="input" ? "input" : (k==="interface" ? "interface" : "type");
   const t={ name, kind:kind2, isEntity, key:keyM?keyM[1]:(isEntity?keyOf(fields):""), fields, values:[], raw:"" };
@@ -735,8 +574,7 @@ function loadSubgraphMigrationWB(wb, fileName){
   const types=schema.map(r=>parseSubgraphDef(r.Kind, r.TypeName, r.Definition)).filter(t=>t&&t.name);
   const opFrom=(r,opKind)=>{
     const ref=(linkValues(r.Links,"REST")[0]||"").trim(), mm=ref.match(/^(\S+)\s+(.*)$/);   // REST line in Links & References
-    const args=describedLines(r.Parameters, true).map(e=>{ const i=e.line.indexOf(":"); return i<0 ? {name:e.line, type:"", desc:e.desc} : {name:e.line.slice(0,i).trim(), type:e.line.slice(i+1).trim(), desc:e.desc}; });
-    return { id:uid(), name:r.Name, args, returns:r.ReturnType||"",
+    return { id:uid(), name:r.Name, args:parseArgs(r.Parameters), returns:r.ReturnType||"",
       opKind, method:mm?mm[1]:"", path:mm?(mm[2]||"").trim():"", entity:baseType(r.ReturnType||""), notes:"" };
   };
   const ops=queries.map(r=>opFrom(r,"query")).concat(muts.map(r=>opFrom(r,"mutation")));
@@ -1237,7 +1075,7 @@ function openRowEditor(sheet,id){
   const find=()=>(buildSubgraphRows(sg)[sheet]||[]).find(r=>String(r[OV_ID[sheet]])===String(id));
   let row=find(); if(!row) return;
   if(!String(row.Description||"").trim()){ const d=autoDescription(sheet,row); if(d){ setRowOverride(sheet,id,"Description",d); row=find()||row; } }
-  const draft={ Kind:row.Kind||"Type", TypeName:row.TypeName||"", Name:row.Name||"", ReturnType:row.ReturnType||"", Description:row.Description||"", ApprovalStatus:row.ApprovalStatus||"Draft", NFR:row.NFR||"" };
+  const draft={ Kind:row.Kind||"Type", TypeName:row.TypeName||"", Name:row.Name||"", ReturnType:row.ReturnType||"", Description:row.Description||"", ApprovalStatus:row.ApprovalStatus||"Draft" };
   const parts = isSchema ? splitDefinition(row.Definition, draft.Kind) : { head:"", entries:describedLines(row.Parameters, true) };
   let head = parts.head;
   let entries = parts.entries.map(e => isSchema && draft.Kind!=="Enum"
@@ -1283,7 +1121,6 @@ function openRowEditor(sheet,id){
   const linksWrap=document.createElement("div"); linksWrap.className="lk-wrap"; linksWrap.dataset.sheet=sheet; linksWrap.dataset.id=id;
   linksWrap.innerHTML=parseLinks(row.Links).map(linkLineHTML).join("")+`<button class="addrow" onclick="addLinkLine(this)">＋ link</button>`;
   field("Links & References — docs and the REST / monograph operation this replaces", linksWrap, true);
-  if(!isSchema) bind(field("Non-functional requirements — one  key: value  per line (security, scopes, latencyP95Ms, qps, requestBytes, responseBytes, …)", area(draft.NFR, "latencyP95Ms: 300\nqps: 200", 6), true), "NFR");
 
   function renderList(){
     const k=rowEditorKind(sheet, draft.Kind);
@@ -1320,7 +1157,7 @@ function openRowEditor(sheet,id){
       return { Kind:draft.Kind, TypeName:draft.TypeName, Definition:joinDefinition(draft.Kind, head, k==="none"?[]:list), Description:draft.Description, ApprovalStatus:draft.ApprovalStatus };
     }
     const params=formatDescribed(entries.filter(e=>String(e.name||"").trim()).map(e=>({ desc:String(e.desc||"").trim(), line:`${e.name.trim()}: ${(e.type||"String").trim()}` })), "");
-    return { Name:draft.Name, ReturnType:draft.ReturnType, Parameters:params, Description:draft.Description, ApprovalStatus:draft.ApprovalStatus, NFR:draft.NFR };
+    return { Name:draft.Name, ReturnType:draft.ReturnType, Parameters:params, Description:draft.Description, ApprovalStatus:draft.ApprovalStatus };
   }
   function preview(built){
     let sdl;
@@ -1399,7 +1236,7 @@ function addSubgraphRow(sheet){
   const list=(bucket[sheet]=bucket[sheet]||[]);
   let row;
   if(sheet==="Schema") row={ SchemaID:id, EntityID:entId, Kind:"Type", TypeName:"", Definition:"", ApprovalStatus:"Draft", Links:"" };
-  else row={ [ADD_PREFIX[sheet]==="QRY"?"QueryID":"MutationID"]:id, EntityID:entId, Name:"", Parameters:"", ReturnType:"", Description:"", ApprovalStatus:"Draft", Links:"", NFR:"" };
+  else row={ [ADD_PREFIX[sheet]==="QRY"?"QueryID":"MutationID"]:id, EntityID:entId, Name:"", Parameters:"", ReturnType:"", Description:"", ApprovalStatus:"Draft", Links:"" };
   list.push(row);
   persist(); renderCurrentSubgraph();
   toast(`Row added — edit its cells (Draft · ${entId})`);
@@ -1442,22 +1279,21 @@ function buildSubgraphRows(sg, seed){
       entByName.set(t.name, entId);
     }
     const owner = focusTN ? focusEntId : entId;            // focus → all types owned by the entity
-    out.Schema.push({ SchemaID:cid("SCH", owner), EntityID:owner, Kind:typeKind(t), TypeName:t.name, Definition:typeDefBody(t), Description:t.desc||"", ApprovalStatus:"Draft", Links:src });
+    out.Schema.push({ SchemaID:cid("SCH", owner), EntityID:owner, Kind:typeKind(t), TypeName:t.name, Definition:typeDefBody(t), ApprovalStatus:"Draft", Links:src });
     schemaTypes.add(t.name);
   }
   for(const o of sg.ops){
     // Focus mode: every operation in the subgraph is a query/mutation of the focus entity, whatever
     // it returns (wrappers, response envelopes, arrays…). Non-focus: attribute by return-type entity.
     const eid = focusTN ? focusEntId : (entByName.get(baseType(o.entity||o.returns))||"");
-    const args=(o.args||[]).some(a=>a.desc) ? formatDescribed(o.args.map(a=>({ desc:a.desc||"", line:`${a.name}: ${a.type}` })), "")
-      : (o.args||[]).map(a=>`${a.name}: ${a.type}`).join(", ");
+    const args=(o.args||[]).map(a=>`${a.name}: ${a.type}`).join(", ");
     const fromMono=o.method==="GQL";                          // op split out of the MonoGraph (Query.x / Mutation.x)
     const note=(fromMono?`from MonoGraph ${o.path}`:`from ${sg.name} ${o.method} ${o.path||""}`.trim())+(o.notes?` — ${o.notes}`:"");
     const restRef=`${o.method||""} ${o.path||""}`.trim();     // source REST endpoint, e.g. "GET /offers"
     const link=fromMono ? formatLinks([{ type:"monograph", value:o.path }, { type:"Other", value:src }])
       : formatLinks([{ type:"REST", value:restRef }, { type:"Other", value:src+(o.path?(" "+o.path):"") }]);   // Links & References
-    if(o.opKind==="query"){ if(qExist.has(o.name)) continue; out.Queries.push({ QueryID:cid("QRY", eid), EntityID:eid, Name:o.name, Parameters:args, ReturnType:o.returns||"", Description:note, ApprovalStatus:"Draft", Links:link, NFR:formatNfr(gqlNfrSeed(o, sg)) }); qExist.add(o.name); }
-    else { if(mExist.has(o.name)) continue; out.Mutations.push({ MutationID:cid("MUT", eid), EntityID:eid, Name:o.name, Parameters:args, ReturnType:o.returns||"", Description:note, ApprovalStatus:"Draft", Links:link, NFR:formatNfr(gqlNfrSeed(o, sg)) }); mExist.add(o.name); }
+    if(o.opKind==="query"){ if(qExist.has(o.name)) continue; out.Queries.push({ QueryID:cid("QRY", eid), EntityID:eid, Name:o.name, Parameters:args, ReturnType:o.returns||"", Description:note, ApprovalStatus:"Draft", Links:link }); qExist.add(o.name); }
+    else { if(mExist.has(o.name)) continue; out.Mutations.push({ MutationID:cid("MUT", eid), EntityID:eid, Name:o.name, Parameters:args, ReturnType:o.returns||"", Description:note, ApprovalStatus:"Draft", Links:link }); mExist.add(o.name); }
   }
   // User-added rows for this subgraph (Add type / query / mutation) — appended after generation.
   const adds=(mapping.additions||{})[sg.id]||{};
@@ -1465,8 +1301,6 @@ function buildSubgraphRows(sg, seed){
   applyRowOverrides(out);                                    // fold in any manual edits from the FedGQL subgraph tab
   return out;
 }
-// Queries / Mutations always carry the NFR databag column, even against an older registry header row.
-function withNfrHeader(sheet, headers){ return (sheet==="Queries" || sheet==="Mutations") && !headers.includes("NFR") ? [...headers, "NFR"] : headers; }
 function exportSubgraph(){
   const sg=migrationSubgraph();
   if(!sg){ alert("Pick the GQL Registry entity to migrate on the Load data tab first."); return; }
@@ -1487,7 +1321,7 @@ function exportSubgraph(){
 
   const wb=XLSX.utils.book_new();
   for(const s of ["Entities","Schema","Queries","Mutations"]){
-    const headers=withNfrHeader(s, (state.regHeaders[s] && state.regHeaders[s].length) ? state.regHeaders[s] : (CANON_HEADERS[s] || Object.keys(out[s][0]||{})));
+    const headers=(state.regHeaders[s] && state.regHeaders[s].length) ? state.regHeaders[s] : (CANON_HEADERS[s] || Object.keys(out[s][0]||{}));
     const aoa=[headers, ...out[s].map(row=>headers.map(h=>row[h]!=null?row[h]:""))];
     const ws=XLSX.utils.aoa_to_sheet(aoa); ws["!cols"]=headers.map(h=>({wch:Math.max(12,String(h).length+2)}));
     XLSX.utils.book_append_sheet(wb, ws, s);
@@ -1668,9 +1502,9 @@ function renderCurrentSubgraph(){
     <div class="kv">Schema — types / enums / inputs (${rows.Schema.length}) <button class="addrow" onclick="addSubgraphRow('Schema')" data-help="mig-add-rows">＋ Add type</button></div>
     ${tbl("Schema",[{h:"SchemaID",k:"SchemaID",mono:1},{h:"Kind",k:"Kind",sel:["Key","Type","Input","Enum","Interface","Union","Scalar","Reference","Extend"]},{h:"Type name",k:"TypeName",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Definition",k:"Definition",mono:1,edit:1,ta:1},{h:"Description",k:"Description",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Schema, "no types", true)}
     <div class="kv">Queries (${rows.Queries.length}) <button class="addrow" onclick="addSubgraphRow('Queries')" data-help="mig-add-rows">＋ Add query</button></div>
-    ${tbl("Queries",[{h:"QueryID",k:"QueryID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Description",k:"Description",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"NFR",k:"NFR",mono:1,ta:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Queries, "no queries", true)}
+    ${tbl("Queries",[{h:"QueryID",k:"QueryID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Description",k:"Description",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Queries, "no queries", true)}
     <div class="kv">Mutations (${rows.Mutations.length}) <button class="addrow" onclick="addSubgraphRow('Mutations')" data-help="mig-add-rows">＋ Add mutation</button></div>
-    ${tbl("Mutations",[{h:"MutationID",k:"MutationID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Description",k:"Description",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"NFR",k:"NFR",mono:1,ta:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Mutations, "no mutations", true)}
+    ${tbl("Mutations",[{h:"MutationID",k:"MutationID",mono:1},{h:"Name",k:"Name",mono:1,edit:1},{h:"Parameters",k:"Parameters",mono:1,edit:1,ta:1},{h:"Return",k:"ReturnType",mono:1,edit:1},{h:"Entity",k:"EntityID",mono:1},{h:"Description",k:"Description",edit:1,ta:1},{h:"Links & References",k:"Links",links:1},{h:"Approval",k:"ApprovalStatus",sel:APPROVALS}], rows.Mutations, "no mutations", true)}
     <div class="kv">AuthScopes (0)</div>
     <div class="empty">Subgraphs don't define auth scopes — add these in the <b>GQL Registry</b> after copying.</div>`;
 }
@@ -1726,8 +1560,8 @@ window.addEventListener("message", e=>{
 /* ------------------------------ boot ----------------------------------- */
 restore(); afterLoad(); tryAutoFetch();
 </script>
-<script src="onboarding.js"></script>
-<script src="gql-onboarding.js"></script>
+<script src="versions/assets/gql-migration.v1/onboarding.js"></script>
+<script src="versions/assets/gql-migration.v1/gql-onboarding.js"></script>
 <script src="versions.js" defer></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 ---
 name: version-html
-description: Version the top-level HTML pages of this workbench. Before an HTML page is changed as a new version, snapshot the current page into versions/<page>.v<N>.html (N increments), freeze its local JS/CSS, record it in versions/manifest.js, and keep the in-page "Version" dropdown working so any version can be opened. Use when the user asks to create a new version of an HTML page, to version / snapshot / archive / back up a page before editing it, to list the versions of a page, to roll back or restore an earlier version, or to add the version dropdown to a page.
+description: Version the top-level HTML pages of this workbench. Always ask the user before creating a new version. When they agree, before the page is changed, snapshot the current page into versions/<page>.v<N>.html (N increments), freeze its local JS/CSS, record it in versions/manifest.js, and keep the in-page "Version" dropdown working so any version can be opened. Use when the user asks to create a new version of an HTML page, to version / snapshot / archive / back up a page before editing it, to list the versions of a page, to roll back or restore an earlier version, or to add the version dropdown to a page.
 ---
 
 # Version the HTML pages
@@ -23,6 +23,11 @@ The script lives at `.claude/skills/version-html/scripts/version_html.py`. Run i
 
 ## Creating a new version of a page (the main workflow)
 
+0. **Ask before creating a new version.** Never snapshot on your own initiative. Before editing a page, ask the user (with AskUserQuestion when it is available) whether this change should become a new version, naming the page(s), the version the live page becomes (`v<N+1>`) and a proposed note, e.g. *"Create a new version of gql-migration.html? v2 is archived and the live page becomes v3 (note: before: NFR comparison)."* Offer **Create new version** / **Edit the current version in place**.
+   - Run `list <page>` first so the numbers you quote are right.
+   - Only snapshot after a yes. On a no, edit the live page without snapshotting and keep its version number.
+   - One answer covers one change request. Ask again for the next request, unless the user said to version every change (or never to) in this conversation.
+   - If the user's own request already says to create a new version (e.g. "make a v3 of workbench.html"), that is the yes: don't ask again.
 1. **Snapshot first, before any edit:**
    ```bash
    python3 .claude/skills/version-html/scripts/version_html.py snapshot workbench.html --note "before: onboarding layout"
@@ -50,6 +55,7 @@ The script lives at `.claude/skills/version-html/scripts/version_html.py`. Run i
 ## Rules
 
 - Version numbers only go up. Never renumber, overwrite or delete an archived version, and never edit files in `versions/` by hand. To change an old version, restore it, which creates a new version.
+- Ask before every new version (step 0); a snapshot is never automatic.
 - One snapshot per new version, taken before the edit. Don't snapshot again for follow-up tweaks within the same version unless the user asks for a new version.
 - The dropdown sits next to the page's **▾ Toolbar** button when there is one (so it stays visible when the toolbar is collapsed), else at the end of the `<header>`. Otherwise it floats bottom-left. A page can choose the spot with an element marked `data-version-slot`.
 - Archived versions share `localStorage` with the live page (same origin). If a new version changes the shape of what a page stores, mention that opening an old version may see newer data.

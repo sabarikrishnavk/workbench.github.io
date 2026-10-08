@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Archived v2 of gql-migration.html · 2026-10-08 · d92a77c. Frozen: don't edit. -->
+<base href="../">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>FedGQL Migration Workbench</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
-<script src="common.js"></script>
-<link rel="stylesheet" href="styles.css" />
-<link rel="stylesheet" href="onboarding.css" />
+<script src="versions/assets/gql-migration.v2/common.js"></script>
+<link rel="stylesheet" href="versions/assets/gql-migration.v2/styles.css" />
+<link rel="stylesheet" href="versions/assets/gql-migration.v2/onboarding.css" />
 <style>
   :root{
     --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
@@ -341,18 +343,6 @@ function jsonToFields(obj){
   return Object.entries(obj).map(([k,v])=>({name:k, type:jsonGqlType(v,k)}));
 }
 // One OpenAPI spec → one subgraph {id,name,spec,ops,types}
-/* Optional hints a spec can carry for a clean conversion (see the samples' openapi-fixed.yaml files):
-     description              on schemas, properties, parameters, requestBody → SDL descriptions
-     x-enum-descriptions      [..] aligned with enum (or {VALUE: text}) → enum value descriptions
-     items.nullable: false    → non-null list elements, e.g. [CartItem!]
-     x-graphql-type           on a schema / property / response → that GraphQL type (Money, Cart!, [Product!]!)
-     x-graphql-input          on an operation: Name | { name, description, typeDescription } → path / query
-                              params and the body are folded into one `input: Name!` argument. */
-function enumDescs(sch){
-  const x=sch && sch["x-enum-descriptions"]; if(!x) return {};
-  if(Array.isArray(x)) return Object.fromEntries((sch.enum||[]).map((v,i)=>[String(v), String(x[i]||"")]));
-  return Object.fromEntries(Object.entries(x).map(([k,v])=>[k,String(v||"")]));
-}
 function parseOpenAPI(text, sgName){
   let spec; text=String(text||"").trim();
   try{ spec = text.startsWith("{") ? JSON.parse(text) : jsyaml.load(text); }
@@ -371,34 +361,33 @@ function parseOpenAPI(text, sgName){
   // Resolve a schema to a GraphQL type string, registering inline objects/enums as named types.
   function resolveType(sch, fallback){
     if(!sch) return "String";
-    if(sch["x-graphql-type"]) return String(sch["x-graphql-type"]).trim();
     if(sch.$ref){ return refName(sch.$ref); }
-    if(Array.isArray(sch.enum)){ const nm=cap(fallback||"Enum"); addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String), desc:sch.description||"", valueDescs:enumDescs(sch)}); return nm; }
-    if(sch.type==="array"){ return "["+resolveType(sch.items, fallback)+(sch.items && sch.items.nullable===false?"!":"")+"]"; }
+    if(Array.isArray(sch.enum)){ const nm=cap(fallback||"Enum"); addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String)}); return nm; }
+    if(sch.type==="array"){ return "["+resolveType(sch.items, fallback)+"]"; }
     if(sch.type==="object" || sch.properties){
       const nm=cap(fallback||"Object");
       const fields=objFields(sch, nm);
       const k=entityKey(nm, fields);
-      addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[], desc:sch.description||""});
+      addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[]});
       return nm;
     }
     return gqlScalar(sch.type);
   }
   function objFields(sch, ownerName){
     const props=sch.properties||{}; const req=new Set(sch.required||[]);
-    return Object.entries(props).map(([k,v])=>{ let t=resolveType(v, ownerName+cap(k)); if(req.has(k) && !/!$/.test(t)) t+="!"; return {name:k, type:t, desc:(v&&v.description)||""}; });
+    return Object.entries(props).map(([k,v])=>{ let t=resolveType(v, ownerName+cap(k)); if(req.has(k)) t+="!"; return {name:k, type:t}; });
   }
   // 1) named component schemas → named GraphQL types
   for(const [name, sch] of Object.entries(comps)){
     const nm=cap(slug(name).replace(/ /g,"")) || name;
-    if(sch && Array.isArray(sch.enum)){ addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String), desc:sch.description||"", valueDescs:enumDescs(sch)}); continue; }
-    const s=derefSchema(sch, comps), desc=(sch&&sch.description)||s.description||"";
+    if(sch && Array.isArray(sch.enum)){ addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:sch.enum.map(String)}); continue; }
+    const s=derefSchema(sch, comps);
     if(s.type==="object" || s.properties){
       const fields=objFields(s, nm);
-      if(inputNames.has(nm)) addType({name:nm, kind:"input", isEntity:false, key:"", fields, values:[], desc});
-      else { const k=entityKey(nm, fields); addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[], desc}); }
+      if(inputNames.has(nm)) addType({name:nm, kind:"input", isEntity:false, key:"", fields, values:[]});
+      else { const k=entityKey(nm, fields); addType({name:nm, kind:"type", isEntity:!!k, key:k, fields, values:[]}); }
     } else if(Array.isArray(s.enum)){
-      addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:s.enum.map(String), desc, valueDescs:enumDescs(s)});
+      addType({name:nm, kind:"enum", isEntity:false, key:"", fields:[], values:s.enum.map(String)});
     } else {
       // scalar / array alias — wrap so it survives as a type row
       addType({name:nm, kind:"type", isEntity:false, key:"", fields:[{name:"value", type:(resolveType(s, nm+"Value")||"String")}], values:[]});
@@ -420,24 +409,11 @@ function parseOpenAPI(text, sgName){
         if(!pr || pr.$ref) continue;
         if(["path","query"].includes(pr.in) || pr.in==null){
           const t=(pr.schema?resolveType(pr.schema, opName+cap(pr.name||"Arg")):gqlScalar(pr.type))||"String";
-          args.push({name:pr.name, type:t+(pr.required && !/!$/.test(t)?"!":""), desc:pr.description||""});
+          args.push({name:pr.name, type:t+(pr.required?"!":"")});
         }
       }
       const rb = op.requestBody && op.requestBody.content && op.requestBody.content["application/json"] && op.requestBody.content["application/json"].schema;
-      let bodyT=null;
-      if(rb){ const t=resolveType(rb, opName+"Input"); const it=byName[baseType(t)]; if(it && it.kind==="type"){ it.kind="input"; it.isEntity=false; it.key=""; } bodyT=it||null; args.push({name:"input", type:t+(op.requestBody.required?"!":""), desc:op.requestBody.description||""}); }
-      // x-graphql-input: fold the path / query params (and the body) into one input argument
-      const fold=op["x-graphql-input"];
-      if(fold){
-        const fo=typeof fold==="object" ? fold : { name:fold }, nm=String(fo.name||cap(opName)+"Input");
-        const params=args.filter(a=>!(bodyT && a.name==="input")).map(a=>({name:a.name, type:a.type, desc:a.desc||""}));
-        let it=byName[nm];
-        if(it && it===bodyT){ it.fields=[...params.filter(p=>!it.fields.some(f=>f.name===p.name)), ...it.fields]; }
-        else { const extra=bodyT ? bodyT.fields.filter(f=>!params.some(p=>p.name===f.name)) : [];
-          it=addType({name:nm, kind:"input", isEntity:false, key:"", fields:[...params, ...extra], values:[], desc:fo.typeDescription||(bodyT&&bodyT.desc)||`Input for ${opName}.`}); }
-        if(fo.typeDescription) it.desc=fo.typeDescription;
-        args.length=0; args.push({name:"input", type:nm+"!", desc:fo.description||(op.requestBody&&op.requestBody.description)||it.desc||""});
-      }
+      if(rb){ const t=resolveType(rb, opName+"Input"); const it=byName[baseType(t)]; if(it && it.kind==="type"){ it.kind="input"; it.isEntity=false; it.key=""; } args.push({name:"input", type:t+(op.requestBody.required?"!":"")}); }
       const bt=baseType(returns);
       const entity = byName[bt] ? bt : "";
       ops.push({ id:uid(), name:opName, method:String(method).toUpperCase(), path:p,
@@ -553,13 +529,9 @@ function gqlNfrSeed(o, sg){
 
 /* --------------- subgraph → federated SDL / registry rows --------------- */
 function typeKind(t){ if(t.ext) return t.ext.mode==="extend"?"Extend":"Reference"; return t.kind==="enum"?"Enum":(t.kind==="input"?"Input":(t.isEntity?"Key":"Type")); }
-// Field / enum-value body lines, each with its """description""" line when it has one.
-const fieldBody=t=>formatDescribed((t.fields||[]).map(f=>({ desc:f.desc||"", line:`${f.name}: ${f.type}` })), "  ");
-const enumBody=t=>formatDescribed((t.values||[]).map(v=>({ desc:(t.valueDescs||{})[v]||"", line:v })), "  ");
-function typeSDL(t){ const d=t.desc?descLine(t.desc)+"\n":""; return d+typeSDLBare(t); }
-function typeSDLBare(t){
-  if(t.kind==="enum") return `enum ${t.name} {\n${enumBody(t)}\n}`;
-  const body=fieldBody(t);
+function typeSDL(t){
+  if(t.kind==="enum") return `enum ${t.name} {\n${(t.values||[]).map(v=>"  "+v).join("\n")}\n}`;
+  const body=(t.fields||[]).map(f=>`  ${f.name}: ${f.type}`).join("\n");
   if(t.kind==="input") return `input ${t.name} {\n${body}\n}`;
   // borrowed entity from another subgraph: reference stub (resolvable:false) or field-contributing extend
   if(t.ext){ const key=t.key||keyOf(t.fields);
@@ -569,8 +541,8 @@ function typeSDLBare(t){
 }
 // registry Schema.Definition body (no leading `type Name`), matching GQLRegistry.xlsx
 function typeDefBody(t){
-  if(t.kind==="enum") return `{\n${enumBody(t)}\n}`;
-  const body=fieldBody(t);
+  if(t.kind==="enum") return `{\n${(t.values||[]).map(v=>"  "+v).join("\n")}\n}`;
+  const body=(t.fields||[]).map(f=>`  ${f.name}: ${f.type}`).join("\n");
   if(t.ext){ const key=t.key||keyOf(t.fields);
     const prefix = `@key(fields: "${key}"${t.ext.mode==="reference"?", resolvable: false":""}) `;
     return `${prefix}{\n${body}\n}`; }   // Kind column (Reference/Extend) distinguishes the two on reload
@@ -706,19 +678,19 @@ function loadRegWB(wb){
 // (also tolerates a full "type Name … { }" definition). Kind is the sheet's Key/Type/Input/Enum.
 function parseSubgraphDef(kind, name, def){
   def=String(def||"").trim(); const k=String(kind||"").toLowerCase();
-  let inner=(def.match(/\{([\s\S]*)\}/)||[,""])[1];
-  if(k==="enum" && !/\{/.test(def)) inner=def;   // registry enums store bare values
+  let inner=stripDescriptions((def.match(/\{([\s\S]*)\}/)||[,""])[1]);
+  if(k==="enum" && !/\{/.test(def)) inner=stripDescriptions(def);   // registry enums store bare values
   if(k==="enum"){
-    const ents=describedLines(inner).map(e=>({ v:e.line.replace(/,$/,"").trim(), d:e.desc })).filter(e=>e.v);
-    return { name, kind:"enum", isEntity:false, key:"", fields:[], values:ents.map(e=>e.v), valueDescs:Object.fromEntries(ents.filter(e=>e.d).map(e=>[e.v,e.d])), raw:"" };
+    const values=inner.split(/\r?\n/).map(s=>s.replace(/,$/,"").trim()).filter(Boolean);
+    return { name, kind:"enum", isEntity:false, key:"", fields:[], values, raw:"" };
   }
   // borrowed entity from another subgraph: Kind Reference/Extend (or the raw def gives it away)
   const extMode = k==="reference" ? "reference" : (k==="extend" ? "extend"
                 : (/^extend\s+type/.test(def) ? "extend" : (/resolvable:\s*false/.test(def) ? "reference" : "")));
   const isEntity = k==="key" || !!extMode || /@key/.test(def);
   const keyM = def.match(/@key\(fields:\s*"([^"]*)"\)/);
-  const fields=describedLines(inner).map(e=>{
-    const m=e.line.match(/^([A-Za-z_]\w*)\s*:\s*(.+?),?$/); return m?{name:m[1], type:m[2].trim(), desc:e.desc||""}:null;
+  const fields=inner.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(line=>{
+    const m=line.match(/^([A-Za-z_]\w*)\s*:\s*(.+?),?$/); return m?{name:m[1], type:m[2].trim()}:null;
   }).filter(Boolean);
   const kind2 = k==="input" ? "input" : (k==="interface" ? "interface" : "type");
   const t={ name, kind:kind2, isEntity, key:keyM?keyM[1]:(isEntity?keyOf(fields):""), fields, values:[], raw:"" };
@@ -735,8 +707,7 @@ function loadSubgraphMigrationWB(wb, fileName){
   const types=schema.map(r=>parseSubgraphDef(r.Kind, r.TypeName, r.Definition)).filter(t=>t&&t.name);
   const opFrom=(r,opKind)=>{
     const ref=(linkValues(r.Links,"REST")[0]||"").trim(), mm=ref.match(/^(\S+)\s+(.*)$/);   // REST line in Links & References
-    const args=describedLines(r.Parameters, true).map(e=>{ const i=e.line.indexOf(":"); return i<0 ? {name:e.line, type:"", desc:e.desc} : {name:e.line.slice(0,i).trim(), type:e.line.slice(i+1).trim(), desc:e.desc}; });
-    return { id:uid(), name:r.Name, args, returns:r.ReturnType||"",
+    return { id:uid(), name:r.Name, args:parseArgs(r.Parameters), returns:r.ReturnType||"",
       opKind, method:mm?mm[1]:"", path:mm?(mm[2]||"").trim():"", entity:baseType(r.ReturnType||""), notes:"" };
   };
   const ops=queries.map(r=>opFrom(r,"query")).concat(muts.map(r=>opFrom(r,"mutation")));
@@ -1442,15 +1413,14 @@ function buildSubgraphRows(sg, seed){
       entByName.set(t.name, entId);
     }
     const owner = focusTN ? focusEntId : entId;            // focus → all types owned by the entity
-    out.Schema.push({ SchemaID:cid("SCH", owner), EntityID:owner, Kind:typeKind(t), TypeName:t.name, Definition:typeDefBody(t), Description:t.desc||"", ApprovalStatus:"Draft", Links:src });
+    out.Schema.push({ SchemaID:cid("SCH", owner), EntityID:owner, Kind:typeKind(t), TypeName:t.name, Definition:typeDefBody(t), ApprovalStatus:"Draft", Links:src });
     schemaTypes.add(t.name);
   }
   for(const o of sg.ops){
     // Focus mode: every operation in the subgraph is a query/mutation of the focus entity, whatever
     // it returns (wrappers, response envelopes, arrays…). Non-focus: attribute by return-type entity.
     const eid = focusTN ? focusEntId : (entByName.get(baseType(o.entity||o.returns))||"");
-    const args=(o.args||[]).some(a=>a.desc) ? formatDescribed(o.args.map(a=>({ desc:a.desc||"", line:`${a.name}: ${a.type}` })), "")
-      : (o.args||[]).map(a=>`${a.name}: ${a.type}`).join(", ");
+    const args=(o.args||[]).map(a=>`${a.name}: ${a.type}`).join(", ");
     const fromMono=o.method==="GQL";                          // op split out of the MonoGraph (Query.x / Mutation.x)
     const note=(fromMono?`from MonoGraph ${o.path}`:`from ${sg.name} ${o.method} ${o.path||""}`.trim())+(o.notes?` — ${o.notes}`:"");
     const restRef=`${o.method||""} ${o.path||""}`.trim();     // source REST endpoint, e.g. "GET /offers"
@@ -1726,8 +1696,8 @@ window.addEventListener("message", e=>{
 /* ------------------------------ boot ----------------------------------- */
 restore(); afterLoad(); tryAutoFetch();
 </script>
-<script src="onboarding.js"></script>
-<script src="gql-onboarding.js"></script>
+<script src="versions/assets/gql-migration.v2/onboarding.js"></script>
+<script src="versions/assets/gql-migration.v2/gql-onboarding.js"></script>
 <script src="versions.js" defer></script>
 </body>
 </html>

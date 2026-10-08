@@ -1,0 +1,109 @@
+# Fixed copy of openapi.yaml: the same REST API (paths, methods, payloads), annotated so the GQL migration
+# guide converts it into a subgraph that passes the FedGQL schema standards (standards.json):
+#   • ALL_ELEMENTS_REQUIRE_DESCRIPTION — schemas, properties, parameters and enum values (x-enum-descriptions)
+#   • NULL-ARRAY-NONNULL — errors are `nullable: false`, so errors converts to [CheckoutError!]!
+#   • SCALAR-MONEY-NOT-DECIMAL — totalPaid uses `x-graphql-type: Money`
+#   • the inline status enum is a named OrderStatus schema
+#   • x-orchestrates names the fixed payments / cart operations (submitPayment, removeAllCartItems)
+# Converts to the ENT-008 rows of samples/GQLRegistry-sample-fixed.xlsx.
+openapi: 3.0.3
+info:
+  title: Checkout & Orders API
+  version: 3.0.0
+  description: Places orders by orchestrating the cart, inventory and payments services.
+servers:
+  - url: https://checkout.retail.example.com/v3
+security:
+  - oauth2: []
+paths:
+  /checkout:
+    post:
+      operationId: submitCheckout
+      security: [{ oauth2: ["checkout:write"] }]
+      x-nfr: { latencyP95Ms: 1800, qps: 40, timeoutMs: 8000, availability: "99.95%", dataClass: "Confidential (PCI: payment method)" }
+      # The downstream APIs this orchestrator calls today, in order (read by the code migration guide).
+      x-orchestrates:
+        - { service: cart, call: "GET /carts/{id}", op: cart }
+        - { service: inventory, call: "GET /inventory/{sku}/stores/{storeId}", op: inventory }
+        - { service: payments, call: "POST /payments", op: submitPayment }
+        - { service: cart, call: "DELETE /carts/{cartId}/items", op: removeAllCartItems }
+      summary: Verify the cart and stock, create a pending order, take payment and clear the cart.
+      requestBody:
+        required: true
+        description: "Cart to check out, payment method and shipping address"
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitCheckoutInput" }
+      responses:
+        "200":
+          description: Checkout result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckoutResult", x-graphql-type: "CheckoutResult!" }
+  /orders/{id}:
+    get:
+      operationId: order
+      security: [{ oauth2: ["orders:read"] }]
+      x-nfr: { latencyP95Ms: 150, qps: 250, timeoutMs: 1500, cacheTtlS: 30 }
+      summary: Fetch an order placed through checkout.
+      parameters:
+        - { name: id, in: path, required: true, description: "Order id", schema: { type: string, x-graphql-type: ID } }
+      responses:
+        "200":
+          description: Order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.retail.example.com/oauth/token
+          scopes: { "cart:read": read carts, "cart:write": change carts, "checkout:write": place orders, "orders:read": read orders }
+  schemas:
+    SubmitCheckoutInput:
+      type: object
+      description: "What submitCheckout needs to place an order."
+      required: [cartId, paymentMethodId, shippingAddress]
+      properties:
+        cartId: { type: string, description: "Cart to check out" }
+        paymentMethodId: { type: string, description: "Tokenised payment method to charge" }
+        shippingAddress: { type: string, description: "Delivery address for the order" }
+    CheckoutResult:
+      type: object
+      description: "Outcome of a checkout: the order when it succeeded, else the errors."
+      required: [success, errors]
+      properties:
+        success: { type: boolean, description: "True when the order was placed and paid" }
+        order: { $ref: "#/components/schemas/Order", description: "The placed order; empty when checkout failed" }
+        errors:
+          type: array
+          description: "Why checkout failed; an empty list on success"
+          items: { $ref: "#/components/schemas/CheckoutError", nullable: false }
+    Order:
+      type: object
+      description: "An order placed through checkout."
+      required: [id, status, totalPaid]
+      properties:
+        id: { type: string, x-graphql-type: ID, description: "Order id; the order's unique key" }
+        status: { $ref: "#/components/schemas/OrderStatus", description: "Where the order is in its lifecycle" }
+        totalPaid: { type: number, x-graphql-type: Money, description: "Amount charged for the order" }
+        paymentTransactionId: { type: string, description: "Payment transaction that paid for the order" }
+    OrderStatus:
+      type: string
+      description: "Lifecycle state of an order."
+      enum: [PENDING, PLACED, FAILED, UNKNOWN]
+      x-enum-descriptions:
+        - "Created; payment not taken yet"
+        - "Paid and handed to fulfilment"
+        - "Checkout failed; nothing was charged or the charge was refunded"
+        - "Status not recognised by this client version"
+    CheckoutError:
+      type: object
+      description: "One reason a checkout failed."
+      required: [code, message]
+      properties:
+        code: { type: string, description: "Machine-readable error code, e.g. OUT_OF_STOCK" }
+        message: { type: string, description: "Human-readable explanation" }

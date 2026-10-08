@@ -32,7 +32,7 @@ const WZ_SAMPLE_APPS = ["product", "pnp", "inventory", "search", "cart", "paymen
 const WZ_SAMPLES = {
   monograph: ["samples/mono-graph.gql"],
   bff: ["samples/bff-openapi.yaml"],
-  rest: WZ_SAMPLE_APPS.flatMap(n => [`samples/subgraph/${n}/openapi.yaml`, `samples/subgraph/${n}/openapi-fixed.yaml`]),   // -fixed: annotated to convert standards-clean
+  rest: WZ_SAMPLE_APPS.map(n => `samples/subgraph/${n}/openapi.yaml`),
 };
 const WZ_BFF_HEADERS = ["BffRef", "BffName", "Alias", "GqlKind", "GqlOp", "GqlOpId", "EntityID", "Args", "Order", "Notes", "Owner"];
 let WZ_PARSED = null;   // transient parse of the loaded spec: { key, ops:[{key,label,kind,args,returns,notes,method,path}] }

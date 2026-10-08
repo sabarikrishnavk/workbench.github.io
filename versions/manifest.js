@@ -10,8 +10,23 @@ window.HTML_VERSIONS = {
     "versions": []
   },
   "gql-migration.html": {
-    "current": 1,
-    "versions": []
+    "current": 3,
+    "versions": [
+      {
+        "commit": "d92a77c",
+        "date": "2026-10-08",
+        "file": "versions/gql-migration.v1.html",
+        "note": "before: REST vs GQL NFR comparison + orchestrator suggestions",
+        "v": 1
+      },
+      {
+        "commit": "d92a77c",
+        "date": "2026-10-08",
+        "file": "versions/gql-migration.v2.html",
+        "note": "before: OpenAPI x-graphql-* hints + descriptions in the converter",
+        "v": 2
+      }
+    ]
   },
   "help.html": {
     "current": 1,
@@ -22,8 +37,16 @@ window.HTML_VERSIONS = {
     "versions": []
   },
   "subgraph-codemigration.html": {
-    "current": 1,
-    "versions": []
+    "current": 2,
+    "versions": [
+      {
+        "commit": "d92a77c",
+        "date": "2026-10-08",
+        "file": "versions/subgraph-codemigration.v1.html",
+        "note": "before: REST vs GQL NFR comparison + orchestrator suggestions",
+        "v": 1
+      }
+    ]
   },
   "workbench.html": {
     "current": 1,

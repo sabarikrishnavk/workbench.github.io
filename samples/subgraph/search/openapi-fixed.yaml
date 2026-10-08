@@ -1,0 +1,71 @@
+# Fixed copy of openapi.yaml: the same REST API (paths, methods, payloads), annotated so the GQL migration
+# guide converts it into a subgraph that passes the FedGQL schema standards (standards.json):
+#   • ALL_ELEMENTS_REQUIRE_DESCRIPTION — every schema, property and parameter has a description
+#   • NULL-ARRAY-NONNULL — list items are `nullable: false`, so lists convert to [T!]!
+#   • OP-SINGLE-INPUT — `x-graphql-input` folds the five query parameters into SearchProductsInput
+#   • ProductHit is named Product, so the hits become @key references to the product subgraph's Product
+# Converts to the ENT-004 rows of samples/GQLRegistry-sample-fixed.xlsx (filters are flat on the input here).
+openapi: 3.0.3
+info:
+  title: Product Search API
+  version: 3.2.0
+  description: Full-text search, filtering and facets over the product index.
+servers:
+  - url: https://search.retail.example.com/v3
+paths:
+  /search:
+    get:
+      operationId: searchProducts
+      summary: Main entry point for search and catalogue exploration.
+      x-graphql-input: { name: SearchProductsInput, description: "Search terms, filters and paging", typeDescription: "Input for searchProducts." }
+      parameters:
+        - { name: query, in: query, required: true, description: "Free-text search terms", schema: { type: string } }
+        - { name: brand, in: query, required: false, description: "Brands to include; an empty list means any brand", schema: { type: array, x-graphql-type: "[String!]!", items: { type: string, nullable: false } } }
+        - { name: inStockAtStore, in: query, required: false, description: "Only return products in stock at this store", schema: { type: string } }
+        - { name: limit, in: query, required: false, description: "Page size; the service defaults to 20", schema: { type: integer, default: 20 } }
+        - { name: offset, in: query, required: false, description: "Number of results to skip; defaults to 0", schema: { type: integer, default: 0 } }
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResponse", x-graphql-type: "SearchResponse!" }
+components:
+  schemas:
+    SearchResponse:
+      type: object
+      description: One page of search results with facet counts.
+      required: [hits, totalCount, facets]
+      properties:
+        hits:
+          type: array
+          description: Matching products in relevance order (Product references the router hydrates)
+          items: { $ref: "#/components/schemas/Product", nullable: false }
+        totalCount: { type: integer, description: "Total number of matches across all pages" }
+        facets:
+          type: array
+          description: Facets for refining the search
+          items: { $ref: "#/components/schemas/SearchFacet", nullable: false }
+    Product:
+      type: object
+      description: A search hit; only the SKU, the @key of Product owned by the product subgraph.
+      required: [sku]
+      properties:
+        sku: { type: string, description: "Stock-keeping unit, the @key of Product" }
+    SearchFacet:
+      type: object
+      description: A refinement dimension (e.g. brand) with its option counts.
+      required: [field, options]
+      properties:
+        field: { type: string, description: "Product field the facet groups by, e.g. brand" }
+        options:
+          type: array
+          description: Values of the field with their match counts
+          items: { $ref: "#/components/schemas/FacetOption", nullable: false }
+    FacetOption:
+      type: object
+      description: One value of a facet with its match count.
+      required: [value, count]
+      properties:
+        value: { type: string, description: "Facet value, e.g. a brand name" }
+        count: { type: integer, description: "Number of matching products with this value" }

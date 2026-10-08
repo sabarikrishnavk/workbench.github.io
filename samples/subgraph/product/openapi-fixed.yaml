@@ -1,0 +1,53 @@
+# Fixed copy of openapi.yaml: the same REST API (paths, methods, payloads), annotated so the GQL migration
+# guide converts it into a subgraph that passes the FedGQL schema standards (standards.json):
+#   • ALL_ELEMENTS_REQUIRE_DESCRIPTION — every schema, property and parameter has a description
+#   • NULL-ARRAY-NONNULL — list items are `nullable: false`, so lists convert to [T!]
+#   • x-graphql-type — products returns [Product!]! (non-null list of non-null products)
+# Converts to the ENT-001 rows of samples/GQLRegistry-sample-fixed.xlsx.
+openapi: 3.0.3
+info:
+  title: Product Catalogue API
+  version: 1.0.0
+  description: Core, global product attributes by SKU.
+servers:
+  - url: https://product.retail.example.com/v1
+paths:
+  /products/{sku}:
+    get:
+      operationId: product
+      summary: Fetch a product by SKU.
+      parameters:
+        - { name: sku, in: path, required: true, description: "SKU of the product", schema: { type: string } }
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+  /products:
+    get:
+      operationId: products
+      summary: Batch-fetch products by SKU.
+      parameters:
+        - { name: skus, in: query, required: true, description: "SKUs to fetch", schema: { type: array, items: { type: string, nullable: false } } }
+      responses:
+        "200":
+          description: Products
+          content:
+            application/json:
+              schema:
+                type: array
+                x-graphql-type: "[Product!]!"
+                items: { $ref: "#/components/schemas/Product" }
+components:
+  schemas:
+    Product:
+      type: object
+      description: A sellable item in the global catalogue, identified by its SKU.
+      required: [sku, title]
+      properties:
+        sku: { type: string, description: "Stock-keeping unit; the product's unique key" }
+        title: { type: string, description: "Display name shown to shoppers" }
+        description: { type: string, description: "Long-form marketing description" }
+        imageUrl: { type: string, format: uri, description: "URL of the primary product image" }
+        brand: { type: string, description: "Brand or manufacturer name" }

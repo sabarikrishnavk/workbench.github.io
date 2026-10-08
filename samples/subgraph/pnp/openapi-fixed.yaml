@@ -1,0 +1,84 @@
+# Fixed copy of openapi.yaml: the same REST API (paths, methods, payloads), annotated so the GQL migration
+# guide converts it into a subgraph that passes the FedGQL schema standards (standards.json):
+#   • ALL_ELEMENTS_REQUIRE_DESCRIPTION — every schema, property and parameter has a description
+#   • SCALAR-MONEY-NOT-DECIMAL — amounts use `x-graphql-type: Money`
+#   • OP-SINGLE-INPUT — `x-graphql-input` folds the {sku}/{storeId} path params (and the body) into one input
+#   • StorePrice is named ProductStoreContext, the registry entity it maps to (component names are not on the wire)
+# Converts to the ENT-002 rows of samples/GQLRegistry-sample-fixed.xlsx.
+openapi: 3.0.3
+info:
+  title: Store Pricing API (pnp)
+  version: 2.0.0
+  description: Store-scoped prices for SKUs.
+servers:
+  - url: https://pnp.retail.example.com/v2
+paths:
+  /prices/{sku}/stores/{storeId}:
+    parameters:
+      - { name: sku, in: path, required: true, description: "SKU of the product", schema: { type: string } }
+      - { name: storeId, in: path, required: true, description: "Store the price applies to", schema: { type: string } }
+    get:
+      operationId: productStoreContext
+      summary: Store-scoped price for a SKU.
+      x-graphql-input: { name: ProductStoreContextInput, description: "Product (SKU) and store to look up", typeDescription: "Identifies one product at one store." }
+      responses:
+        "200":
+          description: Store price
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductStoreContext" }
+    put:
+      operationId: updateStorePrice
+      summary: Set the price of a SKU at a store.
+      x-graphql-input: { name: UpdateStorePriceInput, description: "SKU, store and new price" }
+      requestBody:
+        required: true
+        description: SKU, store and new price
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateStorePriceInput" }
+      responses:
+        "200":
+          description: Updated store price
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductStoreContext" }
+  /prices/{sku}/stores:
+    get:
+      operationId: allStoreContexts
+      summary: Prices for a SKU across all stores.
+      parameters:
+        - { name: sku, in: path, required: true, description: "SKU of the product", schema: { type: string } }
+      responses:
+        "200":
+          description: Store prices
+          content:
+            application/json:
+              schema:
+                type: array
+                x-graphql-type: "[ProductStoreContext!]!"
+                items: { $ref: "#/components/schemas/ProductStoreContext" }
+components:
+  schemas:
+    ProductStoreContext:
+      type: object
+      description: A product's price at one store.
+      required: [sku, storeId, price]
+      properties:
+        sku: { type: string, description: "SKU of the product" }
+        storeId: { type: string, description: "Store the price applies to" }
+        price: { $ref: "#/components/schemas/Price", description: "Current shelf price at this store" }
+    Price:
+      type: object
+      description: A monetary amount in a currency.
+      required: [amount, currency]
+      properties:
+        amount: { type: number, x-graphql-type: Money, description: "Price amount in the currency's major unit" }
+        currency: { type: string, description: "ISO 4217 currency code, e.g. AUD" }
+    UpdateStorePriceInput:
+      type: object
+      description: The new price of a SKU at a store.
+      required: [amount, currency]
+      properties:
+        amount: { type: number, x-graphql-type: Money, description: "New price amount" }
+        currency: { type: string, description: "ISO 4217 currency code of the amount" }

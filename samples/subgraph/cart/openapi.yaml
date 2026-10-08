@@ -6,6 +6,8 @@ info:
   description: Shopping carts and their lines.
 servers:
   - url: https://cart.retail.example.com/v1
+security:
+  - oauth2: []
 paths:
   /carts:
     post:
@@ -25,6 +27,8 @@ paths:
   /carts/{id}:
     get:
       operationId: cart
+      security: [{ oauth2: ["cart:read"] }]
+      x-nfr: { latencyP95Ms: 120, qps: 900, timeoutMs: 1000, cacheTtlS: 0, availability: "99.9%" }
       summary: Fetch a cart with its lines.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
@@ -37,6 +41,9 @@ paths:
   /carts/{cartId}/items:
     post:
       operationId: addItemToCart
+      security: [{ oauth2: ["cart:write"] }]
+      x-nfr: { latencyP95Ms: 250, qps: 300, timeoutMs: 2000, availability: "99.95%" }
+      x-rate-limit: { perClient: 20/s }
       summary: Add a SKU to the cart.
       parameters:
         - { name: cartId, in: path, required: true, schema: { type: string } }
@@ -76,6 +83,13 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Cart" }
 components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.retail.example.com/oauth/token
+          scopes: { "cart:read": read carts, "cart:write": change carts, "checkout:write": place orders, "orders:read": read orders }
   schemas:
     Cart:
       type: object

@@ -32,7 +32,7 @@ const WZ_SAMPLE_APPS = ["product", "pnp", "inventory", "search", "cart", "paymen
 const WZ_SAMPLES = {
   monograph: ["samples/mono-graph.gql"],
   bff: ["samples/bff-openapi.yaml"],
-  rest: WZ_SAMPLE_APPS.flatMap(n => [`samples/subgraph/${n}/openapi.yaml`, `samples/subgraph/${n}/openapi-fixed.yaml`]),   // -fixed: annotated to convert standards-clean
+  rest: WZ_SAMPLE_APPS.map(n => `samples/subgraph/${n}/openapi.yaml`),
 };
 const WZ_BFF_HEADERS = ["BffRef", "BffName", "Alias", "GqlKind", "GqlOp", "GqlOpId", "EntityID", "Args", "Order", "Notes", "Owner"];
 let WZ_PARSED = null;   // transient parse of the loaded spec: { key, ops:[{key,label,kind,args,returns,notes,method,path}] }
@@ -185,8 +185,7 @@ function wzStepSpec() {
     ? "Load the MonoGraph SDL, then tick the <b>Query / Mutation root fields</b> that move to this subgraph. Referenced types, inputs and enums are derived automatically; types that are other registry entities become <span class=\"mono\">@key</span> reference stubs."
     : w.source === "bff"
       ? "Load the BFF's OpenAPI spec, then tick the <b>composite endpoints</b> this application takes over. Each becomes a query (GET) or mutation (write); flip the kind if needed. Only the types those endpoints use are kept."
-      : "Load the service's OpenAPI spec. Every operation is ticked by default: GET → query, writes → mutation (flip the kind if needed). Its component schemas become the subgraph's types.")
-    + (w.source === "monograph" ? "" : " Generating also captures each endpoint's <b>non-functional requirements</b> (security, payload size, idempotency and any <span class=\"mono\">x-nfr</span> values) next to the GQL operation's NFRs, for comparison in step 5.");
+      : "Load the service's OpenAPI spec. Every operation is ticked by default: GET → query, writes → mutation (flip the kind if needed). Its component schemas become the subgraph's types.");
   h += `<div class="selrow"><button class="primary" data-act="pick-spec">Choose ${w.source === "monograph" ? "SDL" : "OpenAPI"} file…</button>
     <span class="hint">or a sample</span><select id="wzSample">${samples.map(s => `<option${s === defSample ? " selected" : ""}>${esc(s)}</option>`).join("")}</select><button data-act="sample-spec">Load sample</button>
     <span class="hint">${w.specName ? "Loaded: <b>" + esc(w.specName) + "</b>" : "No spec loaded yet."}</span></div>`;
@@ -206,12 +205,11 @@ function wzStepReview() {
   const sg = wzSg(); if (!sg) return wzH(5, "Review", "Generate the subgraph in step 4 first.");
   const rows = buildSubgraphRows(sg), v = validateSubgraphRows(rows), prop = proposedRows(rows);
   const nProp = prop.Schema.length + prop.Queries.length + prop.Mutations.length, nAll = rows.Schema.length + rows.Queries.length + rows.Mutations.length;
-  let h = wzH(5, "Review the derived schema, queries and mutations", "These are the exact rows that go into the registry. Edit any cell (types, definitions, parameters, return types, links). Fix any <b>errors</b> flagged by the FedGQL schema standards, then set the rows to <span class=\"mono\">Proposed</span>: only Proposed rows are merged in step 7. The <b>NFR comparison</b> sets each query / mutation's non-functional requirements against the REST endpoint it replaces; they are saved as the row's <span class=\"mono\">NFR</span> databag.");
+  let h = wzH(5, "Review the derived schema, queries and mutations", "These are the exact rows that go into the registry. Edit any cell (types, definitions, parameters, return types, links). Fix any <b>errors</b> flagged by the FedGQL schema standards, then set the rows to <span class=\"mono\">Proposed</span>: only Proposed rows are merged in step 7.");
   h += `<div class="selrow"><span class="counts"><span class="tag ${v.errors.length ? "off" : "on"}">${v.errors.length} errors</span><span class="tag ${v.warnings.length ? "bff" : "on"}">${v.warnings.length} warnings</span><span class="tag ${nProp === nAll ? "on" : "tbc"}">${nProp} of ${nAll} rows Proposed</span></span>
     ${v.errors.some(x => x.ruleId === "NULL-ARRAY-NONNULL") ? `<button data-act="fix-arrays" title="Rewrite list fields in the type definitions as [Type!]! (house standard NULL-ARRAY-NONNULL)">Fix list nullability → [T!]!</button>` : ""}
     <button class="primary" data-act="propose-all">Mark all rows Proposed</button><button data-act="draft-all">Set all back to Draft</button>
 </div>`;
-  h += wzNfrPanel(sg, rows);
   h += `<details style="margin-bottom:10px"><summary><b>Generated federated SDL</b></summary><pre class="code" style="max-height:40vh">${highlightSDL(subgraphSDL(sg))}</pre></details>`;
   h += `<div id="wzCurSg"></div>`;
   return h;
@@ -372,85 +370,6 @@ function wzReviewed() {
   const w = wz(); w.reviewed = true; persist(); wzGo(5);
 }
 
-/* -------------------- NFR comparison: REST ↔ GQL (step 5) ---------------- */
-// The REST baseline of a generated op: kept on the op by parseOpenAPI; re-derived from the loaded spec
-// for subgraphs resumed from a workbook (MonoGraph root fields have no REST baseline).
-let WZ_NFR_CACHE = null;
-function wzRestNfrOf(o) {
-  if (o.restNfr) return o.restNfr;
-  const w = wz(); if (o.method === "GQL" || !w.specText || w.source === "monograph") return null;
-  const key = w.specName + "|" + w.specText.length;
-  if (!WZ_NFR_CACHE || WZ_NFR_CACHE.key !== key) { let ops = []; try { ops = parseOpenAPI(w.specText, wzAppName()).ops; } catch (_) {} WZ_NFR_CACHE = { key, by: Object.fromEntries(ops.map(x => [x.method + " " + x.path, x.restNfr])) }; }
-  return (o.restNfr = WZ_NFR_CACHE.by[o.method + " " + o.path] || null);
-}
-const wzFmtN = v => { const n = Number(v); return String(v ?? "").trim() !== "" && isFinite(n) ? n.toLocaleString() : String(v ?? ""); };
-// [css class, text] for the comparison column of one NFR.
-function wzNfrCmp(d, rv, gv) {
-  const has = v => v != null && String(v).trim() !== "";
-  if (!has(gv)) return ["miss", "⚠ requirement missing"];
-  if (d.gql) return ["new", "GraphQL-only guard, enforced by the router"];
-  if (!has(rv)) return ["new", "new requirement (not declared for the REST API)"];
-  if (d.num) {
-    const a = Number(rv), b = Number(gv);
-    if (isFinite(a) && isFinite(b)) {
-      if (a === b) return ["", d.k === "responseBytes" ? "same upper bound; clients select only the fields they need" : "same as REST"];
-      const diff = b - a, pct = a ? Math.round(100 * diff / a) : 0;
-      const note = d.k === "latencyP95Ms" && diff === NFR_ROUTER_MS ? " · router hop" : d.k === "requestBytes" && diff > 0 ? " · operation document + variables" : "";
-      return [diff > 0 ? "up" : "down", `${diff > 0 ? "+" : ""}${diff.toLocaleString()}${pct ? ` (${pct > 0 ? "+" : ""}${pct}%)` : ""}${note}`];
-    }
-  }
-  return String(rv).trim() === String(gv).trim() ? ["", "same as REST"] : ["", "changed"];
-}
-function wzNfrOpHTML(rows, o, open) {
-  const r = wzOpRow(rows, o); if (!r) return "";
-  const sheet = o.opKind === "query" ? "Queries" : "Mutations", id = String(r[OV_ID[sheet]]), mono = o.method === "GQL";
-  const base = wzRestNfrOf(o), rv = (base && base.values) || {}, rs = (base && base.src) || {}, gv = parseNfr(r.NFR), keys = nfrKeysFor(o.opKind);
-  const miss = keys.filter(d => !String(gv[d.k] || "").trim()).length;
-  const kpi = (lbl, k, unit) => `<span class="nfr-kpi">${lbl} <b class="r">${esc(rv[k] ? wzFmtN(rv[k]) : "—")}</b> → <b class="g">${esc(gv[k] ? wzFmtN(gv[k]) : "—")}</b>${unit || ""}</span>`;
-  const body = keys.map(d => {
-    const [c, t] = wzNfrCmp(d, rv[d.k], gv[d.k]);
-    const rest = d.gql ? '<span class="hint">n/a for REST</span>' : rv[d.k] ? `${esc(wzFmtN(rv[d.k]))}<span class="nfr-src ${esc(rs[d.k] || "")}">${esc(rs[d.k] || "")}</span>` : '<span class="hint">not declared</span>';
-    return `<tr><td>${esc(d.h)}</td><td class="rest mono">${rest}</td><td class="gql"><input data-act="nfr" data-sheet="${sheet}" data-id="${esc(id)}" data-k="${d.k}" data-rest="${esc(rv[d.k] || "")}" value="${esc(gv[d.k] || "")}" class="${gv[d.k] ? "" : "empty"}" /></td><td class="nfr-cmp ${c}">${esc(t)}</td></tr>`;
-  }).join("");
-  return `<details class="nfr-op"${open ? " open" : ""}><summary><span class="nfr-kind ${o.opKind}">${o.opKind}</span><span class="mono">${esc(mono ? o.path : `${o.method} ${o.path}`)}</span><span class="arrow">⇄</span><span class="mono"><b>${esc(r.Name)}</b></span>
-    <span class="kpis">${kpi("p95", "latencyP95Ms", " ms")}${kpi("QPS", "qps")}${kpi("response", "responseBytes", " B")}${miss ? `<span class="nfr-kpi gap">${miss} missing</span>` : ""}</span></summary>
-    <table class="nfr-grid"><thead><tr><th>NFR</th><th class="rest">REST API · current${mono ? " (MonoGraph source: no REST baseline)" : ""}</th><th class="gql">GQL ${o.opKind} · requirement</th><th>Comparison</th></tr></thead><tbody>${body}</tbody></table></details>`;
-}
-function wzNfrPanel(sg, rows) {
-  const ops = sg.ops.filter(o => wzOpRow(rows, o)); if (!ops.length) return "";
-  const nq = ops.filter(o => o.opKind === "query").length;
-  return `<details class="nfr-wrap" open><summary><b>Non-functional requirements · REST API vs GQL operation</b> <span class="hint">· ${nq} quer${nq === 1 ? "y" : "ies"}, ${ops.length - nq} mutation${ops.length - nq === 1 ? "" : "s"} · each GQL value is saved on its Query / Mutation row as the <span class="mono">NFR</span> databag</span></summary>
-    <div class="nfr-legend"><span>REST values from:</span><span class="nfr-src spec">spec</span><span class="hint">security schemes / scopes</span><span class="nfr-src x-nfr">x-nfr</span><span class="hint">per-operation extension</span><span class="nfr-src estimated">estimated</span><span class="hint">payload size from the schemas</span><span class="nfr-src http">http</span><span class="hint">method semantics</span>
-      <span class="spacer"></span><button class="addrow" data-act="nfr-reset" title="Drop your NFR edits and re-seed every GQL requirement from the REST baseline">Reset GQL NFRs</button></div>
-    ${ops.map((o, i) => wzNfrOpHTML(rows, o, i === 0)).join("")}</details>`;
-}
-function wzSetNfr(el) {
-  const sg = wzSg(); if (!sg) return;
-  const { sheet, id, k } = el.dataset, row = (buildSubgraphRows(sg)[sheet] || []).find(r => String(r[OV_ID[sheet]]) === id); if (!row) return;
-  const o = parseNfr(row.NFR); o[k] = el.value.trim(); const v = formatNfr(o);
-  setRowOverride(sheet, id, "NFR", v); updateDisplayCell(sheet, id, "NFR", v);
-  el.classList.toggle("empty", !o[k]);
-  const [c, t] = wzNfrCmp(NFR_KEYS.find(x => x.k === k) || {}, el.dataset.rest, o[k]), td = el.closest("tr").querySelector(".nfr-cmp");
-  if (td) { td.className = "nfr-cmp " + c; td.textContent = t; }
-  const w = wz(); w.savedAt = ""; w.mergedAt = ""; persist();
-}
-function wzResetNfr() {
-  const sg = wzSg(); if (!sg || !confirm("Re-seed every GQL NFR from the REST baseline? Your NFR edits are dropped.")) return;
-  const rows = buildSubgraphRows(sg), ov = mapping.overrides || {};
-  for (const s of ["Queries", "Mutations"]) for (const r of rows[s]) { const e = (ov[s] || {})[r[OV_ID[s]]]; if (e) delete e.NFR; }
-  const w = wz(); w.savedAt = ""; w.mergedAt = ""; persist(); wzRender(); toast("GQL NFRs re-seeded from the REST baseline");
-}
-// One row per (operation, NFR): the REST baseline beside the GQL requirement — the NFRComparison sheet.
-function wzNfrRows(sg, rows) {
-  const out = [["Source", "SourceRef", "GqlKind", "GqlOp", "NFR", "RestValue", "RestSource", "GqlRequirement", "Comparison"]];
-  for (const o of sg.ops) {
-    const r = wzOpRow(rows, o); if (!r) continue;
-    const b = wzRestNfrOf(o), rv = (b && b.values) || {}, rs = (b && b.src) || {}, gv = parseNfr(r.NFR);
-    for (const d of nfrKeysFor(o.opKind)) out.push([o.method === "GQL" ? "monograph" : "rest", o.method === "GQL" ? o.path : `${o.method} ${o.path}`, o.opKind, r.Name, d.k, rv[d.k] || "", rs[d.k] || "", gv[d.k] || "", wzNfrCmp(d, rv[d.k], gv[d.k])[1]]);
-  }
-  return out;
-}
-
 /* ------------------------- save / resume mapping ------------------------ */
 // The registry row generated for a source operation: matched on its source reference in Links
 // ("GET /bff/cart/{cartId}" / "Query.product"), so renaming the operation in step 5 keeps the link.
@@ -469,12 +388,11 @@ function wzSaveMapping() {
   // RegistryID = the id the row has (or will get) in the registry after the merge; GqlOpId is the provisional generated id
   let plan = null; try { plan = state.entities.length ? wzMergePlan() : null; } catch (_) {}
   const regId = (sheet, id) => { const it = plan && plan.items.find(i => i.sheet === sheet && i.srcId === id); return it ? (it.action === "skip" ? "skipped: " + it.note : it.id) : ""; };
-  const opRows = [["Source", "SourceRef", "GqlKind", "GqlOp", "GqlOpId", "RegistryID", "EntityID", "Args", "Returns", "Notes", "RestNFR", "GqlNFR"]];
-  for (const o of sg.ops) { const r = wzOpRow(rows, o) || {}, sheet = o.opKind === "query" ? "Queries" : "Mutations", gid = r.QueryID || r.MutationID || ""; opRows.push([w.source || (o.method === "GQL" ? "monograph" : "rest"), o.method === "GQL" ? o.path : `${o.method} ${o.path}`.trim(), o.opKind, r.Name || o.name, gid, regId(sheet, gid) || (w.mergedAt ? "" : "(not Proposed)"), r.EntityID || "", (o.args || []).map(a => `${a.name}: ${a.type}`).join(", "), o.returns || "", o.notes || "", formatNfr((wzRestNfrOf(o) || {}).values || {}), r.NFR || ""]); }
-  const os = XLSX.utils.aoa_to_sheet(opRows); os["!cols"] = opRows[0].map((h, i) => ({ wch: [10, 34, 9, 24, 18, 18, 10, 40, 24, 50, 40, 40][i] })); XLSX.utils.book_append_sheet(wb, os, "Operations");
-  const nfr = wzNfrRows(sg, rows), ns = XLSX.utils.aoa_to_sheet(nfr); ns["!cols"] = [10, 34, 9, 24, 16, 30, 11, 40, 50].map(wch => ({ wch })); XLSX.utils.book_append_sheet(wb, ns, "NFRComparison");
+  const opRows = [["Source", "SourceRef", "GqlKind", "GqlOp", "GqlOpId", "RegistryID", "EntityID", "Args", "Returns", "Notes"]];
+  for (const o of sg.ops) { const r = wzOpRow(rows, o) || {}, sheet = o.opKind === "query" ? "Queries" : "Mutations", gid = r.QueryID || r.MutationID || ""; opRows.push([w.source || (o.method === "GQL" ? "monograph" : "rest"), o.method === "GQL" ? o.path : `${o.method} ${o.path}`.trim(), o.opKind, r.Name || o.name, gid, regId(sheet, gid) || (w.mergedAt ? "" : "(not Proposed)"), r.EntityID || "", (o.args || []).map(a => `${a.name}: ${a.type}`).join(", "), o.returns || "", o.notes || ""]); }
+  const os = XLSX.utils.aoa_to_sheet(opRows); os["!cols"] = opRows[0].map((h, i) => ({ wch: [10, 34, 9, 24, 18, 18, 10, 40, 24, 50][i] })); XLSX.utils.book_append_sheet(wb, os, "Operations");
   for (const s of ["Entities", "Schema", "Queries", "Mutations"]) {
-    const headers = withNfrHeader(s, (state.regHeaders[s] && state.regHeaders[s].length) ? state.regHeaders[s] : CANON_HEADERS[s]);
+    const headers = (state.regHeaders[s] && state.regHeaders[s].length) ? state.regHeaders[s] : CANON_HEADERS[s];
     const sh = XLSX.utils.aoa_to_sheet([headers, ...rows[s].map(r => headers.map(h => r[h] != null ? r[h] : ""))]); sh["!cols"] = headers.map(h => ({ wch: Math.max(12, String(h).length + 2) }));
     XLSX.utils.book_append_sheet(wb, sh, s);
   }
@@ -500,13 +418,12 @@ function wzResume(buf, name) {
   Object.assign(w, { entityId: entId, domain: kv["Experience domain"] || w.domain, source: kv.Source || w.source || "rest", specName: kv["Spec file"] || "", selected: kv["Selected operations"] ? kv["Selected operations"].split(/\n/).filter(Boolean) : null,
     kinds: Object.fromEntries(String(kv["Kind overrides"] || "").split(/\n/).filter(Boolean).map(l => l.split(" = "))), sgId: res.sg.id, reviewed: false, savedAt: "", mergedAt: "" });
   w.specText = wb.Sheets.SourceSpec ? XLSX.utils.sheet_to_json(wb.Sheets.SourceSpec, { header: 1 }).slice(1).map(r => r[0] == null ? "" : String(r[0])).join("\n") : "";
-  WZ_PARSED = null; WZ_NFR_CACHE = null;
-  res.sg.ops.forEach(o => { delete o.restNfr; wzRestNfrOf(o); });
+  WZ_PARSED = null;
   const ent = wzEntity();
   if (ent) { const ft = res.sg.types.find(t => t.name === ent.Name); mapping.focusEntity = res.sg.id + "::" + (ft ? ft.name : ensureEntity(res.sg)); mapping.migrationEntityId = ent.EntityID; applyRegistryToFocus(); }
   // carry the saved approval status / text edits over by row id
   const built = buildSubgraphRows(res.sg), o = (mapping.overrides = mapping.overrides || {});
-  for (const s of ["Schema", "Queries", "Mutations"]) for (const r of sheetRows(wb, s)) { const id = r[OV_ID[s]]; if (!id || !built[s].some(b => b[OV_ID[s]] === id)) continue; (o[s] = o[s] || {}); o[s][id] = Object.assign(o[s][id] || {}, { ApprovalStatus: r.ApprovalStatus || "Draft", Description: r.Description || "", Links: r.Links || "", Comments: r.Comments || "" }, s !== "Schema" && r.NFR ? { NFR: r.NFR } : {}); }
+  for (const s of ["Schema", "Queries", "Mutations"]) for (const r of sheetRows(wb, s)) { const id = r[OV_ID[s]]; if (!id || !built[s].some(b => b[OV_ID[s]] === id)) continue; (o[s] = o[s] || {}); o[s][id] = Object.assign(o[s][id] || {}, { ApprovalStatus: r.ApprovalStatus || "Draft", Description: r.Description || "", Links: r.Links || "", Comments: r.Comments || "" }); }
   w.step = 4; persist(); afterLoad(); wzGo(4);
   toast(`Resumed ${res.sg.name}: ${res.types} types, ${res.ops} operations`);
 }
@@ -638,14 +555,12 @@ function wzInit() {
     else if (a === "merge") wzMerge();
     else if (a === "save-reg") wzSaveRegistry();
     else if (a === "to-workbench") wzToWorkbench();
-    else if (a === "nfr-reset") wzResetNfr();
   });
   body.addEventListener("change", e => {
     const el = e.target.closest("[data-act]"); if (!el) return;
     const w = wz();
     if (el.dataset.act === "op") { const s = new Set(w.selected || []); el.checked ? s.add(el.dataset.v) : s.delete(el.dataset.v); w.selected = [...s]; persist(); wzRender(); }
     else if (el.dataset.act === "kind") { w.kinds[el.dataset.v] = el.value; persist(); }
-    else if (el.dataset.act === "nfr") wzSetNfr(el);
   });
   // edits in the review grid make the last save / merge stale
   body.addEventListener("change", e => { if (wz().step === 4 && e.target.closest("#wzCurSg")) { const w = wz(); w.savedAt = ""; w.mergedAt = ""; } }, true);
@@ -676,7 +591,7 @@ function wzOvBuild(host) {
     <div class="ov-conn"><svg viewBox="0 0 40 100" preserveAspectRatio="none"><path data-edge="e2a" d="M0 50H20V25H40"/><path data-edge="e2b" d="M0 50H20V75H40"/></svg><span class="ov-tip" data-edge="e2a" style="top:25%"></span><span class="ov-tip" data-edge="e2b" style="top:75%"></span></div>
     <div class="ov-col">
       <div class="ov-node ov-map" data-node="map" data-go="5" title="Step 6: save the subgraph mapping workbook"><h3>Subgraph mapping</h3><div class="ov-sub mono" data-slot="mapfile">&lt;app&gt;-subgraph.xlsx</div>
-        ${wzOvItem("table", "Onboarding · Operations", "map-ops")}${wzOvItem("spec", "Schema · Queries · Mutations", "map-rows")}${wzOvItem("check", "NFR · REST vs GQL", "map-nfr")}</div>
+        ${wzOvItem("table", "Onboarding · Operations", "map-ops")}${wzOvItem("spec", "Schema · Queries · Mutations", "map-rows")}</div>
       <div class="ov-node ov-reg" data-node="reg" data-go="6" title="Step 7: merge into the GQL Registry"><h3>GQL Registry</h3><div class="ov-sub mono" data-slot="regfile">GQLRegistry.xlsx</div>
         ${wzOvItem("merge", "Proposed rows merged", "reg-rows")}${wzOvItem("layers", "BffMappings", "reg-bff")}</div>
     </div>
@@ -710,8 +625,6 @@ function wzOverview() {
   set("mapfile", `${String(wzAppName()).replace(/[^a-zA-Z0-9_-]+/g, "-")}-subgraph.xlsx`);
   item("map-ops", sg ? `${sg.ops.length} operations mapped${w.savedAt ? " · saved " + new Date(w.savedAt).toLocaleTimeString() : ""}` : "", d[5]);
   item("map-rows", rows ? `${rows.Schema.length} types · ${rows.Queries.length} Q · ${rows.Mutations.length} M` : "", d[5]);
-  if (rows) { const ops = rows.Queries.concat(rows.Mutations), full = ops.filter(r => { const g = parseNfr(r.NFR); return nfrKeysFor(rows.Queries.includes(r) ? "query" : "mutation").every(d => String(g[d.k] || "").trim()); }).length;
-    item("map-nfr", `${full} of ${ops.length} ops complete`, d[5]); } else item("map-nfr", "", false);
   set("regfile", w.regFile || "GQLRegistry.xlsx");
   const pc = a => plan ? plan.items.filter(i => i.action === a).length : 0;
   item("reg-rows", w.mergedAt ? `merged ${new Date(w.mergedAt).toLocaleTimeString()}` : plan ? `${pc("add")} add · ${pc("update")} update · ${pc("skip")} skip` : "", d[6]);

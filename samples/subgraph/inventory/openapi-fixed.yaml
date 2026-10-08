@@ -1,0 +1,65 @@
+# Fixed copy of openapi.yaml: the same REST API (paths, methods, payloads), annotated so the GQL migration
+# guide converts it into a subgraph that passes the FedGQL schema standards (standards.json):
+#   • ALL_ELEMENTS_REQUIRE_DESCRIPTION — every schema, property and parameter has a description
+#   • OP-SINGLE-INPUT — `x-graphql-input` folds the {sku}/{storeId} path params into InventoryInput
+#   • NAME-MUTATION-VERB — operationId adjustInventory → applyInventoryAdjustment (operationIds are not on the wire)
+# Converts to the ENT-003 rows of samples/GQLRegistry-sample-fixed.xlsx.
+openapi: 3.0.3
+info:
+  title: Store Inventory API
+  version: 1.3.0
+  description: Stock positions per SKU per store.
+servers:
+  - url: https://inventory.retail.example.com/v1
+paths:
+  /inventory/{sku}/stores/{storeId}:
+    get:
+      operationId: inventory
+      summary: Stock position of a SKU at a store.
+      x-graphql-input: { name: InventoryInput, description: "SKU and store to look up", typeDescription: "Identifies one product's stock at one store." }
+      parameters:
+        - { name: sku, in: path, required: true, description: "SKU of the product", schema: { type: string } }
+        - { name: storeId, in: path, required: true, description: "Store holding the stock", schema: { type: string } }
+      responses:
+        "200":
+          description: Inventory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Inventory" }
+  /inventory/adjustments:
+    post:
+      operationId: applyInventoryAdjustment
+      summary: Apply a stock adjustment (delta) at a store.
+      requestBody:
+        required: true
+        description: SKU, store and stock delta
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InventoryAdjustmentInput" }
+      responses:
+        "200":
+          description: Updated inventory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Inventory" }
+components:
+  schemas:
+    Inventory:
+      type: object
+      description: The stock position of a SKU at one store.
+      required: [sku, storeId, onHand, reserved, availableToSell]
+      properties:
+        sku: { type: string, description: "SKU of the product" }
+        storeId: { type: string, description: "Store holding the stock" }
+        onHand: { type: integer, description: "Units physically in the store" }
+        reserved: { type: integer, description: "Units held for open orders" }
+        availableToSell: { type: integer, description: "Units that can still be sold (onHand minus reserved)" }
+    InventoryAdjustmentInput:
+      type: object
+      description: A change to the stock of a SKU at a store.
+      required: [sku, storeId, delta]
+      properties:
+        sku: { type: string, description: "SKU of the product" }
+        storeId: { type: string, description: "Store whose stock changes" }
+        delta: { type: integer, description: "Units to add (positive) or remove (negative)" }
+        reason: { type: string, description: "Why the stock changed, e.g. DAMAGED or RECOUNT" }

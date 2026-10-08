@@ -1,0 +1,72 @@
+# Fixed copy of openapi.yaml: the same REST API (paths, methods, payloads), annotated so the GQL migration
+# guide converts it into a subgraph that passes the FedGQL schema standards (standards.json):
+#   • ALL_ELEMENTS_REQUIRE_DESCRIPTION — schemas, properties, parameters and enum values (x-enum-descriptions)
+#   • SCALAR-MONEY-NOT-DECIMAL — amounts use `x-graphql-type: Money`
+#   • NAME-MUTATION-VERB — operationId processPayment → submitPayment (operationIds are not on the wire)
+#   • the inline status enum is a named PaymentStatus schema; ProcessPaymentInput is named SubmitPaymentInput
+# Converts to the ENT-007 rows of samples/GQLRegistry-sample-fixed.xlsx.
+openapi: 3.0.3
+info:
+  title: Payments API
+  version: 2.4.0
+  description: Headless payment processing — amounts and payment methods, no order contents.
+servers:
+  - url: https://payments.retail.example.com/v2
+paths:
+  /payments:
+    post:
+      operationId: submitPayment
+      summary: Authorise and capture a payment.
+      requestBody:
+        required: true
+        description: "Amount, currency, payment method and order reference"
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitPaymentInput" }
+      responses:
+        "201":
+          description: Payment transaction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentTransaction", x-graphql-type: "PaymentTransaction!" }
+  /payments/{id}:
+    get:
+      operationId: paymentTransaction
+      summary: Look up a payment transaction.
+      parameters:
+        - { name: id, in: path, required: true, description: "Transaction id", schema: { type: string, x-graphql-type: ID } }
+      responses:
+        "200":
+          description: Payment transaction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentTransaction" }
+components:
+  schemas:
+    PaymentTransaction:
+      type: object
+      description: "One payment attempt and its outcome at the gateway."
+      required: [id, status, gatewayReference, amount]
+      properties:
+        id: { type: string, x-graphql-type: ID, description: "Transaction id; the transaction's unique key" }
+        status: { $ref: "#/components/schemas/PaymentStatus", description: "Outcome of the payment" }
+        gatewayReference: { type: string, description: "Reference issued by the payment gateway" }
+        amount: { type: number, x-graphql-type: Money, description: "Amount charged" }
+    PaymentStatus:
+      type: string
+      description: "Outcome of a payment attempt."
+      enum: [SUCCESS, FAILED, DECLINED, UNKNOWN]
+      x-enum-descriptions:
+        - "Authorised and captured"
+        - "The gateway could not process the payment"
+        - "The issuer declined the payment"
+        - "Status not recognised by this client version"
+    SubmitPaymentInput:
+      type: object
+      description: "A payment to authorise and capture."
+      required: [amount, currency, paymentMethodId, referenceId]
+      properties:
+        amount: { type: number, x-graphql-type: Money, description: "Amount to charge" }
+        currency: { type: string, description: "ISO 4217 currency code of the amount" }
+        paymentMethodId: { type: string, description: "Tokenised payment method to charge" }
+        referenceId: { type: string, description: "Caller's reference, e.g. the order id" }

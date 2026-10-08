@@ -8,10 +8,20 @@ info:
   description: Places orders by orchestrating the cart, inventory and payments services.
 servers:
   - url: https://checkout.retail.example.com/v3
+security:
+  - oauth2: []
 paths:
   /checkout:
     post:
       operationId: submitCheckout
+      security: [{ oauth2: ["checkout:write"] }]
+      x-nfr: { latencyP95Ms: 1800, qps: 40, timeoutMs: 8000, availability: "99.95%", dataClass: "Confidential (PCI: payment method)" }
+      # The downstream APIs this orchestrator calls today, in order (read by the code migration guide).
+      x-orchestrates:
+        - { service: cart, call: "GET /carts/{id}", op: cart }
+        - { service: inventory, call: "GET /inventory/{sku}/stores/{storeId}", op: inventory }
+        - { service: payments, call: "POST /payments", op: processPayment }
+        - { service: cart, call: "DELETE /carts/{cartId}/items", op: clearCart }
       summary: Verify the cart and stock, create a pending order, take payment and clear the cart.
       requestBody:
         required: true
@@ -27,6 +37,8 @@ paths:
   /orders/{id}:
     get:
       operationId: order
+      security: [{ oauth2: ["orders:read"] }]
+      x-nfr: { latencyP95Ms: 150, qps: 250, timeoutMs: 1500, cacheTtlS: 30 }
       summary: Fetch an order placed through checkout.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
@@ -37,6 +49,13 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Order" }
 components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.retail.example.com/oauth/token
+          scopes: { "cart:read": read carts, "cart:write": change carts, "checkout:write": place orders, "orders:read": read orders }
   schemas:
     SubmitCheckoutInput:
       type: object

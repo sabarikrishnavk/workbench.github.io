@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Archived v1 of subgraph-codemigration.html · 2026-10-08 · d92a77c. Frozen: don't edit. -->
+<base href="../">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Subgraph Code Migration — REST → FedGQL</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script src="common.js"></script>
-<link rel="stylesheet" href="styles.css" />
-<link rel="stylesheet" href="onboarding.css" />
+<script src="versions/assets/subgraph-codemigration.v1/common.js"></script>
+<link rel="stylesheet" href="versions/assets/subgraph-codemigration.v1/styles.css" />
+<link rel="stylesheet" href="versions/assets/subgraph-codemigration.v1/onboarding.css" />
 <style>
   :root{
     --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
@@ -77,17 +79,6 @@
   .stype.domain{ background: #dcfce7; color: #166534; }
   .stype.integration{ background: #dbeafe; color: #1e40af; }
   .stype.orchestrator{ background: #ccfbf1; color: #0f766e; }
-  /* REST orchestrator → GQL orchestrator suggestion */
-  .oc-cards .wz-card{ position: relative; }
-  .oc-cards .wz-card.rec{ border-color: #14b8a6; box-shadow: 0 0 0 3px #ccfbf1; }
-  .oc-rec{ margin-left: auto; font-size: 10.5px; font-weight: 700; text-transform: uppercase; background: #0f766e; color: #fff; border-radius: 999px; padding: 1px 8px; }
-  .oc-why{ margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; }
-  .oc-why li{ margin: 2px 0; }
-  .oc-kind{ font-size: 10.5px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; }
-  .oc-kind.read{ background: #e0f2fe; color: #075985; } .oc-kind.write{ background: #fef3c7; color: #92400e; }
-  .oc-miss{ color: #b91c1c; font-size: 12px; }
-  .oc-add{ display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-  .oc-add select, .oc-add input{ padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
 
 </style>
 </head>
@@ -243,8 +234,7 @@ function parseOpenAPI(text, sgName){
       const entity = byName[bt] ? bt : "";
       ops.push({ id:uid(), name:opName, method:String(method).toUpperCase(), path:p,
         opKind: String(method).toLowerCase()==="get"?"query":"mutation",
-        args, returns, entity, notes: op.summary||op.description||"",
-        orchestrates: Array.isArray(op["x-orchestrates"]) ? op["x-orchestrates"] : [] });   // downstream APIs an orchestrator endpoint calls today
+        args, returns, entity, notes: op.summary||op.description||"" });
     }
   }
   return { id:uid(), name:sgName, spec:"", ops, types };
@@ -1699,8 +1689,8 @@ loadBff();
 populateLangSelect();
 tryAutoFetch();
 </script>
-<script src="onboarding.js"></script>
-<script src="code-onboarding.js"></script>
+<script src="versions/assets/subgraph-codemigration.v1/onboarding.js"></script>
+<script src="versions/assets/subgraph-codemigration.v1/code-onboarding.js"></script>
 <script src="versions.js" defer></script>
 </body>
 </html>

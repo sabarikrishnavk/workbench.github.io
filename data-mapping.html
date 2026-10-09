@@ -1367,6 +1367,29 @@ function renderGrid() {
 
 /* ---- Registry → By application: an app's datasets grouped by numbered Kind, with attributes and Kafka events ---- */
 let baRid = "", baClosed = new Set(), baFind = "";
+// Lazy loading for large registries: a heavy application starts with its dataset bodies
+// collapsed and unbuilt; a dataset's attribute table is rendered only when it is expanded,
+// and capped (with a "show all" affordance) so one huge dataset can't block the first paint.
+const BA_ATTR_CAP = 150;              // attribute rows rendered before "show all"
+const baSeeded = new Set();           // apps already auto-collapsed once (heavy)
+const baShowAll = new Set();          // dataset ids showing all attributes (cap lifted)
+// The expandable body of one dataset (its row, attribute table, optional Kafka event,
+// description, actions). Built on demand — when the dataset is expanded — so a large
+// application doesn't render every attribute of every dataset up front. The attribute
+// table is capped at BA_ATTR_CAP rows with a "show all" affordance.
+function baDatasetBody(d) {
+  const dsCols = DM.Datasets.cols.filter(c => !["Description"].includes(c.key)), atCols = DM.Attributes.cols.filter(c => c.key !== "DatasetID"), evCols = DM.Events.cols.filter(c => c.key !== "DatasetID");
+  const tbl = (sheet, cols, rows, extra) => `<table><thead><tr><th></th>${cols.map(c => `<th title="${esc(c.help || "")}">${esc(c.key)}</th>`).join("")}<th></th></tr></thead><tbody>${rows.map(r => `<tr data-sheet="${sheet}" data-rid="${r._id}" class="status-${String(r.Status || "draft").toLowerCase()}"><td class="row-actions">${issueBadge(rowIssues(sheet, r))}</td>${cols.map(c => `<td>${gridCell(r, c)}</td>`).join("")}<td class="row-actions">${sheet === "Attributes" ? `<button class="icon-btn go" data-goto-attr title="Show on canvas">◎</button><button class="icon-btn" data-del-attr title="Delete attribute">✕</button>` : sheet === "Events" ? `<button class="icon-btn" data-del-ev title="Delete event registration">✕</button>` : ""}</td></tr>`).join("")}${extra || ""}</tbody></table>`;
+  const ats = attrsOf(d.DatasetID), ev = DB.Events.find(e => e.DatasetID === d.DatasetID), isKafka = KN(d.Kind) === "Kafka Event";
+  const all = baShowAll.has(d.DatasetID) || ats.length <= BA_ATTR_CAP, shown = all ? ats : ats.slice(0, BA_ATTR_CAP);
+  const more = all ? "" : `<tr><td></td><td colspan="${atCols.length}"><button class="copy-btn" data-show-all="${esc(d.DatasetID)}">Show all ${ats.length} attributes (showing first ${BA_ATTR_CAP})</button></td><td></td></tr>`;
+  let b = `<div class="ba-sub">Dataset</div>` + tbl("Datasets", dsCols, [d]);
+  b += `<div class="ba-sub">Attributes</div>` + tbl("Attributes", atCols, shown, more + `<tr><td></td><td><input data-new-path placeholder="new.path" /></td><td><input data-new-type list="gl-DataType" placeholder="string" /></td><td colspan="${atCols.length - 1}"><button class="copy-btn" data-add-attr>+ Add attribute</button></td></tr>`);
+  if (isKafka) b += `<div class="ba-sub">Kafka event · schema registry</div>` + (ev ? tbl("Events", evCols, [ev]) : `<button class="copy-btn" data-add-ev>+ Register event (topic / subject)</button>`);
+  b += `<div class="ba-sub">Description</div><textarea data-sheet-desc style="width:100%;min-height:34px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit;font-size:12.5px">${esc(d.Description || "")}</textarea>`;
+  b += `<div class="ba-acts"><button data-ds-canvas>Show on canvas</button><button data-ds-gen>Generate schema</button><button class="danger" data-ds-del>Delete dataset</button></div>`;
+  return b;
+}
 function renderByApp() {
   const list = document.getElementById("baList"), main = document.getElementById("baMain"), keep = main.scrollTop;
   const byId = k => (x, y) => String(x[k]).localeCompare(String(y[k]));
@@ -1386,26 +1409,28 @@ function renderByApp() {
   let h = app ? `<div class="dom-h"><h3 style="font-size:16px">${esc(app.Name)}</h3>${atypeHTML(app.AppType)}<span class="hint mono">${esc(app.AppID)}</span><span class="spacer"></span>${issueBadge(rowIssues("Applications", app))}<button id="baEditApp">✎ Edit application</button><button id="baCanvas">Show on canvas</button></div>
       <div class="hint">${dom ? `Domain <b>${esc(dom.Name)}</b> (${esc(dom.DomainID)})` : "No domain"} · ${esc(app.Technology || "")}${app.Owner ? " · " + esc(app.Owner) : ""}</div>${app.Description ? `<p class="hint" style="margin:4px 0 0">${esc(app.Description)}</p>` : ""}`
     : `<div class="dom-h"><h3 style="font-size:16px">Unassigned datasets</h3><span class="hint">Pick an AppID for each so it groups under its application.</span></div>`;
-  h += `<div class="toolbar-inline" style="margin-top:12px"><span class="hint">New dataset of kind</span><select id="baKind">${allowed.map(k => `<option>${esc(k)}</option>`).join("")}</select><button class="primary" id="baAddDs">+ Dataset</button><input type="search" id="baFind" placeholder="Filter attributes…" value="${esc(baFind).replace(/"/g, "&quot;")}" /><button id="baExpand">Expand all</button><button id="baCollapse">Collapse all</button><span class="hint">${ds.length} datasets · ${ds.reduce((n, d) => n + attrsOf(d.DatasetID).length, 0)} attributes</span></div>`;
-  const dsCols = DM.Datasets.cols.filter(c => !["Description"].includes(c.key)), atCols = DM.Attributes.cols.filter(c => c.key !== "DatasetID"), evCols = DM.Events.cols.filter(c => c.key !== "DatasetID");
-  const tbl = (sheet, cols, rows, extra) => `<table><thead><tr><th></th>${cols.map(c => `<th title="${esc(c.help || "")}">${esc(c.key)}</th>`).join("")}<th></th></tr></thead><tbody>${rows.map(r => `<tr data-sheet="${sheet}" data-rid="${r._id}" class="status-${String(r.Status || "draft").toLowerCase()}"><td class="row-actions">${issueBadge(rowIssues(sheet, r))}</td>${cols.map(c => `<td>${gridCell(r, c)}</td>`).join("")}<td class="row-actions">${sheet === "Attributes" ? `<button class="icon-btn go" data-goto-attr title="Show on canvas">◎</button><button class="icon-btn" data-del-attr title="Delete attribute">✕</button>` : sheet === "Events" ? `<button class="icon-btn" data-del-ev title="Delete event registration">✕</button>` : ""}</td></tr>`).join("")}${extra || ""}</tbody></table>`;
+  h += `<div class="toolbar-inline" style="margin-top:12px"><span class="hint">New dataset of kind</span><select id="baKind">${allowed.map(k => `<option>${esc(k)}</option>`).join("")}</select><button class="primary" id="baAddDs">+ Dataset</button><button id="baImport" title="Import HTTP datasets from a GraphQL schema (SDL) or an OpenAPI (YAML / JSON) spec — load the application's own spec in one click or choose a file">⇪ Import schema (GQL / OpenAPI)</button><input type="search" id="baFind" placeholder="Filter attributes…" value="${esc(baFind).replace(/"/g, "&quot;")}" /><button id="baExpand">Expand all</button><button id="baCollapse">Collapse all</button><span class="hint">${ds.length} datasets · ${ds.reduce((n, d) => n + attrsOf(d.DatasetID).length, 0)} attributes</span></div>`;
+  // Lazy: a heavy application (many datasets or attributes) starts collapsed, so dataset
+  // bodies are built only when expanded. Seeded once per application.
+  const totalAttrs = ds.reduce((n, d) => n + attrsOf(d.DatasetID).length, 0);
+  const seedKey = app ? app.AppID : "__none";
+  if ((ds.length > 8 || totalAttrs > 300) && !baSeeded.has(seedKey)) { baSeeded.add(seedKey); ds.forEach(d => baClosed.add(d._id)); }
   let lastKind = null;
   if (!ds.length) h += `<div class="empty">No datasets yet. Pick a kind above and click <b>+ Dataset</b>.</div>`;
   for (const d of ds) {
     if (d.Kind !== lastKind) { lastKind = d.Kind; const n = ds.filter(x => x.Kind === d.Kind).length, ok = !app || allowed.includes(d.Kind); h += `<div class="ba-kind"><span class="ly" style="background:${layerOf(dsLayer(d)).color}"></span>${esc(d.Kind || "(no kind)")} <span class="hint" style="font-weight:400">${n} dataset${n > 1 ? "s" : ""}</span>${ok ? "" : `<span class="ibadge warning" title="A ${esc(app.AppType)} should not own this kind">!</span>`}</div>`; }
     const ats = attrsOf(d.DatasetID), ev = DB.Events.find(e => e.DatasetID === d.DatasetID), isKafka = KN(d.Kind) === "Kafka Event";
-    h += `<details class="ba-ds" data-ds="${esc(d.DatasetID)}"${baClosed.has(d._id) ? "" : " open"} data-did="${d._id}"><summary><b>${esc(d.Name || d.DatasetID)}</b><span class="hint mono">${esc(d.DatasetID)}</span><span class="hint">${esc(d.Location || "")}</span><span class="kchip">${ats.length} attributes</span>${isKafka ? (ev ? `<span class="kchip" title="Schema-registry subject">${esc(ev.Subject || ev.Topic)}</span>` : `<span class="ibadge warning">no event</span>`) : ""}${issueBadge(rowIssues("Datasets", d))}</summary><div class="ba-body">`;
-    h += `<div class="ba-sub">Dataset</div>` + tbl("Datasets", dsCols, [d]);
-    h += `<div class="ba-sub">Attributes</div>` + tbl("Attributes", atCols, ats, `<tr><td></td><td><input data-new-path placeholder="new.path" /></td><td><input data-new-type list="gl-DataType" placeholder="string" /></td><td colspan="${atCols.length - 1}"><button class="copy-btn" data-add-attr>+ Add attribute</button></td></tr>`);
-    if (isKafka) h += `<div class="ba-sub">Kafka event · schema registry</div>` + (ev ? tbl("Events", evCols, [ev]) : `<button class="copy-btn" data-add-ev>+ Register event (topic / subject)</button>`);
-    h += `<div class="ba-sub">Description</div><textarea data-sheet-desc style="width:100%;min-height:34px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit;font-size:12.5px">${esc(d.Description || "")}</textarea>`;
-    h += `<div class="ba-acts"><button data-ds-canvas>Show on canvas</button><button data-ds-gen>Generate schema</button><button class="danger" data-ds-del>Delete dataset</button></div></div></details>`;
+    const open = !baClosed.has(d._id);
+    h += `<details class="ba-ds" data-ds="${esc(d.DatasetID)}"${open ? " open" : ""} data-did="${d._id}"><summary><b>${esc(d.Name || d.DatasetID)}</b><span class="hint mono">${esc(d.DatasetID)}</span><span class="hint">${esc(d.Location || "")}</span><span class="kchip">${ats.length} attributes</span>${isKafka ? (ev ? `<span class="kchip" title="Schema-registry subject">${esc(ev.Subject || ev.Topic)}</span>` : `<span class="ibadge warning">no event</span>`) : ""}${issueBadge(rowIssues("Datasets", d))}</summary><div class="ba-body" data-lazy="${open ? "0" : "1"}">${open ? baDatasetBody(d) : ""}</div></details>`;
   }
   main.innerHTML = h; main.scrollTop = keep;
   baFilter();
 }
+// Build any not-yet-rendered dataset body (used before filtering so search covers all rows).
+function baFillLazy(dt) { const body = dt.querySelector(".ba-body"); if (body && body.dataset.lazy === "1") { const d = DB.Datasets.find(x => x._id === dt.dataset.did); if (d) { body.innerHTML = baDatasetBody(d); body.dataset.lazy = "0"; } } }
 function baFilter() {
   const f = baFind.trim().toLowerCase();
+  if (f) document.querySelectorAll("#baMain details.ba-ds").forEach(baFillLazy);   // filter needs every row built
   document.querySelectorAll("#baMain tr[data-sheet=Attributes]").forEach(tr => { const row = DB.Attributes.find(a => a._id === tr.dataset.rid); tr.hidden = !!f && !!row && !(row.Path + " " + row.Description + " " + row.TermID).toLowerCase().includes(f); });
   if (f) document.querySelectorAll("#baMain details.ba-ds").forEach(dt => { const any = [...dt.querySelectorAll("tr[data-sheet=Attributes]")].some(tr => !tr.hidden); dt.hidden = !any; if (any) dt.open = true; });
   else document.querySelectorAll("#baMain details.ba-ds").forEach(dt => dt.hidden = false);
@@ -1425,13 +1450,15 @@ function wireByApp() {
     if (applyField(sheet, row, el.dataset.k, el.value.trim())) renderByApp(); else el.value = row[el.dataset.k] || "";
   });
   main.addEventListener("input", e => { if (e.target.id === "baFind") { baFind = e.target.value; baFilter(); } });
-  main.addEventListener("toggle", e => { const dt = e.target; if (dt.matches && dt.matches("details.ba-ds")) { dt.open ? baClosed.delete(dt.dataset.did) : baClosed.add(dt.dataset.did); } }, true);
+  main.addEventListener("toggle", e => { const dt = e.target; if (dt.matches && dt.matches("details.ba-ds")) { if (dt.open) { baClosed.delete(dt.dataset.did); baFillLazy(dt); } else baClosed.add(dt.dataset.did); } }, true);
   main.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("[data-new-path],[data-new-type]")) { e.preventDefault(); e.target.closest("tr").querySelector("[data-add-attr]").click(); } });
   main.addEventListener("click", e => {
     const t = e.target, app = DB.Applications.find(a => a._id === baRid);
     if (t.id === "baEditApp" && app) return editRowModal("Applications", app);
     if (t.id === "baCanvas" && app) { CV.focus = "app"; CV.app = app.AppID; CV.sel = null; CV.fitPending = true; return showView("canvas"); }
-    if (t.id === "baExpand" || t.id === "baCollapse") { document.querySelectorAll("#baMain details.ba-ds").forEach(dt => dt.open = t.id === "baExpand"); return; }
+    if (t.dataset.showAll) { baShowAll.add(t.dataset.showAll); const dt = t.closest("details.ba-ds"); if (dt) { const body = dt.querySelector(".ba-body"); const d = DB.Datasets.find(x => x._id === dt.dataset.did); if (body && d) body.innerHTML = baDatasetBody(d); } return; }
+    if (t.id === "baImport") { if (typeof dtImportOpen === "function") dtImportOpen(app ? app.AppID : "", () => renderByApp()); else toast("Import needs dm-types.js"); return; }
+    if (t.id === "baExpand" || t.id === "baCollapse") { document.querySelectorAll("#baMain details.ba-ds").forEach(dt => { dt.open = t.id === "baExpand"; if (dt.open) baFillLazy(dt); }); return; }
     if (t.id === "baAddDs") {
       pushUndo(); const kind = document.getElementById("baKind").value, id = nextId("Datasets");
       const d = { _id: uid(), DatasetID: id, AppID: app ? app.AppID : "", Name: "New " + KN(kind), Kind: kind, Location: "", Format: "", Version: "1", Description: "", Status: "Draft" };

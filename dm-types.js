@@ -619,6 +619,27 @@ function dtSdlModel(text, depth) {
   if (!ops.length) throw new Error("no Query / Mutation / Subscription fields found");
   return { ops, version: "1", title: "" };
 }
+// Spec paths an application declares in its Links (one per line): OpenAPI (.yaml/.yml/.json)
+// or GraphQL (.graphql/.graphqls/.gql), so its spec can be loaded dynamically.
+const SPEC_RE = /\.(ya?ml|json|graphql|graphqls|gql)$/i;
+function dtAppSpecPaths(app) {
+  if (!app) return [];
+  const seen = new Set();
+  return (typeof parseLinks === "function" ? parseLinks(app.Links) : String(app.Links || "").split(/[\n\r]+/).map(v => ({ value: v.trim() })))
+    .map(l => l.value).filter(v => v && SPEC_RE.test(v) && !seen.has(v) && seen.add(v))
+    .map(v => ({ path: v, kind: /\.(graphql|graphqls|gql)$/i.test(v) ? "graphql" : "openapi" }));
+}
+// Fetch a spec by its registry path. Specs live at the repo root (e.g. 3prl/subgraph/…),
+// this app under workbench.github.io/, so also try a ../ prefix. Needs http(s) (not file://).
+async function dtFetchSpec(path) {
+  const tries = [path, "../" + path.replace(/^\.?\/+/, "")];
+  let lastErr;
+  for (const u of tries) {
+    try { const r = await fetch(u); if (r.ok) return await r.text(); lastErr = new Error("HTTP " + r.status); }
+    catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("not found");
+}
 function dtImportOpen(appId, onDone) { DTI = { appId, onDone, kind: "openapi", text: "", name: "", model: null, sel: {}, depth: 2, err: "" }; dtImportRender(); }
 function dtImportRead() {
   try { DTI.model = DTI.kind === "openapi" ? dtOasModel(DTI.text) : dtSdlModel(DTI.text, DTI.depth); DTI.err = ""; }
@@ -632,14 +653,17 @@ function dtImportRender() {
   const M = DTI.model, n = M ? M.ops.reduce((c, o) => { const s = DTI.sel[o.key]; if (!s.on) return c; return o.spec.Style === "REST" ? c + (((s.req && o.req.length) || (s.res && o.res.length)) ? 1 : 0) : c + (s.req && o.req.length ? 1 : 0) + (s.res && o.res.length ? 1 : 0); }, 0) : 0;
   const apps = DB.Domains.map(dm => [dm, DB.Applications.filter(a => a.DomainID === dm.DomainID)]).filter(([, l]) => l.length);
   const exists = (o, dir) => { const d = dsById(dtIdFor(o, o.spec.Style === "REST" ? "API" : dir)); return d ? `<span class="hint" title="${ea(d.Name)}">updates ${esc(d.DatasetID)}</span>` : ""; };
+  const specApp = typeof appById === "function" ? appById(DTI.appId) : null, specPaths = dtAppSpecPaths(specApp);
+  const specRow = specPaths.length ? `<div class="dg-row"><span class="hint">Load ${esc(specApp.Name)}'s spec:</span>${specPaths.map(sp => `<button data-dti="appspec" data-path="${ea(sp.path)}" title="Fetch ${ea(sp.path)}">⇪ ${sp.kind === "graphql" ? "GraphQL" : "OpenAPI"} · ${esc(sp.path.split("/").pop())}</button>`).join("")}<span class="hint">(served over http; else use Choose file…)</span></div>` : "";
   openModal(`<h2>Import HTTP datasets from an API spec</h2>
-    <p class="hint">Load an <b>OpenAPI</b> spec (REST) or a <b>GraphQL schema</b>, tick the operations. Each REST endpoint becomes one <b>HTTP API</b> dataset holding its request <i>and</i> response fields; each GraphQL operation becomes an <b>HTTP Request</b> and / or <b>HTTP Response</b> dataset. Fields whose name matches an already-tagged attribute get its business term.</p>
+    <p class="hint">Load an <b>OpenAPI</b> spec (REST) or a <b>GraphQL schema</b>, tick the operations. Each REST endpoint becomes one <b>HTTP API</b> dataset holding its request <i>and</i> response fields; each GraphQL operation becomes an <b>HTTP Request</b> and / or <b>HTTP Response</b> dataset. An application that declares its spec path(s) in Links can be loaded in one click below. Fields whose name matches an already-tagged attribute get its business term.</p>
+    ${specRow}
     <div class="dg-row"><label><input type="radio" name="dtiKind" value="openapi"${DTI.kind === "openapi" ? " checked" : ""} data-dti="kind" /> OpenAPI (REST)</label><label><input type="radio" name="dtiKind" value="graphql"${DTI.kind === "graphql" ? " checked" : ""} data-dti="kind" /> GraphQL schema (SDL)</label>
       <span class="spacer" style="flex:1"></span><select id="dtiSample">${DT_SPEC_SAMPLES[DTI.kind].map(s => `<option${s === DTI.name ? " selected" : ""}>${esc(s)}</option>`).join("")}</select><button data-dti="sample">Load sample</button>
       <label class="btn" style="cursor:pointer">Choose file…<input type="file" id="dtiFile" accept="${DTI.kind === "openapi" ? ".yaml,.yml,.json" : ".graphql,.graphqls,.gql,.txt"}" hidden /></label></div>
     <textarea id="dtiText" class="dt-src" style="min-height:140px;max-height:24vh" spellcheck="false" placeholder="${DTI.kind === "openapi" ? "openapi: 3.0.3\npaths:\n  /products/{sku}:\n    get: …" : "type Query {\n  product(sku: ID!): Product\n}\ntype Product { … }"}">${esc(DTI.text)}</textarea>
     <div class="dg-row"><button class="primary" data-dti="read">Read operations</button>${DTI.kind === "graphql" ? `<label>Response depth <select data-dti="depth">${[1, 2, 3, 4, 5].map(x => `<option${x === DTI.depth ? " selected" : ""}>${x}</option>`).join("")}</select></label><span class="hint">levels of nested object fields to select</span>` : ""}
-      <span class="spacer" style="flex:1"></span><label>Application <select id="dtiApp">${apps.map(([dm, l]) => `<optgroup label="${ea(dm.Name)}">${l.map(a => `<option value="${ea(a.AppID)}"${a.AppID === DTI.appId ? " selected" : ""}>${esc(a.Name)} · ${esc(KN(a.AppType))}</option>`).join("")}</optgroup>`).join("")}</select></label></div>
+      <span class="spacer" style="flex:1"></span><label>Application <select id="dtiApp" data-dti="app">${apps.map(([dm, l]) => `<optgroup label="${ea(dm.Name)}">${l.map(a => `<option value="${ea(a.AppID)}"${a.AppID === DTI.appId ? " selected" : ""}>${esc(a.Name)} · ${esc(KN(a.AppType))}</option>`).join("")}</optgroup>`).join("")}</select></label></div>
     ${M ? `<div class="kv">${M.ops.length} operations${DTI.name ? " in " + esc(DTI.name.split("/").slice(-2).join("/")) : ""} <button class="addrow" data-dti="all">Select all</button><button class="addrow" data-dti="none">Select none</button></div>
       <div class="dt-fields"><table class="dg-tbl"><thead><tr><th></th><th>Operation</th><th>HTTP Request</th><th>HTTP Response</th></tr></thead><tbody>${M.ops.map(o => { const s = DTI.sel[o.key];
         return `<tr class="${s.on ? "cur" : ""}"><td><input type="checkbox" data-dti="op" data-k="${ea(o.key)}"${s.on ? " checked" : ""} /></td><td><span class="mono">${esc(o.label)}</span><div class="hint">${esc(String(o.sub || "").slice(0, 110))}</div></td>
@@ -688,12 +712,14 @@ function dtImportWire() {
     DTI.text = (document.getElementById("dtiText") || {}).value != null ? document.getElementById("dtiText").value : DTI.text; DTI.appId = val("dtiApp") || DTI.appId;
     if (a === "read") dtImportRead();
     else if (a === "sample") { const p = val("dtiSample"); try { const r = await fetch(p); if (!r.ok) throw new Error("HTTP " + r.status); DTI.text = await r.text(); DTI.name = p; dtImportRead(); } catch (err) { DTI.err = `Couldn't load ${p} (${err.message}). Samples need the page served over http(s); from disk, use Choose file….`; dtImportRender(); } }
+    else if (a === "appspec") { const p = b.dataset.path; DTI.kind = /\.(graphql|graphqls|gql)$/i.test(p) ? "graphql" : "openapi"; try { DTI.text = await dtFetchSpec(p); DTI.name = p; dtImportRead(); } catch (err) { DTI.err = `Couldn't load ${p} (${err.message}). The spec must be reachable over http(s) from this page; from disk, use Choose file….`; dtImportRender(); } }
     else if (a === "all" || a === "none") { Object.values(DTI.sel).forEach(s => s.on = a === "all"); dtImportRender(); }
     else if (a === "cancel") { DTI = null; closeModal(); }
     else if (a === "create") dtImportCreate(); });
   card.addEventListener("change", e => { if (!DTI || !card.classList.contains("dt-import")) return; const el = e.target, a = el.dataset.dti; if (!a) return;
     DTI.text = document.getElementById("dtiText").value; DTI.appId = val("dtiApp") || DTI.appId;
     if (a === "kind") { DTI.kind = el.value; DTI.model = null; DTI.err = ""; DTI.name = ""; dtImportRender(); }
+    else if (a === "app") { DTI.appId = el.value; dtImportRender(); }
     else if (a === "depth") { DTI.depth = +el.value; if (DTI.model) dtImportRead(); else dtImportRender(); }
     else if (a === "op" || a === "req" || a === "res") { const s = DTI.sel[el.dataset.k]; s[a === "op" ? "on" : a] = el.checked; if (a !== "op" && el.checked) s.on = true; dtImportRender(); } });
 }

@@ -1,11 +1,13 @@
 # checkout subgraph — the saga / process coordinator for placing an order. submitCheckout's resolver:
-#   1. reads the cart (cart subgraph) and checks stock (inventory subgraph),
+#   1. reads the cart (cart REST API, GET /carts/{id}) and reserves stock (inventory REST API,
+#      POST /inventory/reservations),
 #   2. creates a pending order,
-#   3. takes payment (payments subgraph, processPayment),
-#   4. clears the cart (cart subgraph, clearCart) — compensating completed steps on failure.
-# Mutations can't pipe results into each other through the router, so the orchestration lives in
-# this resolver and calls the other subgraphs over internal clients (gRPC / HTTP).
-# Registry: ENT-008 Order (BusinessApplication "checkout").
+#   3. takes payment (payments REST API, POST /payments),
+#   4. clears the cart (cart REST API, DELETE /carts/{id}/items) — compensating completed steps on failure.
+# Constraint: a GraphQL subgraph must not call another GraphQL subgraph. The orchestrator therefore
+# calls the cart, inventory and payments services over their REST APIs (internal HTTP), never GQL→GQL.
+# It still publishes its own Order subgraph to the router for reads. Registry: ENT-008 Order
+# (BusinessApplication "checkout").
 
 extend schema
   @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires"])

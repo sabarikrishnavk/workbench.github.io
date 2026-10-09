@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "PaymentProcessed",
+  "namespace": "com.retail.payment.events",
+  "doc": "payment.processed.v1 — published by the Payment Service after a payment is authorised and captured (or declined). Partition key: transactionId. Registry: ENT-007 PaymentTransaction / KFK-PAYMENT-PROCESSED.",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "transactionId", "type": "string", "doc": "Message key" },
+    { "name": "referenceId", "type": "string", "doc": "Pending Order id / checkout session id" },
+    { "name": "amount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2 } },
+    { "name": "currency", "type": "string", "doc": "ISO 4217" },
+    { "name": "status", "type": { "type": "enum", "name": "PaymentStatus", "symbols": ["SUCCESS", "FAILED", "DECLINED"] } },
+    { "name": "gatewayReference", "type": "string" }
+  ]
+}

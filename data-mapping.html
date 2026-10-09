@@ -466,7 +466,7 @@ const APP_COLOR = { "Domain service": "#2563eb", "Orchestrator service": "#0d948
 // An HTTP API dataset is a request or a response; its style (REST or GraphQL) is on the dataset (Spec.Style).
 const API_KINDS = ["HTTP Request", "HTTP Response", "GQL Type"];
 const APP_KINDS = {
-  "Domain service": [...API_KINDS, "DB Table", "DB Collection", "Kafka Event", "Search Index", "Databricks Table"],
+  "Domain service": [...API_KINDS, "DB Table", "DB Collection", "Kafka Event", "Search Index", "Databricks Table", "Other"],
   "Orchestrator service": [...API_KINDS, "DB Table", "DB Collection", "Kafka Event"],
   "Integration service": ["HTTP Request", "HTTP Response", "Kafka Event", "CSV Schema", "JSON Schema", "DB Table", "DB Collection", "Databricks Table"],
   BFF: ["HTTP Request", "HTTP Response"],
@@ -1923,6 +1923,8 @@ function exampleDB() {
   DOM("03", "CRTCK", "Cart & Checkout", "Carts, cart lines and checkout.", "Cart & Checkout tribe");
   DOM("04", "PRODT", "Product", "Product catalogue: ingestion of core data, the product model and its APIs.", "Product tribe");
   DOM("05", "SRCHD", "Search & Discovery", "Search index and product listing.", "Discovery tribe");
+  DOM("06", "INVTY", "Inventory", "Stock positions per SKU per store, and stock reservations made during checkout.", "Fulfilment tribe");
+  DOM("07", "PAYMT", "Payments", "Headless payment processing: authorises and captures payments without knowing what was bought.", "Payments tribe");
 
   const APP = (AppID, Name, DomainID, AppType, Technology, Owner, Description, Links) => db.Applications.push({ AppID, Name, DomainID, AppType, Technology, Owner, Description, Links: Links || "", Status: "Approved" });
   APP("APP-01-MSTDT-07", "Informatica MDM", "DOM-01-MSTDT", "07-Core system", "Informatica MDM 10.5 (Product hub) + Kafka Connect CDC", "Master Data team", "Golden record for product identity, brand, category, status and logistics attributes. Publishes golden-record changes to Kafka through a CDC connector.", "LeanIX: https://leanix.example/fs/mdm");
@@ -1932,10 +1934,14 @@ function exampleDB() {
   APP("APP-04-PRODT-01", "Product Service", "DOM-04-PRODT", "01-Domain service", "Spring Boot 3 + PostgreSQL 16 + Netflix DGS (product subgraph)", "Product squad", "Owns the product model: REST API, product subgraph, product table and product.updated events.", "ER: workbench.html");
   APP("APP-03-CRTCK-01", "Cart Service", "DOM-03-CRTCK", "01-Domain service", "NestJS + MongoDB 7 + Apollo Server (cart subgraph)", "Cart squad", "Owns carts and cart lines; cart subgraph and cart.item-added events.");
   APP("APP-05-SRCHD-01", "Search Service", "DOM-05-SRCHD", "01-Domain service", "Elasticsearch 8 + Kafka consumer", "Search squad", "Builds the product search index from product events.");
-  APP("APP-02-DGEXP-05", "FedGQL Router", "DOM-02-DGEXP", "05-FedGQL router", "Apollo Router (Federation 2 supergraph)", "API Platform", "Single GraphQL endpoint for web; composes the product and cart subgraphs.");
+  APP("APP-02-DGEXP-05", "FedGQL Router", "DOM-02-DGEXP", "05-FedGQL router", "Apollo Router (Federation 2 supergraph)", "API Platform", "Single GraphQL endpoint for Retail Web; composes the product, pnp, inventory, search, cart, payments and checkout subgraphs.");
   APP("APP-02-DGEXP-04", "Retail BFF", "DOM-02-DGEXP", "04-BFF", "Node.js / Express (samples/bff-openapi.yaml)", "App squad", "Screen-shaped REST endpoints for the mobile app.");
   APP("APP-02-DGEXP-06", "Retail Web", "DOM-02-DGEXP", "06-Frontend", "Next.js 14 + Apollo Client", "Web squad", "Customer storefront; integrates via the FedGQL router.");
   APP("APP-02-DGEXP-06-02", "Retail App", "DOM-02-DGEXP", "06-Frontend", "React Native", "App squad", "Mobile app; integrates via the BFF REST API.");
+  APP("APP-04-PRODT-01-02", "PnP Service", "DOM-04-PRODT", "01-Domain service", "Spring Boot 3 + PostgreSQL 16 + Netflix DGS (pnp subgraph)", "Pricing squad", "Owns store-scoped pricing (ProductStoreContext): REST API, pnp subgraph, price table and price.updated events.");
+  APP("APP-06-INVTY-01", "Inventory Service", "DOM-06-INVTY", "01-Domain service", "Go + PostgreSQL 16 + gRPC + Apollo Server (inventory subgraph)", "Fulfilment squad", "Owns stock positions and reservations; exposes get + reserve over REST, GraphQL (inventory subgraph) and gRPC; publishes inventory.reserved events.");
+  APP("APP-07-PAYMT-01", "Payment Service", "DOM-07-PAYMT", "01-Domain service", "Kotlin + Spring Boot 3 + PostgreSQL 16 (payments subgraph)", "Payments squad", "Headless billing engine: processPayment over REST and the payments subgraph; publishes payment.processed events.");
+  APP("APP-03-CRTCK-02", "Checkout Service", "DOM-03-CRTCK", "02-Orchestrator service", "NestJS + Apollo Server (checkout subgraph)", "Checkout squad", "Checkout saga coordinator: owns Order and submitCheckout; calls the cart, inventory and payments REST APIs (never GQL→GQL); publishes order.placed events.");
 
   const DS = (DatasetID, AppID, Name, Kind, Location, Format, Version, Description, Status) => db.Datasets.push({ DatasetID, AppID, Name, Kind, Location, Format, Version, Description, Status: Status || "Approved" });
   // [Path, DataType, Required, Classification, TermID, Example, Description]
@@ -2158,6 +2164,218 @@ function exampleDB() {
     ["quantity", "int", "Y", "Internal", "BT-QTY", "", ""],
   ]);
 
+  // ---- Pricing (pnp subgraph): store-scoped price ----
+  DS("DB-STORE-PRICE", "APP-04-PRODT-01-02", "store_price (table)", "01-DB Table", "pnp_db.public.store_price", "SQL", "4", "PnP Service price table (store-scoped).");
+  A("DB-STORE-PRICE", [
+    ["sku", "VARCHAR(18)", "Y", "Internal", "BT-SKU", "10023456", "PK part"],
+    ["store_id", "VARCHAR(10)", "Y", "Internal", "BT-STORE-ID", "S-001", "PK part"],
+    ["amount", "NUMERIC(12,2)", "Y", "Public", "BT-PRICE", "189.99", ""],
+    ["currency", "CHAR(3)", "Y", "Public", "BT-CURRENCY", "USD", "ISO 4217"],
+    ["updated_at", "TIMESTAMPTZ", "Y", "Internal", "BT-UPDATED", "", ""],
+  ]);
+  DS("REST-PNP-GET", "APP-04-PRODT-01-02", "GET /store-contexts/{sku}/stores/{storeId} — response", "07-REST Response", "GET /v1/store-contexts/{sku}/stores/{storeId}", "JSON", "1.1", "PnP REST API (samples/subgraph/pnp/openapi.yaml).");
+  A("REST-PNP-GET", [
+    ["sku", "string", "Y", "Public", "BT-SKU", "", ""],
+    ["storeId", "string", "Y", "Internal", "BT-STORE-ID", "", ""],
+    ["price.amount", "decimal", "Y", "Public", "BT-PRICE", "189.99", ""],
+    ["price.currency", "string", "Y", "Public", "BT-CURRENCY", "USD", ""],
+  ]);
+  DS("GQL-PNP", "APP-04-PRODT-01-02", "pnp subgraph: query productStoreContext", "08-GQL Query", "productStoreContext(sku: String!, storeId: ID!): ProductStoreContext", "GraphQL", "1", "PnP subgraph (samples/subgraph/pnp/subgraph.gql).");
+  A("GQL-PNP", [
+    ["productStoreContext.sku", "String!", "Y", "Public", "BT-SKU", "", "@key part"],
+    ["productStoreContext.storeId", "ID!", "Y", "Internal", "BT-STORE-ID", "", "@key part"],
+    ["productStoreContext.price.amount", "Money!", "Y", "Public", "BT-PRICE", "", ""],
+    ["productStoreContext.price.currency", "String!", "Y", "Public", "BT-CURRENCY", "", ""],
+  ]);
+  DS("KFK-PRICE-UPDATED", "APP-04-PRODT-01-02", "price.updated.v1", "05-Kafka Event", "price.updated.v1", "Avro", "1", "Published by the PnP Service when a store price changes (samples/subgraph/pnp/price.updated.v1.avsc).");
+  A("KFK-PRICE-UPDATED", [
+    ["eventId", "uuid", "Y", "Internal", "BT-EVENT-ID", "", ""],
+    ["occurredAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", ""],
+    ["sku", "string", "Y", "Internal", "BT-SKU", "", "Message key"],
+    ["storeId", "string", "Y", "Internal", "BT-STORE-ID", "", ""],
+    ["amount", "decimal", "Y", "Public", "BT-PRICE", "189.99", ""],
+    ["currency", "string", "Y", "Public", "BT-CURRENCY", "USD", ""],
+  ]);
+
+  // ---- Inventory (inventory subgraph): REST + GQL + gRPC, get + reserve ----
+  DS("DB-INVENTORY", "APP-06-INVTY-01", "inventory (table)", "01-DB Table", "inventory_db.public.inventory", "SQL", "6", "Inventory Service stock positions.");
+  A("DB-INVENTORY", [
+    ["sku", "VARCHAR(18)", "Y", "Internal", "BT-SKU", "10023456", "PK part"],
+    ["store_id", "VARCHAR(10)", "Y", "Internal", "BT-STORE-ID", "S-001", "PK part"],
+    ["on_hand", "INTEGER", "Y", "Internal", "BT-STOCK", "42", ""],
+    ["reserved", "INTEGER", "Y", "Internal", "BT-STOCK", "3", ""],
+    ["available_to_sell", "INTEGER", "Y", "Internal", "BT-STOCK", "39", "on_hand - reserved"],
+    ["updated_at", "TIMESTAMPTZ", "Y", "Internal", "BT-UPDATED", "", ""],
+  ]);
+  DS("REST-INVENTORY-GET", "APP-06-INVTY-01", "GET /inventory/{sku}/stores/{storeId} — response", "07-REST Response", "GET /v1/inventory/{sku}/stores/{storeId}", "JSON", "1.3", "Inventory REST get (samples/subgraph/inventory/openapi.yaml).");
+  A("REST-INVENTORY-GET", [
+    ["sku", "string", "Y", "Internal", "BT-SKU", "", ""],
+    ["storeId", "string", "Y", "Internal", "BT-STORE-ID", "", ""],
+    ["onHand", "int", "Y", "Internal", "BT-STOCK", "42", ""],
+    ["reserved", "int", "Y", "Internal", "BT-STOCK", "3", ""],
+    ["availableToSell", "int", "Y", "Internal", "BT-STOCK", "39", ""],
+  ]);
+  DS("REST-INVENTORY-RESERVE", "APP-06-INVTY-01", "POST /inventory/reservations — response", "07-REST Response", "POST /v1/inventory/reservations", "JSON", "1.3", "Inventory REST reserve, called by the checkout orchestrator.");
+  A("REST-INVENTORY-RESERVE", [
+    ["reservationId", "string", "Y", "Internal", "BT-RESERVATION-ID", "", "Idempotency key = order id"],
+    ["sku", "string", "Y", "Internal", "BT-SKU", "", ""],
+    ["storeId", "string", "Y", "Internal", "BT-STORE-ID", "", ""],
+    ["quantity", "int", "Y", "Internal", "BT-QTY", "1", ""],
+    ["status", "enum", "Y", "Internal", "BT-RESERVATION-STATUS", "RESERVED|RELEASED|COMMITTED", ""],
+    ["availableToSell", "int", "Y", "Internal", "BT-STOCK", "", ""],
+  ]);
+  DS("GQL-INVENTORY", "APP-06-INVTY-01", "inventory subgraph: query inventory", "08-GQL Query", "inventory(sku: String!, storeId: ID!): Inventory", "GraphQL", "2", "Inventory subgraph get (samples/subgraph/inventory/subgraph.gql).");
+  A("GQL-INVENTORY", [
+    ["inventory.sku", "String!", "Y", "Internal", "BT-SKU", "", "@key part"],
+    ["inventory.storeId", "ID!", "Y", "Internal", "BT-STORE-ID", "", "@key part"],
+    ["inventory.onHand", "Int!", "Y", "Internal", "BT-STOCK", "", ""],
+    ["inventory.reserved", "Int!", "Y", "Internal", "BT-STOCK", "", ""],
+    ["inventory.availableToSell", "Int!", "Y", "Internal", "BT-STOCK", "", ""],
+  ]);
+  DS("GQL-INVENTORY-RESERVE", "APP-06-INVTY-01", "inventory subgraph: mutation reserveInventory", "09-GQL Mutation", "reserveInventory(input: ReserveInventoryInput!): InventoryReservation", "GraphQL", "1", "Inventory subgraph reserve mutation (samples/subgraph/inventory/subgraph.gql).");
+  A("GQL-INVENTORY-RESERVE", [
+    ["input.sku", "String!", "Y", "Internal", "BT-SKU", "", ""],
+    ["input.storeId", "ID!", "Y", "Internal", "BT-STORE-ID", "", ""],
+    ["input.quantity", "Int!", "Y", "Internal", "BT-QTY", "", ""],
+    ["input.reservationId", "ID!", "Y", "Internal", "BT-RESERVATION-ID", "", "Usually the pending order id"],
+  ]);
+  DS("GRPC-INVENTORY", "APP-06-INVTY-01", "InventoryService (gRPC): GetInventory + ReserveInventory", "16-Other", "retail.inventory.v1.InventoryService (samples/subgraph/inventory/inventory.proto)", "Protobuf", "1", "gRPC interface mirroring the REST/GQL get + reserve operations for low-latency service-to-service calls.");
+  A("GRPC-INVENTORY", [
+    ["GetInventoryRequest.sku", "string", "Y", "Internal", "BT-SKU", "", ""],
+    ["GetInventoryRequest.storeId", "string", "Y", "Internal", "BT-STORE-ID", "", "store_id"],
+    ["Inventory.availableToSell", "int", "Y", "Internal", "BT-STOCK", "", "available_to_sell"],
+    ["ReserveInventoryRequest.quantity", "int", "Y", "Internal", "BT-QTY", "1", ""],
+    ["ReserveInventoryRequest.reservationId", "string", "Y", "Internal", "BT-RESERVATION-ID", "", "reservation_id"],
+    ["InventoryReservation.status", "enum", "Y", "Internal", "BT-RESERVATION-STATUS", "RESERVED|RELEASED|COMMITTED", ""],
+  ]);
+  DS("KFK-INVENTORY-RESERVED", "APP-06-INVTY-01", "inventory.reserved.v1", "05-Kafka Event", "inventory.reserved.v1", "Avro", "1", "Published by the Inventory Service on reserve / release / commit (samples/subgraph/inventory/inventory.reserved.v1.avsc).");
+  A("KFK-INVENTORY-RESERVED", [
+    ["eventId", "uuid", "Y", "Internal", "BT-EVENT-ID", "", ""],
+    ["occurredAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", ""],
+    ["reservationId", "uuid", "Y", "Internal", "BT-RESERVATION-ID", "", ""],
+    ["sku", "string", "Y", "Internal", "BT-SKU", "", "Message key"],
+    ["storeId", "string", "Y", "Internal", "BT-STORE-ID", "", ""],
+    ["quantity", "int", "Y", "Internal", "BT-QTY", "", ""],
+    ["status", "enum", "Y", "Internal", "BT-RESERVATION-STATUS", "RESERVED|RELEASED|COMMITTED", ""],
+    ["availableToSell", "int", "Y", "Internal", "BT-STOCK", "", ""],
+  ]);
+
+  // ---- Payments (payments subgraph): headless billing ----
+  DS("DB-PAYMENT", "APP-07-PAYMT-01", "payment_transaction (table)", "01-DB Table", "payment_db.public.payment_transaction", "SQL", "5", "Payment Service transactions.");
+  A("DB-PAYMENT", [
+    ["id", "UUID", "Y", "Internal", "BT-PAYMENT-ID", "", "PK"],
+    ["reference_id", "VARCHAR(40)", "Y", "Internal", "BT-REFERENCE-ID", "", "Order / checkout session id"],
+    ["amount", "NUMERIC(12,2)", "Y", "Confidential", "BT-AMOUNT", "209.98", ""],
+    ["currency", "CHAR(3)", "Y", "Public", "BT-CURRENCY", "USD", ""],
+    ["status", "VARCHAR(10)", "Y", "Internal", "BT-PAYMENT-STATUS", "SUCCESS|FAILED|DECLINED", ""],
+    ["gateway_reference", "VARCHAR(64)", "Y", "Confidential", "", "", "PSP reference"],
+    ["created_at", "TIMESTAMPTZ", "Y", "Internal", "BT-UPDATED", "", ""],
+  ]);
+  DS("REST-PAYMENT", "APP-07-PAYMT-01", "POST /payments — response", "07-REST Response", "POST /v1/payments", "JSON", "1.2", "Payments REST API, called by the checkout orchestrator (samples/subgraph/payments/openapi.yaml).");
+  A("REST-PAYMENT", [
+    ["id", "string", "Y", "Internal", "BT-PAYMENT-ID", "", ""],
+    ["status", "enum", "Y", "Internal", "BT-PAYMENT-STATUS", "SUCCESS|FAILED|DECLINED", ""],
+    ["gatewayReference", "string", "Y", "Confidential", "", "", ""],
+    ["amount", "decimal", "Y", "Confidential", "BT-AMOUNT", "209.98", ""],
+    ["currency", "string", "Y", "Public", "BT-CURRENCY", "USD", ""],
+  ]);
+  DS("GQL-PAYMENT", "APP-07-PAYMT-01", "payments subgraph: mutation processPayment", "09-GQL Mutation", "processPayment(input: ProcessPaymentInput!): PaymentTransaction!", "GraphQL", "1", "Payments subgraph (samples/subgraph/payments/subgraph.gql).");
+  A("GQL-PAYMENT", [
+    ["input.amount", "Money!", "Y", "Confidential", "BT-AMOUNT", "", ""],
+    ["input.currency", "String!", "Y", "Public", "BT-CURRENCY", "USD", ""],
+    ["input.paymentMethodId", "String!", "Y", "Confidential", "BT-PAYMENT-METHOD", "", ""],
+    ["input.referenceId", "ID!", "Y", "Internal", "BT-REFERENCE-ID", "", "Pending order id"],
+  ]);
+  DS("KFK-PAYMENT-PROCESSED", "APP-07-PAYMT-01", "payment.processed.v1", "05-Kafka Event", "payment.processed.v1", "Avro", "1", "Published by the Payment Service after authorise + capture (samples/subgraph/payments/payment.processed.v1.avsc).");
+  A("KFK-PAYMENT-PROCESSED", [
+    ["eventId", "uuid", "Y", "Internal", "BT-EVENT-ID", "", ""],
+    ["occurredAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", ""],
+    ["transactionId", "string", "Y", "Internal", "BT-PAYMENT-ID", "", "Message key"],
+    ["referenceId", "string", "Y", "Internal", "BT-REFERENCE-ID", "", ""],
+    ["amount", "decimal", "Y", "Confidential", "BT-AMOUNT", "", ""],
+    ["currency", "string", "Y", "Public", "BT-CURRENCY", "", ""],
+    ["status", "enum", "Y", "Internal", "BT-PAYMENT-STATUS", "SUCCESS|FAILED|DECLINED", ""],
+    ["gatewayReference", "string", "Y", "Confidential", "", "", ""],
+  ]);
+
+  // ---- Checkout (checkout subgraph): orchestrator ----
+  DS("DB-ORDER", "APP-03-CRTCK-02", "orders (table)", "01-DB Table", "checkout_db.public.orders", "SQL", "3", "Checkout Service orders.");
+  A("DB-ORDER", [
+    ["id", "UUID", "Y", "Internal", "BT-ORDER-ID", "", "PK"],
+    ["cart_id", "VARCHAR(40)", "Y", "Internal", "BT-CART-ID", "", ""],
+    ["status", "VARCHAR(10)", "Y", "Internal", "BT-ORDER-STATUS", "PENDING|PLACED|FAILED", ""],
+    ["total_paid", "NUMERIC(12,2)", "Y", "Confidential", "BT-AMOUNT", "209.98", ""],
+    ["currency", "CHAR(3)", "Y", "Public", "BT-CURRENCY", "USD", ""],
+    ["payment_transaction_id", "UUID", "N", "Internal", "BT-PAYMENT-ID", "", ""],
+    ["created_at", "TIMESTAMPTZ", "Y", "Internal", "BT-UPDATED", "", ""],
+  ]);
+  DS("GQL-SUBMIT-CHECKOUT", "APP-03-CRTCK-02", "checkout subgraph: mutation submitCheckout", "09-GQL Mutation", "submitCheckout(input: SubmitCheckoutInput!): CheckoutResult!", "GraphQL", "1", "Orchestrating mutation (samples/subgraph/checkout/subgraph.gql).");
+  A("GQL-SUBMIT-CHECKOUT", [
+    ["input.cartId", "ID!", "Y", "Internal", "BT-CART-ID", "", ""],
+    ["input.paymentMethodId", "String!", "Y", "Confidential", "BT-PAYMENT-METHOD", "", ""],
+    ["input.shippingAddress", "String!", "Y", "Confidential", "", "", ""],
+  ]);
+  DS("GQL-ORDER", "APP-03-CRTCK-02", "checkout subgraph: query order", "08-GQL Query", "order(id: ID!): Order", "GraphQL", "1", "Order read served by the checkout subgraph.");
+  A("GQL-ORDER", [
+    ["order.id", "ID!", "Y", "Internal", "BT-ORDER-ID", "", "@key"],
+    ["order.status", "OrderStatus!", "Y", "Internal", "BT-ORDER-STATUS", "", ""],
+    ["order.totalPaid", "Money!", "Y", "Confidential", "BT-AMOUNT", "", ""],
+    ["order.paymentTransaction.id", "ID", "N", "Internal", "BT-PAYMENT-ID", "", "Resolved by the payments subgraph"],
+  ]);
+  DS("KFK-ORDER-PLACED", "APP-03-CRTCK-02", "order.placed.v1", "05-Kafka Event", "order.placed.v1", "Avro", "1", "Published by the Checkout Service when the saga completes (samples/subgraph/checkout/order.placed.v1.avsc).");
+  A("KFK-ORDER-PLACED", [
+    ["eventId", "uuid", "Y", "Internal", "BT-EVENT-ID", "", ""],
+    ["occurredAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", ""],
+    ["orderId", "string", "Y", "Internal", "BT-ORDER-ID", "", "Message key"],
+    ["cartId", "string", "Y", "Internal", "BT-CART-ID", "", ""],
+    ["totalPaid", "decimal", "Y", "Confidential", "BT-AMOUNT", "", ""],
+    ["currency", "string", "Y", "Public", "BT-CURRENCY", "", ""],
+    ["status", "enum", "Y", "Internal", "BT-ORDER-STATUS", "PENDING|PLACED|FAILED", ""],
+    ["paymentTransactionId", "string", "N", "Internal", "BT-PAYMENT-ID", "", ""],
+  ]);
+
+  // ---- Cart: REST + GQL read (adds to the existing cart mutation + collection) ----
+  DS("REST-CART-GET", "APP-03-CRTCK-01", "GET /carts/{id} — response", "07-REST Response", "GET /v1/carts/{id}", "JSON", "1", "Cart REST read, used by the checkout orchestrator (samples/subgraph/cart/openapi.yaml).");
+  A("REST-CART-GET", [
+    ["id", "string", "Y", "Internal", "BT-CART-ID", "", ""],
+    ["items[].sku", "string", "Y", "Internal", "BT-SKU", "", ""],
+    ["items[].quantity", "int", "Y", "Internal", "BT-QTY", "", ""],
+    ["items[].unitPrice", "decimal", "Y", "Public", "BT-PRICE", "", ""],
+    ["totalAmount", "decimal", "Y", "Public", "BT-AMOUNT", "", ""],
+  ]);
+  DS("GQL-CART", "APP-03-CRTCK-01", "cart subgraph: query cart", "08-GQL Query", "cart(id: ID!): Cart", "GraphQL", "1", "Cart read served by the cart subgraph.");
+  A("GQL-CART", [
+    ["cart.id", "ID!", "Y", "Internal", "BT-CART-ID", "", "@key"],
+    ["cart.items[].product.sku", "String!", "Y", "Internal", "BT-SKU", "", "Product resolved by the product subgraph"],
+    ["cart.items[].quantity", "Int!", "Y", "Internal", "BT-QTY", "", ""],
+    ["cart.items[].unitPrice", "Money!", "Y", "Public", "BT-PRICE", "", ""],
+    ["cart.totalAmount", "Money!", "Y", "Public", "BT-AMOUNT", "", ""],
+  ]);
+
+  // ---- Search: REST + GQL + indexed event (adds to the existing index document) ----
+  DS("REST-SEARCH", "APP-05-SRCHD-01", "GET /search — response", "07-REST Response", "GET /v1/search", "JSON", "1", "Search REST API (samples/subgraph/search/openapi.yaml).", "Proposed");
+  A("REST-SEARCH", [
+    ["hits[].sku", "string", "Y", "Public", "BT-SKU", "", ""],
+    ["hits[].name", "string", "Y", "Public", "BT-TITLE", "", ""],
+    ["totalCount", "int", "Y", "Public", "", "128", ""],
+  ], "Proposed");
+  DS("GQL-SEARCH", "APP-05-SRCHD-01", "search subgraph: query searchProducts", "08-GQL Query", "searchProducts(query: String!): SearchResponse!", "GraphQL", "1", "Search subgraph (samples/subgraph/search/subgraph.gql).", "Proposed");
+  A("GQL-SEARCH", [
+    ["searchProducts.hits[].sku", "String!", "Y", "Public", "BT-SKU", "", "Product resolved by the product subgraph"],
+    ["searchProducts.totalCount", "Int!", "Y", "Public", "", "128", ""],
+    ["searchProducts.facets[].field", "String!", "N", "Public", "", "brand", ""],
+  ], "Proposed");
+  DS("KFK-SEARCH-INDEXED", "APP-05-SRCHD-01", "search.product-indexed.v1", "05-Kafka Event", "search.product-indexed.v1", "Avro", "1", "Published by the Search Service after a product is (re)indexed (samples/subgraph/search/search.product-indexed.v1.avsc).", "Proposed");
+  A("KFK-SEARCH-INDEXED", [
+    ["eventId", "uuid", "Y", "Internal", "BT-EVENT-ID", "", ""],
+    ["occurredAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", ""],
+    ["sku", "string", "Y", "Public", "BT-SKU", "", "Message key"],
+    ["name", "string", "N", "Public", "BT-TITLE", "", ""],
+    ["brand", "string", "N", "Public", "BT-BRAND-NAME", "", ""],
+    ["isActive", "boolean", "Y", "Public", "BT-PURCHASABLE", "", ""],
+    ["indexedAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", ""],
+  ], "Proposed");
+
   const FL = (FlowID, Name, SourceAppID, TargetAppID, Pattern, Middleware, Frequency, Description, Status) => db.Flows.push({ FlowID, Name, SourceAppID, TargetAppID, Pattern, Middleware, Frequency, Description, Status: Status || "Approved" });
   FL("FL-MDM-CDC", "MDM golden record → mdm.product.golden", "APP-01-MSTDT-07", "APP-01-MSTDT-07", "CDC", "Kafka Connect JDBC source + SMTs", "Near real-time", "Change data capture on C_B_PRODUCT.");
   FL("FL-MDM-INT", "MDM → Product Integration (Kafka)", "APP-01-MSTDT-07", "APP-04-PRODT-03", "Kafka event", "Kafka Streams consumer", "Real-time", "Integration service consumes mdm.product.golden.v1.");
@@ -2177,6 +2395,37 @@ function exampleDB() {
   FL("FL-ROUTER-CART", "FedGQL router → cart subgraph", "APP-02-DGEXP-05", "APP-03-CRTCK-01", "GraphQL", "Router query plan", "On request", "");
   FL("FL-CART-DB", "cart subgraph → cart_items", "APP-03-CRTCK-01", "APP-03-CRTCK-01", "Internal", "Mongoose", "On request", "Mutation input → document.");
   FL("FL-CART-OUTBOX", "cart_items → cart.item-added", "APP-03-CRTCK-01", "APP-03-CRTCK-01", "Internal", "MongoDB change stream → Kafka", "Real-time", "");
+  // pnp (price & promotions)
+  FL("FL-PNP-REST", "Price DB → pnp REST API", "APP-04-PRODT-01-02", "APP-04-PRODT-01-02", "Internal", "Spring Data JPA", "On request", "Entity → REST DTO.");
+  FL("FL-PNP-GQL", "Price DB → pnp subgraph", "APP-04-PRODT-01-02", "APP-04-PRODT-01-02", "Internal", "DGS data fetchers", "On request", "Entity → GraphQL type.");
+  FL("FL-PNP-OUTBOX", "Price DB → price.updated", "APP-04-PRODT-01-02", "APP-04-PRODT-01-02", "Internal", "Debezium outbox event router", "Real-time", "Transactional outbox.");
+  FL("FL-PNP-ROUTER", "pnp subgraph → FedGQL router", "APP-04-PRODT-01-02", "APP-02-DGEXP-05", "GraphQL", "Federation 2 composition", "On request", "Router fetches store price from the pnp subgraph.");
+  // inventory
+  FL("FL-INV-REST", "Inventory DB → inventory REST API", "APP-06-INVTY-01", "APP-06-INVTY-01", "Internal", "sqlc", "On request", "Entity → REST DTO (get + reserve).");
+  FL("FL-INV-GQL", "Inventory DB → inventory subgraph", "APP-06-INVTY-01", "APP-06-INVTY-01", "Internal", "gqlgen resolvers", "On request", "Entity → GraphQL type.");
+  FL("FL-INV-GRPC", "Inventory DB → inventory gRPC", "APP-06-INVTY-01", "APP-06-INVTY-01", "Internal", "gRPC server", "On request", "Entity → protobuf messages (get + reserve).");
+  FL("FL-INV-OUTBOX", "Inventory DB → inventory.reserved", "APP-06-INVTY-01", "APP-06-INVTY-01", "Internal", "Debezium outbox event router", "Real-time", "Transactional outbox.");
+  FL("FL-INV-ROUTER", "inventory subgraph → FedGQL router", "APP-06-INVTY-01", "APP-02-DGEXP-05", "GraphQL", "Federation 2 composition", "On request", "Router fetches stock from the inventory subgraph.");
+  // payments
+  FL("FL-PAY-REST", "Payment DB → payments REST API", "APP-07-PAYMT-01", "APP-07-PAYMT-01", "Internal", "Spring Data JPA", "On request", "Entity → REST DTO.");
+  FL("FL-PAY-GQL", "Payment DB → payments subgraph", "APP-07-PAYMT-01", "APP-07-PAYMT-01", "Internal", "DGS data fetchers", "On request", "Entity → GraphQL type.");
+  FL("FL-PAY-OUTBOX", "Payment DB → payment.processed", "APP-07-PAYMT-01", "APP-07-PAYMT-01", "Internal", "Debezium outbox event router", "Real-time", "Transactional outbox.");
+  FL("FL-PAY-ROUTER", "payments subgraph → FedGQL router", "APP-07-PAYMT-01", "APP-02-DGEXP-05", "GraphQL", "Federation 2 composition", "On request", "Router can read a PaymentTransaction by id.");
+  // checkout (orchestrator) — calls the cart, inventory and payments REST APIs, never GQL→GQL
+  FL("FL-CHK-GQL", "Order DB → checkout subgraph", "APP-03-CRTCK-02", "APP-03-CRTCK-02", "Internal", "Apollo resolvers", "On request", "Entity → GraphQL type.");
+  FL("FL-CHK-OUTBOX", "Order DB → order.placed", "APP-03-CRTCK-02", "APP-03-CRTCK-02", "Internal", "Debezium outbox event router", "Real-time", "Transactional outbox.");
+  FL("FL-CHK-ROUTER", "checkout subgraph → FedGQL router", "APP-03-CRTCK-02", "APP-02-DGEXP-05", "GraphQL", "Federation 2 composition", "On request", "Router runs submitCheckout + order reads on the checkout subgraph.");
+  FL("FL-CHK-CART", "Checkout → Cart REST (saga step 1 + 5)", "APP-03-CRTCK-02", "APP-03-CRTCK-01", "REST API", "Internal HTTP client", "On checkout", "Orchestrator reads then clears the cart over REST (constraint: a GQL subgraph must not call another GQL subgraph).");
+  FL("FL-CHK-INV", "Checkout → Inventory REST (saga step 2)", "APP-03-CRTCK-02", "APP-06-INVTY-01", "REST API", "Internal HTTP client", "On checkout", "Orchestrator reserves stock per line over REST.");
+  FL("FL-CHK-PAY", "Checkout → Payments REST (saga step 4)", "APP-03-CRTCK-02", "APP-07-PAYMT-01", "REST API", "Internal HTTP client", "On checkout", "Orchestrator authorises + captures payment over REST.");
+  // cart reads + search
+  FL("FL-CART-REST", "cart_items → cart REST API", "APP-03-CRTCK-01", "APP-03-CRTCK-01", "Internal", "Mongoose", "On request", "Document → REST DTO.");
+  FL("FL-CART-GQL", "cart_items → cart subgraph (read)", "APP-03-CRTCK-01", "APP-03-CRTCK-01", "Internal", "Apollo resolvers", "On request", "Document → GraphQL type.");
+  FL("FL-CART-ROUTER", "cart subgraph → FedGQL router", "APP-03-CRTCK-01", "APP-02-DGEXP-05", "GraphQL", "Federation 2 composition", "On request", "Router fetches cart reads from the cart subgraph.");
+  FL("FL-SRCH-REST", "Search index → search REST API", "APP-05-SRCHD-01", "APP-05-SRCHD-01", "Internal", "Resolver → Elasticsearch", "On request", "Index document → REST DTO.", "Proposed");
+  FL("FL-SRCH-GQL", "Search index → search subgraph", "APP-05-SRCHD-01", "APP-05-SRCHD-01", "Internal", "Resolver → Elasticsearch", "On request", "Index document → GraphQL type.", "Proposed");
+  FL("FL-SRCH-ROUTER", "search subgraph → FedGQL router", "APP-05-SRCHD-01", "APP-02-DGEXP-05", "GraphQL", "Federation 2 composition", "On request", "Router runs searchProducts on the search subgraph.", "Proposed");
+  FL("FL-SRCH-OUTBOX", "Search index → search.product-indexed", "APP-05-SRCHD-01", "APP-05-SRCHD-01", "Internal", "Index pipeline", "Real-time", "Emitted after (re)indexing a product document.", "Proposed");
 
   let n = 0;
   // [SourcePath, TargetPath, Transformation, Rule, Status?, Notes?]
@@ -2345,11 +2594,81 @@ function exampleDB() {
     ["quantity", "quantity", "Direct"],
   ]);
 
+  // pnp lineage
+  M("FL-PNP-REST", "DB-STORE-PRICE", "REST-PNP-GET", [
+    ["sku", "sku", "Direct"], ["store_id", "storeId", "Rename"],
+    ["amount", "price.amount", "Direct"], ["currency", "price.currency", "Direct"],
+  ]);
+  M("FL-PNP-GQL", "DB-STORE-PRICE", "GQL-PNP", [
+    ["sku", "productStoreContext.sku", "Direct"], ["store_id", "productStoreContext.storeId", "Rename"],
+    ["amount", "productStoreContext.price.amount", "Direct"], ["currency", "productStoreContext.price.currency", "Direct"],
+  ]);
+  M("FL-PNP-OUTBOX", "DB-STORE-PRICE", "KFK-PRICE-UPDATED", [
+    ["", "eventId", "Generate", "UUID v4 (outbox id)"], ["updated_at", "occurredAt", "Type cast", "TIMESTAMPTZ → epoch millis"],
+    ["sku", "sku", "Direct"], ["store_id", "storeId", "Rename"], ["amount", "amount", "Direct"], ["currency", "currency", "Direct"],
+  ]);
+  // inventory lineage
+  M("FL-INV-REST", "DB-INVENTORY", "REST-INVENTORY-GET", [
+    ["sku", "sku", "Direct"], ["store_id", "storeId", "Rename"], ["on_hand", "onHand", "Rename"], ["reserved", "reserved", "Direct"], ["available_to_sell", "availableToSell", "Rename"],
+  ]);
+  M("FL-INV-REST", "DB-INVENTORY", "REST-INVENTORY-RESERVE", [
+    ["sku", "sku", "Direct"], ["store_id", "storeId", "Rename"], ["available_to_sell", "availableToSell", "Rename", "after the reservation is applied"],
+  ]);
+  M("FL-INV-GQL", "DB-INVENTORY", "GQL-INVENTORY", [
+    ["sku", "inventory.sku", "Direct"], ["store_id", "inventory.storeId", "Rename"], ["on_hand", "inventory.onHand", "Rename"], ["reserved", "inventory.reserved", "Direct"], ["available_to_sell", "inventory.availableToSell", "Rename"],
+  ]);
+  M("FL-INV-GRPC", "DB-INVENTORY", "GRPC-INVENTORY", [
+    ["sku", "GetInventoryRequest.sku", "Direct"], ["store_id", "GetInventoryRequest.storeId", "Rename"], ["available_to_sell", "Inventory.availableToSell", "Rename"],
+  ]);
+  M("FL-INV-OUTBOX", "DB-INVENTORY", "KFK-INVENTORY-RESERVED", [
+    ["", "eventId", "Generate", "UUID v4"], ["", "reservationId", "Generate", "reservation id"], ["updated_at", "occurredAt", "Type cast", "→ epoch millis"],
+    ["sku", "sku", "Direct"], ["store_id", "storeId", "Rename"], ["reserved", "quantity", "Derive", "reserved delta on this change"], ["available_to_sell", "availableToSell", "Rename"],
+  ]);
+  // payments lineage
+  M("FL-PAY-REST", "DB-PAYMENT", "REST-PAYMENT", [
+    ["id", "id", "Direct"], ["status", "status", "Direct"], ["gateway_reference", "gatewayReference", "Rename"], ["amount", "amount", "Direct"], ["currency", "currency", "Direct"],
+  ]);
+  M("FL-PAY-OUTBOX", "DB-PAYMENT", "KFK-PAYMENT-PROCESSED", [
+    ["", "eventId", "Generate", "UUID v4"], ["created_at", "occurredAt", "Type cast", "→ epoch millis"],
+    ["id", "transactionId", "Rename"], ["reference_id", "referenceId", "Rename"], ["amount", "amount", "Direct"], ["currency", "currency", "Direct"], ["status", "status", "Direct"], ["gateway_reference", "gatewayReference", "Rename"],
+  ]);
+  // checkout lineage
+  M("FL-CHK-GQL", "DB-ORDER", "GQL-ORDER", [
+    ["id", "order.id", "Direct"], ["status", "order.status", "Enum map", "unknown → UNKNOWN"], ["total_paid", "order.totalPaid", "Rename"], ["payment_transaction_id", "order.paymentTransaction.id", "Rename"],
+  ]);
+  M("FL-CHK-OUTBOX", "DB-ORDER", "KFK-ORDER-PLACED", [
+    ["", "eventId", "Generate", "UUID v4"], ["created_at", "occurredAt", "Type cast", "→ epoch millis"],
+    ["id", "orderId", "Rename"], ["cart_id", "cartId", "Rename"], ["total_paid", "totalPaid", "Rename"], ["currency", "currency", "Direct"], ["status", "status", "Direct"], ["payment_transaction_id", "paymentTransactionId", "Rename"],
+  ]);
+  // cart read lineage
+  M("FL-CART-REST", "DB-CART-ITEM", "REST-CART-GET", [
+    ["cartId", "id", "Rename"], ["sku", "items[].sku", "Direct"], ["quantity", "items[].quantity", "Direct"],
+  ]);
+  M("FL-CART-GQL", "DB-CART-ITEM", "GQL-CART", [
+    ["cartId", "cart.id", "Rename"], ["sku", "cart.items[].product.sku", "Direct"], ["quantity", "cart.items[].quantity", "Direct"],
+  ]);
+  // search lineage
+  M("FL-SRCH-REST", "SEARCH-PRODUCT", "REST-SEARCH", [
+    ["objectID", "hits[].sku", "Direct"], ["name", "hits[].name", "Direct"],
+  ], "Proposed");
+  M("FL-SRCH-GQL", "SEARCH-PRODUCT", "GQL-SEARCH", [
+    ["objectID", "searchProducts.hits[].sku", "Direct"],
+  ], "Proposed");
+  M("FL-SRCH-OUTBOX", "SEARCH-PRODUCT", "KFK-SEARCH-INDEXED", [
+    ["", "eventId", "Generate", "UUID v4"], ["indexedAt", "occurredAt", "Direct"],
+    ["objectID", "sku", "Direct"], ["name", "name", "Direct"], ["brand", "brand", "Direct"], ["isActive", "isActive", "Direct"], ["indexedAt", "indexedAt", "Direct"],
+  ], "Proposed");
+
   const EV = (EventID, DatasetID, EventName, Topic, SchemaFormat, Compatibility, SchemaVersion, PartitionKey, Consumers, Trigger, Status) => db.Events.push({ EventID, DatasetID, EventName, Topic, Subject: Topic + "-value", SchemaFormat, Compatibility, SchemaVersion, PartitionKey, Consumers, Trigger, Status: Status || "Approved" });
   EV("EV-MDM-PRODUCT", "KFK-MDM-PRODUCT", "ProductGoldenRecordChanged", "mdm.product.golden.v1", "AVRO", "BACKWARD", "3", "materialNumber", "APP-04-PRODT-03", "MDM match & merge creates or updates a product golden record");
   EV("EV-PRODUCT-INGESTED", "KFK-PRODUCT-INGESTED", "ProductIngested", "product.ingested.v1", "AVRO", "BACKWARD", "1", "sku", "APP-04-PRODT-01", "Integration service validated and merged MDM, PIM and supplier data for a sku");
   EV("EV-PRODUCT-UPDATED", "KFK-PRODUCT-UPDATED", "ProductUpdated", "product.updated.v1", "AVRO", "FULL_TRANSITIVE", "2", "sku", "APP-05-SRCHD-01", "Product row committed (outbox)");
   EV("EV-CART-ITEM-ADDED", "KFK-CART-ITEM-ADDED", "CartItemAdded", "cart.item-added.v1", "AVRO", "BACKWARD", "1", "cartId", "", "Line added to a cart");
+  EV("EV-PRICE-UPDATED", "KFK-PRICE-UPDATED", "StorePriceUpdated", "price.updated.v1", "AVRO", "BACKWARD", "1", "sku", "APP-05-SRCHD-01", "Store-scoped price changed");
+  EV("EV-INVENTORY-RESERVED", "KFK-INVENTORY-RESERVED", "InventoryReserved", "inventory.reserved.v1", "AVRO", "BACKWARD", "1", "sku", "APP-03-CRTCK-02", "Stock reserved / released / committed for a SKU at a store");
+  EV("EV-PAYMENT-PROCESSED", "KFK-PAYMENT-PROCESSED", "PaymentProcessed", "payment.processed.v1", "AVRO", "FULL_TRANSITIVE", "1", "transactionId", "APP-03-CRTCK-02", "Payment authorised and captured (or declined)");
+  EV("EV-ORDER-PLACED", "KFK-ORDER-PLACED", "OrderPlaced", "order.placed.v1", "AVRO", "BACKWARD", "1", "orderId", "APP-05-SRCHD-01", "Checkout saga completed and the order was placed");
+  EV("EV-SEARCH-INDEXED", "KFK-SEARCH-INDEXED", "ProductIndexed", "search.product-indexed.v1", "AVRO", "BACKWARD", "1", "sku", "", "Product document (re)indexed", "Proposed");
 
   const BT = (TermID, Name, Domain, Definition, CanonicalType, SourceOfTruth, Steward, Classification) => db.BusinessTerms.push({ TermID, Name, Domain, Definition, CanonicalType, SourceOfTruth, Steward, Classification: Classification || "Public" });
   BT("BT-SKU", "Product SKU", "Product", "Stock keeping unit identifying a sellable product (material number without leading zeros).", "string", "APP-01-MSTDT-07", "Product data steward", "Internal");
@@ -2370,6 +2689,19 @@ function exampleDB() {
   BT("BT-QTY", "Quantity", "Cart", "Number of units of a SKU on a cart line.", "int", "APP-03-CRTCK-01", "Cart owner");
   BT("BT-EVENT-ID", "Event ID", "Platform", "Unique id of an event, used for idempotent consumers.", "uuid", "", "Platform", "Internal");
   BT("BT-SUPPLIER-TAX", "Supplier tax ID", "Supplier", "Supplier tax registration number.", "string", "APP-01-MSTDT-08", "Supplier data steward", "Confidential");
+  BT("BT-STORE-ID", "Store ID", "Pricing", "Identifier of a physical store / location.", "string", "APP-04-PRODT-01-02", "Pricing owner", "Internal");
+  BT("BT-PRICE", "Store price", "Pricing", "Selling price of a SKU at a store (Money).", "decimal", "APP-04-PRODT-01-02", "Pricing owner");
+  BT("BT-CURRENCY", "Currency", "Pricing", "ISO 4217 currency code of a monetary amount.", "string", "APP-04-PRODT-01-02", "Pricing owner");
+  BT("BT-STOCK", "Stock quantity", "Inventory", "A stock count at a store: on hand, reserved or available to sell.", "int", "APP-06-INVTY-01", "Fulfilment owner", "Internal");
+  BT("BT-RESERVATION-ID", "Reservation ID", "Inventory", "Idempotency key of a stock reservation (usually the pending order id).", "uuid", "APP-06-INVTY-01", "Fulfilment owner", "Internal");
+  BT("BT-RESERVATION-STATUS", "Reservation status", "Inventory", "Lifecycle of a stock reservation: RESERVED, RELEASED, COMMITTED.", "enum", "APP-06-INVTY-01", "Fulfilment owner", "Internal");
+  BT("BT-AMOUNT", "Monetary amount", "Payments", "A monetary amount (Money) with a currency.", "decimal", "APP-07-PAYMT-01", "Payments owner", "Confidential");
+  BT("BT-PAYMENT-ID", "Payment transaction ID", "Payments", "Identifier of a payment transaction.", "uuid", "APP-07-PAYMT-01", "Payments owner", "Internal");
+  BT("BT-PAYMENT-STATUS", "Payment status", "Payments", "Outcome of a payment: SUCCESS, FAILED, DECLINED.", "enum", "APP-07-PAYMT-01", "Payments owner", "Internal");
+  BT("BT-PAYMENT-METHOD", "Payment method ID", "Payments", "Tokenised payment method reference.", "string", "APP-07-PAYMT-01", "Payments owner", "Confidential");
+  BT("BT-REFERENCE-ID", "Payment reference ID", "Payments", "Business reference for a payment — the pending order / checkout session id.", "string", "APP-03-CRTCK-02", "Checkout owner", "Internal");
+  BT("BT-ORDER-ID", "Order ID", "Checkout", "Identifier of an order created by checkout.", "uuid", "APP-03-CRTCK-02", "Checkout owner", "Internal");
+  BT("BT-ORDER-STATUS", "Order status", "Checkout", "Lifecycle of an order: PENDING, PLACED, FAILED.", "enum", "APP-03-CRTCK-02", "Checkout owner", "Internal");
   return db;
 }
 /*EXAMPLE-END*/

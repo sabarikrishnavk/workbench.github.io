@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "StorePriceUpdated",
+  "namespace": "com.retail.pricing.events",
+  "doc": "price.updated.v1 — published by the PnP Service when a store-scoped price changes. Partition key: sku. Registry: ENT-002 ProductStoreContext / KFK-PRICE-UPDATED.",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "sku", "type": "string", "doc": "Message key" },
+    { "name": "storeId", "type": "string" },
+    { "name": "amount", "type": { "type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2 }, "doc": "Money amount (minor-unit scaled decimal)" },
+    { "name": "currency", "type": "string", "doc": "ISO 4217" }
+  ]
+}

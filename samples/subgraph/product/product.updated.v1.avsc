@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "ProductUpdated",
+  "namespace": "com.retail.product.events",
+  "doc": "product.updated.v1 — published by the Product Service transactional outbox when a product row is committed. Partition key: sku. Registry: ENT-001 Product / KFK-PRODUCT-UPDATED.",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" }, "doc": "Outbox id, for idempotent consumers" },
+    { "name": "eventType", "type": "string", "default": "ProductUpdated" },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "sku", "type": "string", "doc": "Message key" },
+    { "name": "title", "type": ["null", "string"], "default": null },
+    { "name": "brandName", "type": ["null", "string"], "default": null },
+    { "name": "status", "type": { "type": "enum", "name": "ProductStatus", "symbols": ["ACTIVE", "INACTIVE", "DISCONTINUED"] } },
+    { "name": "imageUrl", "type": ["null", "string"], "default": null }
+  ]
+}

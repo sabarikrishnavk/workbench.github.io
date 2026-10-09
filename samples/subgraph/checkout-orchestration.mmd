@@ -3,21 +3,21 @@ sequenceDiagram
     participant C as Client · POST /bff/checkout
     participant R as FedGQL Router
     participant K as checkout subgraph · orchestrator
-    participant CT as cart subgraph
-    participant I as inventory subgraph
-    participant P as payments subgraph
+    participant CT as cart service · REST
+    participant I as inventory service · REST
+    participant P as payments service · REST
     C->>R: mutation SubmitCheckout(input: cartId, paymentMethodId, shippingAddress)
     R->>K: submitCheckout(input)
-    Note over K: saga / process coordinator — steps run inside the resolver (internal gRPC or HTTP), not through the router
-    K->>CT: 1. cart(id) — lines + totalAmount
-    CT-->>K: Cart
-    K->>I: 2. inventory(sku, storeId) per line
-    I-->>K: Inventory (availableToSell)
+    Note over K: saga / process coordinator — a GQL subgraph must not call another GQL subgraph, so steps call the services' REST APIs (internal HTTP), not the router
+    K->>CT: 1. GET /carts/{cartId} — lines + totalAmount
+    CT-->>K: Cart (JSON)
+    K->>I: 2. POST /inventory/reservations per line (sku, storeId, quantity, reservationId = order id)
+    I-->>K: InventoryReservation (RESERVED / availableToSell)
     Note over K: 3. create a pending Order
-    K->>P: 4. processPayment(input: amount, currency, paymentMethodId, referenceId = order id)
+    K->>P: 4. POST /payments (amount, currency, paymentMethodId, referenceId = order id)
     P-->>K: PaymentTransaction (SUCCESS / DECLINED)
-    K->>CT: 5. clearCart(input: cartId)
+    K->>CT: 5. DELETE /carts/{cartId}/items — clear the cart
     CT-->>K: Cart (empty)
-    Note over K: on failure after a write, compensate (refund / restore the cart) and return success false
+    Note over K: on failure after a write, compensate (refund / release reservations / restore the cart) and return success false
     K-->>R: CheckoutResult { success, order, errors }
     R-->>C: { data: { submitCheckout } } — Order status and payment transaction

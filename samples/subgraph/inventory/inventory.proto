@@ -1,0 +1,57 @@
+// gRPC interface for the inventory service — the same get + reserve operations exposed by the
+// REST API (openapi.yaml) and the GraphQL subgraph (subgraph.gql), for low-latency service-to-service
+// calls (e.g. the checkout orchestrator reserving stock during the saga).
+// Registry: ENT-003 Inventory (BusinessApplication "inventory"). Dataset: GRPC-INVENTORY.
+syntax = "proto3";
+
+package retail.inventory.v1;
+
+option java_package = "com.retail.inventory.grpc";
+option java_multiple_files = true;
+
+// Stock position of a SKU at a store.
+service InventoryService {
+  // get — current stock position of a SKU at a store.
+  rpc GetInventory(GetInventoryRequest) returns (Inventory);
+
+  // reserve — hold stock for a SKU at a store (checkout saga). Idempotent on reservation_id.
+  rpc ReserveInventory(ReserveInventoryRequest) returns (InventoryReservation);
+}
+
+message GetInventoryRequest {
+  string sku = 1;
+  string store_id = 2;
+}
+
+message Inventory {
+  string sku = 1;
+  string store_id = 2;
+  int32 on_hand = 3;
+  int32 reserved = 4;
+  int32 available_to_sell = 5;
+}
+
+message ReserveInventoryRequest {
+  string sku = 1;
+  string store_id = 2;
+  int32 quantity = 3;
+  // Caller-supplied idempotency key (usually the pending order id).
+  string reservation_id = 4;
+}
+
+enum ReservationStatus {
+  RESERVATION_STATUS_UNSPECIFIED = 0;
+  RESERVED = 1;
+  RELEASED = 2;
+  COMMITTED = 3;
+}
+
+message InventoryReservation {
+  string reservation_id = 1;
+  string sku = 2;
+  string store_id = 3;
+  int32 quantity = 4;
+  ReservationStatus status = 5;
+  // Available-to-sell after applying this reservation.
+  int32 available_to_sell = 6;
+}

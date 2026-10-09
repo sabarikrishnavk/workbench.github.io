@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "ProductIndexed",
+  "namespace": "com.retail.search.events",
+  "doc": "search.product-indexed.v1 — published by the Search Service after a product document is (re)indexed, so downstream consumers know the catalogue is searchable for a SKU. Partition key: sku. Registry: ENT-004 ProductSearch / KFK-SEARCH-INDEXED.",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "sku", "type": "string", "doc": "Message key (objectID)" },
+    { "name": "name", "type": ["null", "string"], "default": null },
+    { "name": "brand", "type": ["null", "string"], "default": null },
+    { "name": "isActive", "type": "boolean" },
+    { "name": "indexedAt", "type": { "type": "long", "logicalType": "timestamp-millis" } }
+  ]
+}

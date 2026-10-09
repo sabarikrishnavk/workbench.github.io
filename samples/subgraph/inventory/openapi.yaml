@@ -35,6 +35,21 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Inventory" }
+  /inventory/reservations:
+    post:
+      operationId: reserveInventory
+      summary: reserve — hold stock for a SKU at a store (checkout saga). Idempotent on reservationId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReserveInventoryInput" }
+      responses:
+        "200":
+          description: Reservation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InventoryReservation" }
 components:
   schemas:
     Inventory:
@@ -54,3 +69,21 @@ components:
         storeId: { type: string }
         delta: { type: integer }
         reason: { type: string }
+    ReserveInventoryInput:
+      type: object
+      required: [sku, storeId, quantity, reservationId]
+      properties:
+        sku: { type: string }
+        storeId: { type: string }
+        quantity: { type: integer }
+        reservationId: { type: string, description: "Caller-supplied idempotency key (usually the pending order id)." }
+    InventoryReservation:
+      type: object
+      required: [reservationId, sku, storeId, quantity, status, availableToSell]
+      properties:
+        reservationId: { type: string }
+        sku: { type: string }
+        storeId: { type: string }
+        quantity: { type: integer }
+        status: { type: string, enum: [RESERVED, RELEASED, COMMITTED] }
+        availableToSell: { type: integer }

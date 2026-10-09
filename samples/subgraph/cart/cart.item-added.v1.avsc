@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "CartItemAdded",
+  "namespace": "com.retail.cart.events",
+  "doc": "cart.item-added.v1 — published by the Cart Service (MongoDB change stream → Kafka) when a line is added to a cart. Partition key: cartId. Registry: ENT-006 Cart / KFK-CART-ITEM-ADDED.",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "cartId", "type": "string", "doc": "Message key" },
+    { "name": "sku", "type": "string" },
+    { "name": "quantity", "type": "int" }
+  ]
+}

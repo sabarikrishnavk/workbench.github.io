@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "InventoryReserved",
+  "namespace": "com.retail.inventory.events",
+  "doc": "inventory.reserved.v1 — published by the Inventory Service when stock is reserved (or released/committed) for a SKU at a store, typically during the checkout saga. Partition key: sku. Registry: ENT-003 Inventory / KFK-INVENTORY-RESERVED.",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "reservationId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "sku", "type": "string", "doc": "Message key" },
+    { "name": "storeId", "type": "string" },
+    { "name": "quantity", "type": "int" },
+    { "name": "status", "type": { "type": "enum", "name": "ReservationStatus", "symbols": ["RESERVED", "RELEASED", "COMMITTED"] } },
+    { "name": "availableToSell", "type": "int", "doc": "Available-to-sell after this reservation" }
+  ]
+}

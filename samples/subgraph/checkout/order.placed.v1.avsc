@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "OrderPlaced",
+  "namespace": "com.retail.checkout.events",
+  "doc": "order.placed.v1 — published by the Checkout Service (orchestrator) when the checkout saga completes and an order is placed. Partition key: orderId. Registry: ENT-008 Order / KFK-ORDER-PLACED.",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "orderId", "type": "string", "doc": "Message key" },
+    { "name": "cartId", "type": "string" },
+    { "name": "totalPaid", "type": { "type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2 } },
+    { "name": "currency", "type": "string", "doc": "ISO 4217" },
+    { "name": "status", "type": { "type": "enum", "name": "OrderStatus", "symbols": ["PENDING", "PLACED", "FAILED"] } },
+    { "name": "paymentTransactionId", "type": ["null", "string"], "default": null }
+  ]
+}

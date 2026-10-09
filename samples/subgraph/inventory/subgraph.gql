@@ -30,12 +30,42 @@ input InventoryAdjustmentInput {
   reason: String
 }
 
+input ReserveInventoryInput {
+  sku: String!
+  storeId: ID!
+  quantity: Int!
+  "Caller-supplied idempotency key (usually the pending order id)."
+  reservationId: ID!
+}
+
+enum ReservationStatus {
+  RESERVED
+  RELEASED
+  COMMITTED
+  UNKNOWN
+}
+
+"""
+A hold placed on stock for a SKU at a store (created during the checkout saga).
+The same get + reserve operations are exposed over REST (openapi.yaml) and gRPC (inventory.proto).
+"""
+type InventoryReservation {
+  reservationId: ID!
+  sku: String!
+  storeId: ID!
+  quantity: Int!
+  status: ReservationStatus!
+  availableToSell: Int!
+}
+
 type Query {
-  """Stock position of a SKU at a store."""
+  """get — stock position of a SKU at a store."""
   inventory(sku: String!, storeId: ID!): Inventory
 }
 
 type Mutation {
   """Apply a stock adjustment (delta) at a store."""
   adjustInventory(input: InventoryAdjustmentInput!): Inventory
+  """reserve — hold stock for a SKU at a store (idempotent on reservationId)."""
+  reserveInventory(input: ReserveInventoryInput!): InventoryReservation
 }

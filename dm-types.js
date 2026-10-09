@@ -26,7 +26,7 @@ const DT = {
   yaml: { t: "Dataset", sheet: "", src: "YAML" },
 };
 // The editor family of a dataset (HTTP ones by their style and direction).
-function dtFamD(d) { const k = KN(d && d.Kind); if (/^HTTP/.test(k)) return dsStyle(d) === "GraphQL" ? (/Request/.test(k) ? "gqlm" : "gqlq") : "rest"; return dtFam(k); }
+function dtFamD(d) { const k = KN(d && d.Kind); if (k === "HTTP API") return "rest"; if (/^HTTP/.test(k)) return dsStyle(d) === "GraphQL" ? (/Request/.test(k) ? "gqlm" : "gqlq") : "rest"; return dtFam(k); }
 function dtFam(kind) {
   const k = KN(kind);
   return /^GQL Type/.test(k) ? "gqlt" : /^HTTP|^REST/.test(k) ? "rest" : /^DB (Table|Collection)/.test(k) ? "db"
@@ -49,7 +49,7 @@ const baseT = t => String(t || "").replace(/[\[\]!\s]/g, "");
 // Type-level details of a dataset: derived from what the registry already knows, overridden by d.Spec.
 function dtSpec(d, db) {
   db = db || DB; const f = dtFamD(d), loc = S(d.Location), sp = {}, app = db.Applications.find(a => a.AppID === d.AppID) || {};
-  if (f === "gqlq" || f === "gqlm" || f === "rest") { sp.Style = f === "rest" ? "REST" : "GraphQL"; sp.Direction = /Request/.test(KN(d.Kind)) ? "Request" : "Response"; }
+  if (f === "gqlq" || f === "gqlm" || f === "rest") { sp.Style = f === "rest" ? "REST" : "GraphQL"; sp.Direction = KN(d.Kind) === "HTTP API" ? "" : (/Request/.test(KN(d.Kind)) ? "Request" : "Response"); }
   if (f === "gqlq" || f === "gqlm") { const m = loc.match(/^(\w+)\s*(?:\(([\s\S]*)\))?\s*:\s*(.+)$/); sp.OpType = "query"; sp.Name = m ? m[1] : lowerFirst(pascal(d.Name)); sp.Parameters = m && m[2] ? m[2].split(/,\s*/).join("\n") : ""; sp.ReturnType = m ? m[3].trim() : ""; sp.AuthScopes = ""; }
   else if (f === "gqlt") { sp.TypeName = pascal(String(d.Name || d.DatasetID).replace(/\(.*?\)/g, "")); sp.Kind = "Type"; }
   else if (f === "rest") { const m = loc.match(/^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(\S+)/i), req = /Request/.test(KN(d.Kind));
@@ -68,7 +68,7 @@ function dtSpec(d, db) {
 // Field-level details: derived from the attribute, overridden by a.Spec.
 function dtAttrSpec(d, a, sp) {
   const f = dtFamD(d), s = {}, fam = typeFamily(a.DataType);
-  if (f === "rest") { const params = (String((sp || {}).Path || "").match(/\{(\w+)\}/g) || []).map(x => x.slice(1, -1)); s.In = sp && sp.Direction === "Request" && params.includes(a.Path) ? "path" : "body"; s.Format = { timestamp: "date-time", date: "date", uuid: "uuid", long: "int64" }[fam] || ""; }
+  if (f === "rest") { const stored = a.Spec && a.Spec.In, params = (String((sp || {}).Path || "").match(/\{(\w+)\}/g) || []).map(x => x.slice(1, -1)); s.In = stored || (sp && sp.Direction === "Request" && params.includes(a.Path) ? "path" : "body"); s.Format = (a.Spec && a.Spec.Format) || { timestamp: "date-time", date: "date", uuid: "uuid", long: "int64" }[fam] || ""; }
   else if (f === "db") { s.PK = /primary key|\bpk\b/i.test(a.Description || "") || ((sp || {}).ObjectType === "Collection" && a.Path === "_id") ? "Y" : "N"; s.FK = ""; s.Default = ""; s.Unique = "N"; }
   else if (f === "kafka") { s.AvroType = ""; s.LogicalType = ""; s.Default = ""; }
   else if (f === "dbx") { s.Partition = /partition/i.test(a.Description || "") ? "Y" : "N"; }
@@ -495,7 +495,7 @@ function dtSheets(wb, db) {
     const each = (sheet, head, fn) => (at.length ? at : [null]).forEach(a => rows[sheet].push(Object.assign({}, base, head, a ? fn(a, a.Spec) : {})));
     if (f === "gqlq" || f === "gqlm") each("HTTP APIs", { Direction: sp.Direction, Style: "GraphQL", OpType: sp.OpType, Operation: sp.Name, Parameters: sp.Parameters, ReturnType: sp.ReturnType, AuthScopes: sp.AuthScopes, Summary: d.Description }, a => ({ In: f === "gqlm" ? "variables" : "selection", Field: a.Path, Type: a.DataType, Required: a.Required, Description: a.Description }));
     if (/^gql/.test(f)) dtGqlTypes(f, sp, at).forEach((t, i) => rows["GQL Schema"].push(Object.assign({ SchemaID: `SCH-${d.DatasetID}-${String(i + 1).padStart(2, "0")}` }, base, { Root: t.root, Kind: t.kind, TypeName: t.name, Definition: dtTypeDefBody(t), Description: t.desc, Status: d.Status })));
-    else if (f === "rest") each("HTTP APIs", { Direction: sp.Direction, Style: "REST", Method: sp.Method, Path: sp.Path, OperationId: sp.OperationId, Summary: sp.Summary, StatusCode: sp.StatusCode, ContentType: sp.ContentType }, (a, s) => ({ In: s.In, Field: a.Path, Type: a.DataType, Format: s.Format, Required: a.Required, Description: a.Description }));
+    else if (f === "rest") { const merged = KN(d.Kind) === "HTTP API"; each("HTTP APIs", { Style: "REST", Method: sp.Method, Path: sp.Path, OperationId: sp.OperationId, Summary: sp.Summary, ContentType: sp.ContentType }, (a, s) => { const resp = merged ? (s.In === "response") : (sp.Direction === "Response"); return { Direction: resp ? "Response" : "Request", In: s.In || (resp ? "response" : "body"), Field: a.Path, Type: a.DataType, Format: s.Format, Required: a.Required, StatusCode: resp ? sp.StatusCode : "", Description: a.Description }; }); }
     else if (f === "db") each("Database", { ObjectType: sp.ObjectType, Engine: sp.Engine, Database: sp.Database, Schema: sp.Schema, Name: sp.Name, Indexes: sp.Indexes }, (a, s) => ({ Column: a.Path, DataType: a.DataType, PK: s.PK, FK: s.FK, Nullable: a.Required === "Y" ? "N" : "Y", Default: s.Default, Unique: s.Unique, Description: a.Description }));
     else if (f === "kafka") each("Kafka Avro", { Topic: sp.Topic, Namespace: sp.Namespace, Record: sp.Record, KeyField: sp.KeyField, Compatibility: sp.Compatibility }, (a, s) => { const t = dtAvroType(a); return { Field: a.Path, AvroType: s.AvroType || (typeof t === "string" ? t : t.type), LogicalType: s.LogicalType || (typeof t === "string" ? "" : t.logicalType || ""), Optional: a.Required === "Y" ? "N" : "Y", Default: s.Default, Doc: a.Description }; });
     else if (f === "dbx") each("Databricks", { Catalog: sp.Catalog, Schema: sp.Schema, Table: sp.Table, TableFormat: sp.TableFormat }, (a, s) => ({ Column: a.Path, SparkType: dtSparkType(a), Nullable: a.Required === "Y" ? "N" : "Y", Partition: s.Partition, Comment: a.Description }));
@@ -527,15 +527,22 @@ function dtReadSheets(wb, db) {
   const finish = d => { d.Location = dtLocation(d, dtSpec(d, db)) || d.Location; };
   let rs;
   // HTTP APIs: REST and GraphQL requests / responses, one row per field
-  if ((rs = read("HTTP APIs"))) group(rs).forEach((list, id) => { const r0 = list[0], d = ensure(id, r0, /request/i.test(r0.Direction) ? "06-HTTP Request" : "07-HTTP Response");
-    Object.assign(d.Spec, pick(r0, ["Direction", "Style", "Method", "Path", "OpType", "Parameters", "ReturnType", "AuthScopes", "OperationId", "StatusCode", "ContentType", "Summary"]), S(r0.Operation) ? { Name: S(r0.Operation) } : {});
-    if (S(r0.Summary) && /graphql/i.test(r0.Style)) d.Description = S(r0.Summary);
-    list.forEach(r => upsert(d, r.Field, Object.assign(pick(r, ["Required", "Description"]), S(r.Type) ? { DataType: S(r.Type) } : {}), /graphql/i.test(r0.Style) ? {} : pick(r, ["In", "Format"]))); finish(d); });
+  if ((rs = read("HTTP APIs"))) group(rs).forEach((list, id) => { const r0 = list[0];
+    if (/graphql/i.test(r0.Style)) {   // GraphQL call: one dataset per direction (request = variables, response = selection)
+      const d = ensure(id, r0, /request/i.test(r0.Direction) ? "06-HTTP Request" : "07-HTTP Response");
+      Object.assign(d.Spec, pick(r0, ["Direction", "Style", "Method", "Path", "OpType", "Parameters", "ReturnType", "AuthScopes", "OperationId", "StatusCode", "ContentType", "Summary"]), S(r0.Operation) ? { Name: S(r0.Operation) } : {});
+      if (S(r0.Summary)) d.Description = S(r0.Summary);
+      list.forEach(r => upsert(d, r.Field, Object.assign(pick(r, ["Required", "Description"]), S(r.Type) ? { DataType: S(r.Type) } : {}), {})); finish(d);
+    } else {   // REST endpoint: one HTTP API dataset holding both request and response (response fields marked In=response)
+      const reqRow = list.find(r => /request/i.test(r.Direction)) || r0, resRow = list.find(r => /response/i.test(r.Direction)), d = ensure(id, r0, "06-HTTP API");
+      Object.assign(d.Spec, { Style: "REST" }, pick(reqRow, ["Method", "Path", "OpType", "OperationId", "ContentType", "Summary"]), S(r0.Operation) ? { Name: S(r0.Operation) } : {}, resRow ? pick(resRow, ["StatusCode"]) : {});
+      list.forEach(r => { const resp = /response/i.test(r.Direction); upsert(d, r.Field, Object.assign(pick(r, ["Required", "Description"]), S(r.Type) ? { DataType: S(r.Type) } : {}), resp ? { In: "response", Format: S(r.Format) } : pick(r, ["In", "Format"])); }); finish(d);
+    } });
   // older workbooks: GQL Queries / GQL Mutations / REST APIs sheets
   for (const [sheet, kind, op] of [["GQL Queries", "07-HTTP Response", "query"], ["GQL Mutations", "06-HTTP Request", "mutation"]]) if ((rs = read(sheet))) rs.forEach(r => { const d = ensure(S(r.DatasetID), r, kind);
     Object.assign(d.Spec, { Style: "GraphQL", OpType: op }, pick(r, ["Name", "Parameters", "ReturnType", "AuthScopes"])); if (S(r.Description)) d.Description = S(r.Description); if (S(r.Status)) d.Status = S(r.Status);
     String(r.Selection || "").split(/\n+/).map(x => x.trim()).filter(Boolean).forEach(p => upsert(d, p, {}, {})); finish(d); });
-  if ((rs = read("GQL Schema"))) group(rs).forEach((list, id) => { const d = ensure(id, list[0], list.some(r => !S(r.Root)) ? "08-GQL Type" : "07-HTTP Response"), roots = new Set(list.map(r => S(r.Root)));
+  if ((rs = read("GQL Schema"))) group(rs).forEach((list, id) => { const d = ensure(id, list[0], list.some(r => !S(r.Root)) ? "07-GQL Type" : "07-HTTP Response"), roots = new Set(list.map(r => S(r.Root)));
     d.Spec.Types = d.Spec.Types || {}; if (/^HTTP/.test(KN(d.Kind)) && !d.Spec.Style) d.Spec.Style = "GraphQL";
     list.forEach(r => { const root = S(r.Root), def = String(r.Definition || ""), key = (def.match(/@key\s*\(\s*fields:\s*"([^"]*)"/) || [, ""])[1].split(/\s+/).filter(Boolean);
       d.Spec.Types[root] = pick(r, ["TypeName", "Kind", "Description"]); if (!root && dtFam(d.Kind) === "gqlt") Object.assign(d.Spec, pick(r, ["TypeName", "Kind"]));
@@ -544,13 +551,13 @@ function dtReadSheets(wb, db) {
         if (roots.has(path) || roots.has(path + "[]")) return;   // an object field: its own row lists the leaves
         upsert(d, path, { DataType: type, Required: /!$/.test(type) ? "Y" : "N", Description: (e.desc || "") + (key.includes(m[1]) ? " @key" : "") }, {}); }); });
     finish(d); });
-  if ((rs = read("REST APIs"))) group(rs).forEach((list, id) => { const r0 = list[0], d = ensure(id, r0, /request/i.test(r0.Direction) ? "06-HTTP Request" : "07-HTTP Response");
-    Object.assign(d.Spec, { Style: "REST" }, pick(r0, ["Direction", "Method", "Path", "OperationId", "Summary", "StatusCode", "ContentType"])); list.forEach(r => upsert(d, r.Field, Object.assign(pick(r, ["Required", "Description"]), S(r.Type) ? { DataType: S(r.Type) } : {}), pick(r, ["In", "Format"]))); finish(d); });
+  if ((rs = read("REST APIs"))) group(rs).forEach((list, id) => { const r0 = list[0], reqRow = list.find(r => /request/i.test(r.Direction)) || r0, resRow = list.find(r => /response/i.test(r.Direction)), d = ensure(id, r0, "06-HTTP API");
+    Object.assign(d.Spec, { Style: "REST" }, pick(reqRow, ["Method", "Path", "OperationId", "Summary", "ContentType"]), resRow ? pick(resRow, ["StatusCode"]) : {}); list.forEach(r => { const resp = /response/i.test(r.Direction); upsert(d, r.Field, Object.assign(pick(r, ["Required", "Description"]), S(r.Type) ? { DataType: S(r.Type) } : {}), resp ? { In: "response", Format: S(r.Format) } : pick(r, ["In", "Format"])); }); finish(d); });
   if ((rs = read("Database"))) group(rs).forEach((list, id) => { const r0 = list[0], d = ensure(id, r0, /collection/i.test(r0.ObjectType) ? "02-DB Collection" : "01-DB Table");
     Object.assign(d.Spec, pick(r0, ["ObjectType", "Engine", "Database", "Schema", "Name", "Indexes"])); list.forEach(r => upsert(d, r.Column, Object.assign(pick(r, ["DataType", "Description"]), S(r.Nullable) ? { Required: /^n/i.test(r.Nullable) ? "Y" : "N" } : {}), pick(r, ["PK", "FK", "Default", "Unique"]))); finish(d); });
   if ((rs = read("Kafka Avro"))) group(rs).forEach((list, id) => { const r0 = list[0], d = ensure(id, r0, "05-Kafka Event");
     Object.assign(d.Spec, pick(r0, ["Topic", "Namespace", "Record", "KeyField", "Compatibility"])); list.forEach(r => upsert(d, r.Field, Object.assign({ Description: S(r.Doc) }, S(r.Optional) ? { Required: /^y/i.test(r.Optional) ? "N" : "Y" } : {}), pick(r, ["AvroType", "LogicalType", "Default"]))); finish(d); });
-  if ((rs = read("Databricks"))) group(rs).forEach((list, id) => { const r0 = list[0], d = ensure(id, r0, "15-Databricks Table");
+  if ((rs = read("Databricks"))) group(rs).forEach((list, id) => { const r0 = list[0], d = ensure(id, r0, "14-Databricks Table");
     Object.assign(d.Spec, pick(r0, ["Catalog", "Schema", "Table", "TableFormat"])); list.forEach(r => upsert(d, r.Column, Object.assign({ DataType: S(r.SparkType), Description: S(r.Comment) }, S(r.Nullable) ? { Required: /^n/i.test(r.Nullable) ? "Y" : "N" } : {}), pick(r, ["Partition"]))); finish(d); });
   if ((rs = read("Files"))) group(rs).forEach((list, id) => { const r0 = list[0], d = ensure(id, r0, /json/i.test(r0.FileType) ? "04-JSON Schema" : "03-CSV Schema");
     Object.assign(d.Spec, pick(r0, ["FileType", "FileNamePattern", "Delimiter", "Header", "Encoding"])); list.forEach(r => upsert(d, r.Column, Object.assign({ DataType: S(r.Type), Description: S(r.Description) }, S(r.Required) ? { Required: /^y/i.test(r.Required) ? "Y" : "N" } : {}), pick(r, ["Pattern"]))); finish(d); });
@@ -619,13 +626,14 @@ function dtImportRead() {
   if (DTI.model) { const keep = DTI.sel; DTI.sel = {}; DTI.model.ops.forEach(o => { const k = keep[o.key]; DTI.sel[o.key] = k || { on: false, req: o.req.length > 0, res: o.res.length > 0 }; }); }
   dtImportRender();
 }
-const dtIdFor = (o, dir) => `${o.spec.Style === "REST" ? "REST" : "GQL"}-${String(o.name).replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[^A-Za-z0-9]+/g, "-").toUpperCase()}-${dir === "Request" ? "REQ" : "RES"}`;
+const dtIdFor = (o, dir) => `${o.spec.Style === "REST" ? "REST" : "GQL"}-${String(o.name).replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[^A-Za-z0-9]+/g, "-").toUpperCase()}${dir === "API" ? "" : dir === "Request" ? "-REQ" : "-RES"}`;
 function dtImportRender() {
-  const M = DTI.model, n = M ? M.ops.reduce((c, o) => c + (DTI.sel[o.key].on ? (DTI.sel[o.key].req && o.req.length ? 1 : 0) + (DTI.sel[o.key].res && o.res.length ? 1 : 0) : 0), 0) : 0;
+  // REST: one HTTP API dataset per endpoint (request + response merged); GraphQL: one per direction.
+  const M = DTI.model, n = M ? M.ops.reduce((c, o) => { const s = DTI.sel[o.key]; if (!s.on) return c; return o.spec.Style === "REST" ? c + (((s.req && o.req.length) || (s.res && o.res.length)) ? 1 : 0) : c + (s.req && o.req.length ? 1 : 0) + (s.res && o.res.length ? 1 : 0); }, 0) : 0;
   const apps = DB.Domains.map(dm => [dm, DB.Applications.filter(a => a.DomainID === dm.DomainID)]).filter(([, l]) => l.length);
-  const exists = (o, dir) => { const d = dsById(dtIdFor(o, dir)); return d ? `<span class="hint" title="${ea(d.Name)}">updates ${esc(d.DatasetID)}</span>` : ""; };
+  const exists = (o, dir) => { const d = dsById(dtIdFor(o, o.spec.Style === "REST" ? "API" : dir)); return d ? `<span class="hint" title="${ea(d.Name)}">updates ${esc(d.DatasetID)}</span>` : ""; };
   openModal(`<h2>Import HTTP datasets from an API spec</h2>
-    <p class="hint">Load an <b>OpenAPI</b> spec (REST) or a <b>GraphQL schema</b>, tick the operations, and each one becomes an <b>HTTP Request</b> and / or <b>HTTP Response</b> dataset with its fields, ready to map. Fields whose name matches an already-tagged attribute get its business term.</p>
+    <p class="hint">Load an <b>OpenAPI</b> spec (REST) or a <b>GraphQL schema</b>, tick the operations. Each REST endpoint becomes one <b>HTTP API</b> dataset holding its request <i>and</i> response fields; each GraphQL operation becomes an <b>HTTP Request</b> and / or <b>HTTP Response</b> dataset. Fields whose name matches an already-tagged attribute get its business term.</p>
     <div class="dg-row"><label><input type="radio" name="dtiKind" value="openapi"${DTI.kind === "openapi" ? " checked" : ""} data-dti="kind" /> OpenAPI (REST)</label><label><input type="radio" name="dtiKind" value="graphql"${DTI.kind === "graphql" ? " checked" : ""} data-dti="kind" /> GraphQL schema (SDL)</label>
       <span class="spacer" style="flex:1"></span><select id="dtiSample">${DT_SPEC_SAMPLES[DTI.kind].map(s => `<option${s === DTI.name ? " selected" : ""}>${esc(s)}</option>`).join("")}</select><button data-dti="sample">Load sample</button>
       <label class="btn" style="cursor:pointer">Choose file…<input type="file" id="dtiFile" accept="${DTI.kind === "openapi" ? ".yaml,.yml,.json" : ".graphql,.graphqls,.gql,.txt"}" hidden /></label></div>
@@ -647,18 +655,29 @@ function dtAutoTerm(path) { const leaf = leafNorm(path), twin = DB.Attributes.fi
 function dtImportCreate() {
   const M = DTI.model, appId = val("dtiApp"), made = []; let nf = 0; if (!M || !appById(appId)) return;
   pushUndo();
+  const addField = (id, x, resp) => { let a = attrAt(id, x.Path);
+    if (!a) { a = { _id: uid(), DatasetID: id, Path: x.Path, DataType: x.DataType, Required: x.Required, Classification: "Internal", TermID: dtAutoTerm(x.Path), Example: x.Example || "", Description: x.Description || "", Status: "Draft" }; DB.Attributes.push(a); nf++; }
+    else Object.assign(a, { DataType: x.DataType, Required: x.Required }, x.Description ? { Description: x.Description } : {});
+    const sp = Object.assign({}, nonEmpty(x.Spec), resp ? { In: "response" } : {}); if (Object.keys(sp).length) a.Spec = sp; };
   for (const o of M.ops) { const s = DTI.sel[o.key]; if (!s.on) continue;
-    for (const [dir, fields, want] of [["Request", o.req, s.req], ["Response", o.res, s.res]]) { if (!want || !fields.length) continue;
-      let id = dtIdFor(o, dir), d = dsById(id); if (d && d.AppID !== appId) { let i = 2; while (dsById(`${id}-${i}`)) i++; id = `${id}-${i}`; d = null; }
-      const spec = Object.assign({}, o.spec, { Direction: dir }); if (spec.Style === "REST" && dir === "Request") delete spec.StatusCode;
-      const name = spec.Style === "REST" ? `${o.label} — ${dir.toLowerCase()}` : `${spec.OpType} ${o.name} — ${dir.toLowerCase()}`;
-      if (!d) { d = { _id: uid(), DatasetID: id, AppID: appId, Name: name, Kind: dir === "Request" ? "06-HTTP Request" : "07-HTTP Response", Location: "", Format: spec.Style === "GraphQL" ? "GraphQL" : "JSON", Version: M.version, Description: o.sub || "", Status: "Draft" }; DB.Datasets.push(d); }
-      d.Spec = nonEmpty(spec); d.Location = dtLocation(d, dtSpec(d)) || d.Location;
-      fields.forEach(x => { let a = attrAt(id, x.Path);
-        if (!a) { a = { _id: uid(), DatasetID: id, Path: x.Path, DataType: x.DataType, Required: x.Required, Classification: "Internal", TermID: dtAutoTerm(x.Path), Example: x.Example || "", Description: x.Description || "", Status: "Draft" }; DB.Attributes.push(a); nf++; }
-        else Object.assign(a, { DataType: x.DataType, Required: x.Required }, x.Description ? { Description: x.Description } : {});
-        const sp = nonEmpty(x.Spec); if (Object.keys(sp).length) a.Spec = sp; });
-      made.push(id); }
+    if (o.spec.Style === "REST") {   // one HTTP API dataset per endpoint: request + response merged
+      if (!((s.req && o.req.length) || (s.res && o.res.length))) continue;
+      let id = dtIdFor(o, "API"), d = dsById(id); if (d && d.AppID !== appId) { let i = 2; while (dsById(`${id}-${i}`)) i++; id = `${id}-${i}`; d = null; }
+      if (!d) { d = { _id: uid(), DatasetID: id, AppID: appId, Name: o.label, Kind: "06-HTTP API", Location: "", Format: "JSON", Version: M.version, Description: o.sub || "", Status: "Draft" }; DB.Datasets.push(d); }
+      d.Spec = nonEmpty(Object.assign({}, o.spec)); d.Location = dtLocation(d, dtSpec(d)) || d.Location;
+      if (s.req) o.req.forEach(x => addField(id, x, false));
+      if (s.res) o.res.forEach(x => addField(id, x, true));
+      made.push(id);
+    } else {   // GraphQL: one dataset per direction (variables / selection)
+      for (const [dir, fields, want] of [["Request", o.req, s.req], ["Response", o.res, s.res]]) { if (!want || !fields.length) continue;
+        let id = dtIdFor(o, dir), d = dsById(id); if (d && d.AppID !== appId) { let i = 2; while (dsById(`${id}-${i}`)) i++; id = `${id}-${i}`; d = null; }
+        const spec = Object.assign({}, o.spec, { Direction: dir });
+        const name = `${spec.OpType} ${o.name} — ${dir.toLowerCase()}`;
+        if (!d) { d = { _id: uid(), DatasetID: id, AppID: appId, Name: name, Kind: dir === "Request" ? "06-HTTP Request" : "07-HTTP Response", Location: "", Format: "GraphQL", Version: M.version, Description: o.sub || "", Status: "Draft" }; DB.Datasets.push(d); }
+        d.Spec = nonEmpty(spec); d.Location = dtLocation(d, dtSpec(d)) || d.Location;
+        fields.forEach(x => addField(id, x, false));
+        made.push(id); }
+    }
   }
   save(); const done = DTI.onDone; DTI = null; closeModal(); toast(`Imported ${made.length} HTTP dataset(s) with ${nf} new field(s)`); if (done) done(made); else renderAll();
 }

@@ -463,22 +463,27 @@ const seqOf = (list, v) => { const i = list.findIndex(x => KN(x) === KN(v)); ret
 const withSeq = (list, v) => { const t = String(v == null ? "" : v).trim(); if (!t || list.includes(t)) return t; const name = { "File / Feed": "CSV Schema" }[KN(t)] || KN(t); return list.find(x => KN(x) === name) || t; };
 const pad2 = n => String(parseInt(n, 10) || 0).padStart(2, "0");
 const APP_COLOR = { "Domain service": "#2563eb", "Orchestrator service": "#0d9488", "Integration service": "#c2410c", BFF: "#0891b2", "FedGQL router": "#7048e8", Frontend: "#059669", "Core system": "#b45309", "Third party": "#78716c" };
-// An HTTP API dataset is a request or a response; its style (REST or GraphQL) is on the dataset (Spec.Style).
-const API_KINDS = ["HTTP Request", "HTTP Response", "GQL Type"];
+// An HTTP API dataset is one integration per endpoint: it holds both the request and the response,
+// told apart by each field's Direction (In = response marks a response field). Its style (REST or
+// GraphQL) is on the dataset (Spec.Style). Legacy GraphQL calls still use the HTTP Request / HTTP
+// Response kinds (one dataset per direction); only REST endpoints are merged into HTTP API.
+const API_KINDS = ["HTTP API", "GQL Type"];
 const APP_KINDS = {
   "Domain service": [...API_KINDS, "DB Table", "DB Collection", "Kafka Event", "Search Index", "Databricks Table", "Other"],
   "Orchestrator service": [...API_KINDS, "DB Table", "DB Collection", "Kafka Event"],
-  "Integration service": ["HTTP Request", "HTTP Response", "Kafka Event", "CSV Schema", "JSON Schema", "DB Table", "DB Collection", "Databricks Table"],
-  BFF: ["HTTP Request", "HTTP Response"],
-  "FedGQL router": ["HTTP Request", "HTTP Response", "GQL Type"],
+  "Integration service": ["HTTP API", "Kafka Event", "CSV Schema", "JSON Schema", "DB Table", "DB Collection", "Databricks Table"],
+  BFF: ["HTTP API"],
+  "FedGQL router": ["HTTP API", "GQL Type"],
   Frontend: ["UI Component", "UI Form"],
-  "Core system": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP Request", "HTTP Response", "Kafka Event"],
-  "Third party": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP Request", "HTTP Response", "Kafka Event"],
+  "Core system": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP API", "Kafka Event"],
+  "Third party": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP API", "Kafka Event"],
 };
-const DS_KINDS = ["01-DB Table", "02-DB Collection", "03-CSV Schema", "04-JSON Schema", "05-Kafka Event", "06-HTTP Request", "07-HTTP Response", "08-GQL Type", "09-MDM Entity", "10-PIM Entity", "11-ERP Object", "12-Search Index", "13-UI Component", "14-UI Form", "15-Databricks Table", "16-Other"];
-// Kinds before REST and GraphQL were merged into HTTP Request / Response: [new kind, style, GraphQL operation type].
-// A GQL query dataset held the response selection, a GQL mutation dataset the input, so they map to response / request.
-const LEGACY_KINDS = { "REST Request": ["HTTP Request", "REST"], "REST Response": ["HTTP Response", "REST"], "GQL Query": ["HTTP Response", "GraphQL", "query"], "GQL Mutation": ["HTTP Request", "GraphQL", "mutation"] };
+const DS_KINDS = ["01-DB Table", "02-DB Collection", "03-CSV Schema", "04-JSON Schema", "05-Kafka Event", "06-HTTP API", "07-GQL Type", "08-MDM Entity", "09-PIM Entity", "10-ERP Object", "11-Search Index", "12-UI Component", "13-UI Form", "14-Databricks Table", "15-Other"];
+// Older kinds, converted on load: [new kind, style, GraphQL operation type]. REST request / response
+// datasets merge into one HTTP API dataset; GraphQL query / mutation keep their per-direction kinds.
+// REST request / response (legacy "REST Request/Response") map to the merged HTTP API kind; GraphQL
+// query / mutation keep their per-direction HTTP Request / HTTP Response kinds (handled by dsStyle).
+const LEGACY_KINDS = { "REST Request": ["HTTP API", "REST"], "REST Response": ["HTTP API", "REST"], "GQL Query": ["HTTP Response", "GraphQL", "query"], "GQL Mutation": ["HTTP Request", "GraphQL", "mutation"] };
 function migrateKind(d) { const m = LEGACY_KINDS[KN(d.Kind)]; if (!m) return; d.Kind = m[0]; d.Spec = Object.assign({ Style: m[1] }, m[2] ? { OpType: m[2] } : {}, d.Spec || {}); }
 // REST or GraphQL: the dataset's own style, else read from its Location ("GET /path" vs "field(args): Type").
 function dsStyle(d) { if (!d) return ""; if (d.Spec && d.Spec.Style) return d.Spec.Style; const l = String(d.Location || "").trim(); return /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s|^\//i.test(l) ? "REST" : /^\w+\s*(\(|:\s*\S)/.test(l) ? "GraphQL" : "REST"; }
@@ -1538,7 +1543,7 @@ function traceCSV() {
 /*                          DOMAINS & APPLICATIONS                        */
 /* ===================================================================== */
 let mmdSrc = "";
-const KIND_SHORT = k => ({ "CSV Schema": "CSV", "JSON Schema": "JSON",  "HTTP Request": "HTTP", "HTTP Response": "HTTP", "GQL Type": "GraphQL", "DB Table": "DB", "DB Collection": "DB", "Kafka Event": "Kafka", "File / Feed": "File", "UI Component": "UI", "UI Form": "UI", "MDM Entity": "MDM", "PIM Entity": "PIM", "ERP Object": "ERP", "Search Index": "Index" }[KN(k)] || KN(k) || "?");
+const KIND_SHORT = k => ({ "CSV Schema": "CSV", "JSON Schema": "JSON",  "HTTP API": "HTTP", "HTTP Request": "HTTP", "HTTP Response": "HTTP", "GQL Type": "GraphQL", "DB Table": "DB", "DB Collection": "DB", "Kafka Event": "Kafka", "File / Feed": "File", "UI Component": "UI", "UI Form": "UI", "MDM Entity": "MDM", "PIM Entity": "PIM", "ERP Object": "ERP", "Search Index": "Index" }[KN(k)] || KN(k) || "?");
 const atypeHTML = t => t ? `<span class="atype" style="background:${APP_COLOR[KN(t)] || "#64748b"}">${esc(t)}</span>` : `<span class="atype" style="background:#9ca3af">no type</span>`;
 function appRowHTML(a) {
   const ds = DB.Datasets.filter(d => d.AppID === a.AppID), byK = {};
@@ -1742,7 +1747,7 @@ const GUIDE = [
   ["Sheet", "Purpose"],
   ["Domains", "Business domains with a two-digit DomainNo and a unique 5-letter Code; DomainID = DOM-<no>-<code> (e.g. DOM-04-PRODT)."],
   ["Applications", "Step 1: every application with its domain and numbered AppType (01-Domain service … 08-Third party). AppID = APP-<domain no>-<domain code>-<type no>, e.g. APP-04-PRODT-01; a second app of the same type in the domain gets -02. A service owns its REST + GraphQL API, database and produced events."],
-  ["Kinds", "Dataset kinds are numbered: 01-DB Table, 02-DB Collection, 03-CSV Schema, 04-JSON Schema, 05-Kafka Event, 06-HTTP Request, 07-HTTP Response, 08-GQL Type, 09-MDM Entity, 10-PIM Entity, 11-ERP Object, 12-Search Index, 13-UI Component, 14-UI Form, 15-Databricks Table, 16-Other. An HTTP Request / Response is a REST or a GraphQL API call (its Style, in the HTTP APIs sheet); older REST Request / Response and GQL Query / Mutation kinds are converted on load."],
+  ["Kinds", "Dataset kinds are numbered: 01-DB Table, 02-DB Collection, 03-CSV Schema, 04-JSON Schema, 05-Kafka Event, 06-HTTP API, 07-GQL Type, 08-MDM Entity, 09-PIM Entity, 10-ERP Object, 11-Search Index, 12-UI Component, 13-UI Form, 14-Databricks Table, 15-Other. An HTTP API is one integration per REST endpoint: it holds the request and the response in the same dataset, told apart by each field's Direction (In=response marks a response field), in the HTTP APIs sheet. GraphQL calls keep per-direction HTTP Request / HTTP Response datasets; older REST Request / Response, HTTP Request / Response and GQL Query / Mutation kinds are converted on load."],
   ["Datasets", "A structure owned by an application: MDM entity, PIM family, Kafka event, DB table/collection, REST request/response, GQL query/mutation, UI component/form."],
   ["Attributes", "Fields of a dataset. Path is dotted; [] marks an array (images[].url). TermID links the attribute to the business glossary."],
   ["Mappings", "Source-to-target mapping (STTM): SourceDatasetID + SourcePath → TargetDatasetID + TargetPath, with Transformation and Rule. Empty source = Constant / Generate."],
@@ -1854,7 +1859,7 @@ function helpHTML() {
   <h3>Onboarding guide</h3>
   <ul><li>The <b>Onboarding guide</b> tab walks one domain and one business application at a time: domain &amp; business terms → business application → datasets and their types (DB table / collection, CSV, JSON, Kafka event, REST, GQL, MDM / PIM / ERP, UI) → attributes tagged with terms → integration mapping with applications in any domain → lineage → export schemas and save as Excel (.xlsx) and Markdown (.md).</li>
   <li><b>Dataset details by type:</b> adding a dataset in step 3 (or <b>✎ Details</b>) opens a dialog shaped by its type: an HTTP request / response as a REST operation (OpenAPI) or a GraphQL operation (SDL), a GraphQL type, ER columns (PK, FK, not null, default) for DB tables and collections, an Avro record plus the Databricks StructType for Kafka events, a Delta table for Databricks and columns for CSV / JSON files. Its <b>Source</b> tab edits the same thing as GraphQL SDL, OpenAPI YAML, SQL DDL, MongoDB $jsonSchema, Avro JSON, Databricks SQL or YAML: paste one and click <i>Apply to fields</i>.</li>
-  <li><b>HTTP APIs:</b> an API call is an <b>HTTP Request</b> and / or an <b>HTTP Response</b> dataset whose style is REST or GraphQL, so both are mapped the same way. <b>⇪ Import from API spec</b> (step 3) loads an OpenAPI spec or a GraphQL schema, lets you pick operations and builds their request and response datasets.</li>
+  <li><b>HTTP APIs:</b> a REST endpoint is one <b>HTTP API</b> dataset holding both its request and response fields (Direction tells them apart); a GraphQL call is an <b>HTTP Request</b> and / or an <b>HTTP Response</b> dataset. <b>⇪ Import from API spec</b> (step 3) loads an OpenAPI spec or a GraphQL schema, lets you pick operations and builds one HTTP API dataset per REST endpoint (request + response) or request / response datasets per GraphQL operation.</li>
   <li><b>Type sheets:</b> Export .xlsx adds HTTP APIs, GQL Schema (as in GQLRegistry.xlsx), Database, Kafka Avro, Databricks and Files. They can be edited in Excel; Load .xlsx reads them back into the datasets and attributes.</li>
   <li>The <b>lineage visualizer</b> slides in on the right (drag its edge to resize, ◀ / ▶ to hide). Pick the level (applications, datasets, attributes) and what to trace (everything, a domain, an application, a business term, an integration flow or a dataset), or click a box to trace from it. Thick arrows cross domains.</li></ul>
   <h3>Step 1: register domains and applications</h3>

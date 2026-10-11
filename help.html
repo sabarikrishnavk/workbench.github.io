@@ -61,6 +61,7 @@
   <a class="btn" href="gql-migration.html">GQL migration</a>
   <a class="btn" href="subgraph-codemigration.html">Code migration</a>
   <a class="btn" href="data-mapping.html">Data mapping</a>
+  <a class="btn" href="rtm-mapping.html">Traceability</a>
   <a class="btn" href="demo.html">▶ Demo</a>
 </header>
 
@@ -108,6 +109,12 @@
   <a class="sub" href="#dm-datasets">Dataset types &amp; HTTP APIs</a>
   <a class="sub" href="#dm-lineage">Lineage</a>
   <a class="sub" href="#dm-events">Kafka &amp; schemas</a>
+  <a class="grp" href="#rtm">Requirements traceability</a>
+  <a class="sub" href="#rtm-model">Model &amp; workbook</a>
+  <a class="sub" href="#rtm-guide">Onboarding guide</a>
+  <a class="sub" href="#rtm-summary">Change summary</a>
+  <a class="sub" href="#rtm-lineage">Lineage</a>
+  <a class="sub" href="#rtm-checks">Coverage &amp; checks</a>
   <a class="sub" href="#dm-issues">Issues &amp; architecture rules</a>
   <a class="grp" href="#faq">FAQ &amp; troubleshooting</a>
 </nav>
@@ -132,6 +139,7 @@
         <tr><td><a href="#migration">GQL migration</a></td><td><code>gql-migration.html</code></td><td>Turn a subgraph service's OpenAPI spec (and the MonoGraph schema) into registry rows for one entity, review them, and copy the approved ones into the registry.</td></tr>
         <tr><td><a href="#code-migration">Code migration</a></td><td><code>subgraph-codemigration.html</code></td><td>Map REST operations or composite BFF endpoints to FedGQL operations and generate client and server code.</td></tr>
         <tr><td><a href="#data-mapping">Data mapping</a></td><td><code>data-mapping.html</code></td><td>Trace each business attribute from core systems and third parties through Kafka, service data and REST / GraphQL APIs to the UI, in its own workbook, <code>DataMappingRegistry.xlsx</code>.</td></tr>
+        <tr><td><a href="#rtm">Requirements traceability</a></td><td><code>rtm-mapping.html</code></td><td>Trace a program's high-level requirements to detail requirements, to the impacted applications and interfaces, to the Data mapping datasets, attributes and mappings, with a change summary and lineage per requirement, in <code>RTMRegistry.xlsx</code>.</td></tr>
       </tbody>
     </table>
     <p>Look for the <span class="help-ico" style="display:inline-flex">?</span> icon next to buttons and tabs in each tool. It opens the matching section of this page.</p>
@@ -446,6 +454,23 @@
     <div class="feat" id="dm-issues"><h3>Issues &amp; architecture rules <span class="where">tab</span></h3>
       <p>Errors: broken references, duplicate IDs or paths, mappings to attributes that don't exist. Warnings: unmapped API / UI / event fields, Direct mappings between incompatible types, PII or Confidential data flowing out without Mask / Hash / Encrypt, and Kafka events without a registration or a valid key. Each issue has a <span class="ui">Show</span> button.</p>
       <p>Architecture rules, checked per application type: front ends integrate only through the BFF (REST) or the FedGQL router (GraphQL); only domain and orchestrator services publish subgraphs to the router; core and third-party systems reach an integration service via REST API, Kafka event, File (CSV) or CDC; and each type owns only the dataset kinds that fit it (for example a BFF owns HTTP APIs, a front end owns UI components and forms).</p></div>
+  </section>
+
+  <!-- ===================== Requirements traceability ====================== -->
+  <section id="rtm">
+    <h2>Requirements traceability <small class="hint">rtm-mapping.html</small></h2>
+    <p>A requirements traceability matrix (RTM) for a program that spans several business domains, applications and datasets. Each high-level requirement (HLR) breaks down into detail requirements, which the high-level design satisfies by changing business applications and interfaces, which the detail design spells out as Data mapping artifacts: interfaces (flows), datasets, attributes, mappings and Kafka events. Applications, flows and datasets are read, never written, from the Data mapping registry.</p>
+    <div class="feat" id="rtm-model"><h3>Model &amp; workbook <span class="where">header</span></h3>
+      <p>Sheets: <b>Programs</b> → <b>HighLevelReqs</b> (<code>HLR-01</code>, with its BusinessDomains) → <b>Requirements</b> (<code>REQ-01-03</code>) → <b>HLDesign</b> (<code>HLD-001</code>: one impacted component, an AppID or a FlowID, with its ChangeType and the ReqIDs it satisfies) → <b>DetailDesign</b> (<code>DD-0001</code>: a FlowID, DatasetID, <code>DatasetID#path</code>, MappingID or <code>SRC#path -&gt; TGT#path</code> for a new mapping, or an EventID). The optional <b>ReqIDs</b> on a detail-design row narrows it to some of the design row's requirements, for components shared by several HLRs. ChangeType is New, Modify, Retire or No change (in regression scope). <b>Export .xlsx</b> adds TraceMatrix, AppImpact, InterfaceImpact and DatasetImpact sheets; <b>Load .xlsx</b> reads the five editable sheets.</p>
+      <p><b>Data mapping source</b> (the chip in the header): the registry open in <code>data-mapping.html</code> in this browser (kept in sync), a <code>DataMappingRegistry.xlsx</code>, or the bundled retail sample. <b>Load example</b> or <code>samples/RTM-Sample.xlsx</code> is the <i>eCommerce transformation 2027</i> program: store-aware PDP and cart, click &amp; collect checkout, supplier logistics data for search, and the mobile app moving from the BFF to the FedGQL router. It uses the IDs in <code>DataMappingRegistry-sample.xlsx</code>.</p></div>
+    <div class="feat" id="rtm-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
+      <p>Six steps for one HLR: the requirement and its business domains → detail requirements → impacted applications (by domain) → impacted interfaces (flows from or to those applications) → detail design (tick datasets, attributes, events and mappings, or add new ones) → review. The <b>end-to-end helper</b> in step 5 traces an attribute through the Data mapping registry and adds every hop as interface and mapping rows. The live lineage on the right redraws as you go.</p></div>
+    <div class="feat" id="rtm-summary"><h3>Change summary <span class="where">tab</span></h3>
+      <p>For the whole program or one HLR: impacted applications, interfaces, datasets, attributes, mappings and events by change; an HLR × business-domain heat map with coverage; and per-application, per-interface and per-dataset tables with a column per HLR. A solid pill is declared on a design row; a dashed one is derived (a new attribute modifies its dataset and application). The <b>Data mapping backlog</b> lists new artifacts to register in Data mapping.</p></div>
+    <div class="feat" id="rtm-lineage"><h3>Lineage <span class="where">tab</span></h3>
+      <p>Per HLR: the trace tree (HLR → requirements → design → detail design; click a box to highlight its path, download as SVG or copy as CSV), the applications and interfaces it touches laid out by layer and coloured by change, and the attribute data lineage from source to last consumer, marking new, changed and retired mappings.</p></div>
+    <div class="feat" id="rtm-checks"><h3>Coverage &amp; checks <span class="where">tab</span></h3>
+      <p>Coverage per HLR (designed and detailed requirements). Errors: broken references and artifacts that are not in Data mapping. Warnings: requirements without design, design rows without detail, artifacts outside their component, New artifacts that already exist. Info: new artifacts to register and interfaces reaching applications outside the design.</p></div>
   </section>
 
   <section id="faq">

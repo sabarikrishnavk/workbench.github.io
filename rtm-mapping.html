@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Requirements Traceability</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="onboarding.css" />
+<style>
+  :root{
+    --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+    --c-new: #16a34a; --c-mod: #d97706; --c-ret: #dc2626; --c-none: #64748b;
+  }
+  body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 14px; display: flex; flex-direction: column; height: 100vh; }
+  header{ background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  header a.btn{ text-decoration: none; }
+  nav{ background: var(--panel); border-bottom: 1px solid var(--line); display: flex; gap: 2px; padding: 0 12px; flex-wrap: wrap; }
+  nav .cnt{ display: inline-block; min-width: 18px; font-size: 11px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: #fde68a; color: #7a5c00; }
+  nav .cnt.err{ background: #fde3e3; color: var(--bad); }
+  nav .chrome-toggle{ align-self: center; padding: 3px 9px; font-size: 12px; }
+  main{ flex: 1; overflow: auto; padding: 16px; }
+  [hidden]{ display: none !important; }
+  .dm-src{ display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: #f8fafc; cursor: pointer; }
+  .dm-src:hover{ border-color: var(--accent); color: var(--accent); }
+  .dm-src i{ width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; }
+  .toolbar-inline{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .toolbar-inline input[type=search], .toolbar-inline select{ padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12.5px; background: #fff; }
+  .seg{ display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button{ border: none; border-radius: 0; padding: 5px 12px; background: #fff; }
+  .seg button.active{ background: var(--accent); color: #fff; }
+  /* change pills */
+  .cp{ display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .cp.New{ color: #166534; background: #dcfce7; border-color: #86efac; }
+  .cp.Modify{ color: #92400e; background: #fef3c7; border-color: #fcd34d; }
+  .cp.Retire{ color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
+  .cp.None{ color: #475569; background: #f1f5f9; border-color: #cbd5e1; }
+  .cp.drv{ border-style: dashed; }
+  .tp{ display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 4px; color: #fff; white-space: nowrap; }
+  .idc{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: #334155; background: #f1f5f9; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+  .idc.lnk{ cursor: pointer; } .idc.lnk:hover{ background: var(--accent-soft); color: var(--accent); }
+  .missing{ color: var(--bad); }
+  .st-chip{ display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); }
+  .st-Approved, .st-Implemented{ background: #e5f6e9; border-color: #86c99a; color: #1a7a3c; }
+  .st-Deprecated{ background: #fde3e3; border-color: #e59a9a; color: #b03535; }
+  .st-Proposed{ background: #fdf6d8; border-color: #ddc766; color: #8a6d0b; }
+  .st-Draft{ background: #f1f3f5; border-color: #ced2d6; color: #5a636b; }
+  /* grids */
+  .sheet-tabs{ display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+  .sheet-tabs button{ font-size: 12px; padding: 4px 10px; border-radius: 999px; }
+  .sheet-tabs button.active{ background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .sheet-tabs .n{ color: var(--muted); margin-left: 3px; }
+  .table-wrap{ overflow: auto; max-height: calc(100vh - 270px); border: 1px solid var(--line); border-radius: 8px; }
+  .table-wrap table{ font-size: 12.5px; }
+  th{ background: #fafbfc; position: sticky; top: 0; font-weight: 600; z-index: 1; white-space: nowrap; }
+  td{ padding: 2px 4px; }
+  td input, td select, td textarea{ width: 100%; min-width: 90px; border: 1px solid transparent; background: transparent; font: inherit; padding: 3px 4px; border-radius: 4px; resize: vertical; }
+  td textarea{ min-width: 220px; min-height: 26px; height: 26px; }
+  td input:focus, td select:focus, td textarea:focus{ border-color: var(--accent); background: #fff; outline: none; }
+  td.ro{ color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .icon-btn{ border: none; background: transparent; padding: 2px 6px; color: var(--muted); cursor: pointer; }
+  .icon-btn:hover{ color: var(--bad); background: transparent; }
+  .ibadge{ display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 10px; color: #fff; cursor: help; }
+  .ibadge.error{ background: #d33; } .ibadge.warning{ background: #e0a800; } .ibadge.info{ background: #3b82c4; }
+  .sev-dot{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .sev-error .sev-dot{ background: #d33; } .sev-warning .sev-dot{ background: #e0a800; } .sev-info .sev-dot{ background: #3b82c4; }
+  .iss{ font-size: 12.5px; display: flex; gap: 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line); }
+  .iss:first-child{ border-top: none; }
+  .iss .where{ margin-left: auto; white-space: nowrap; }
+  /* summary */
+  .kpis{ display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+  .kpi{ background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; min-width: 118px; }
+  .kpi b{ display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .kpi span{ font-size: 12px; color: var(--muted); }
+  .kpi small{ display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .sum-table{ border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  .sum-table th, .sum-table td{ border: 1px solid var(--line); padding: 5px 8px; vertical-align: top; }
+  .sum-table td.num{ text-align: right; font-variant-numeric: tabular-nums; }
+  .sum-table td.c{ text-align: center; }
+  .sum-table tr.grp td{ background: #f8fafc; font-weight: 700; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .mx td.hot{ font-weight: 700; }
+  .heat0{ background: #fff; } .heat1{ background: #f3efff; } .heat2{ background: #e4dafd; } .heat3{ background: #cdbcfa; }
+  .grid2{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .code-head{ display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
+  .code-head .spacer{ flex: 1; }
+  .scroll{ overflow: auto; max-height: 60vh; }
+  /* lineage */
+  .svg-wrap{ overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #fbfbfd; max-height: 70vh; }
+  .svg-wrap svg{ display: block; }
+  .rtl text{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .rtl .node{ cursor: pointer; }
+  .rtl .node rect.box{ fill: #fff; stroke: #d6dae0; stroke-width: 1.2; }
+  .rtl .node:hover rect.box{ stroke: var(--accent); }
+  .rtl .node .t{ font-size: 12px; font-weight: 700; fill: #1f2933; }
+  .rtl .node .s{ font-size: 10.5px; fill: #6b7280; }
+  .rtl .node.miss rect.box{ stroke-dasharray: 4 3; stroke: #dc2626; }
+  .rtl .edge{ fill: none; stroke: #94a3b8; stroke-width: 1.4; opacity: .9; }
+  .rtl .colh{ font-size: 10.5px; font-weight: 700; letter-spacing: .06em; fill: #9aa3ae; }
+  .rtl.focus .node:not(.on), .rtl.focus .edge:not(.on), .rtl.focus .elbl:not(.on){ opacity: .15; }
+  .rtl .edge.on{ stroke: var(--accent); stroke-width: 2.2; }
+  .rtl .elbl rect{ fill: #fff; stroke-width: 1; }
+  .rtl .elbl text{ font-size: 10px; font-weight: 600; }
+  .lg{ display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--muted); margin: 6px 0 0; }
+  .lg i{ display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+  .chain{ display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; background: #fbfbfd; }
+  .chip{ display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; background: #fff; font-size: 11.5px; white-space: nowrap; }
+  .chip.New{ border-color: #86efac; background: #f0fdf4; } .chip.Modify{ border-color: #fcd34d; background: #fffbeb; } .chip.Retire{ border-color: #fca5a5; background: #fef2f2; }
+  .chip.miss{ border-style: dashed; }
+  .chip small{ color: var(--muted); }
+  .arr{ color: var(--muted); font-size: 11px; display: inline-flex; align-items: center; gap: 3px; }
+  .arr .tx{ font-size: 10px; color: #6d28d9; background: #f3efff; border-radius: 4px; padding: 0 4px; }
+  .arr.chg .tx{ color: #fff; background: var(--c-mod); } .arr.ret .tx{ color: #fff; background: var(--c-ret); text-decoration: line-through; } .arr.new .tx{ color: #fff; background: var(--c-new); }
+  /* guide */
+  #view-guide .wz-steps{ grid-template-columns: repeat(6, 1fr); }
+  .ob-drawer{ position: relative; flex: none; width: 34px; align-self: stretch; margin-left: 14px; transition: width .32s ease; display: flex; }
+  .ob-drawer.open{ width: 42%; }
+  .ob-drawer-in{ flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; box-shadow: -6px 0 18px rgba(15,23,42,.06); overflow: hidden; }
+  .ob-drawer:not(.open) .ob-drawer-in{ display: none; }
+  .ob-tab{ position: absolute; left: -14px; top: 14px; z-index: 3; padding: 6px 7px; border-radius: 8px; font-size: 12px; background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 2px 8px rgba(112,72,232,.3); }
+  .ob-drawer:not(.open) .ob-tab{ position: static; writing-mode: vertical-rl; transform: rotate(180deg); padding: 10px 6px; height: max-content; }
+  .ob-drawer.open .ob-tab-closed, .ob-drawer:not(.open) .ob-tab-open{ display: none; }
+  .ob-drawer-head{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; font-size: 13px; }
+  .ob-drawer-head .spacer{ flex: 1; }
+  .ob-drawer-head .seg button{ padding: 3px 9px; font-size: 12px; }
+  .ob-drawer .svg-wrap{ flex: 1; max-height: none; }
+  .g-sec{ font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; margin: 16px 0 6px; border-bottom: 1px solid var(--line); padding-bottom: 3px; display: flex; align-items: center; gap: 8px; }
+  .g-sec:first-child{ margin-top: 4px; }
+  .frm{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .frm label{ display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--muted); min-width: 0; }
+  .frm label.wide{ grid-column: 1 / -1; }
+  .frm input, .frm select, .frm textarea{ width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 13px; color: var(--ink); background: #fff; }
+  .frm textarea{ min-height: 52px; resize: vertical; }
+  .wz-chip.sm{ padding: 2px 9px; font-size: 11.5px; }
+  .comp{ border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; margin: 6px 0; background: #fff; }
+  .comp.on{ border-color: var(--accent); background: #fcfbff; }
+  .comp-h{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .comp-h input[type=checkbox]{ width: 16px; height: 16px; accent-color: var(--accent); }
+  .comp-h b{ font-size: 13px; }
+  .comp-h .spacer{ flex: 1; }
+  .comp-b{ display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 6px 0 0 24px; font-size: 12px; }
+  .comp-b select, .comp-b input{ padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12px; background: #fff; }
+  .comp-b input.desc{ flex: 1; min-width: 220px; }
+  .art-t{ width: 100%; border-collapse: collapse; font-size: 12px; }
+  .art-t td, .art-t th{ border: none; border-top: 1px solid var(--line); padding: 3px 6px; vertical-align: middle; }
+  .art-t th{ position: static; background: transparent; color: var(--muted); font-size: 11px; }
+  .art-t tr.on td{ background: #faf7ff; }
+  .art-t select, .art-t input[type=text]{ padding: 2px 5px; border: 1px solid var(--line); border-radius: 5px; font: inherit; font-size: 12px; background: #fff; }
+  .art-t td.sub{ padding-left: 28px; }
+  .dd-card{ border: 1px solid var(--line); border-radius: 10px; margin: 10px 0; background: #fff; }
+  .dd-card > summary{ list-style: none; cursor: pointer; padding: 8px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .dd-card > summary::-webkit-details-marker{ display: none; }
+  .dd-card > summary::before{ content: "▸"; color: var(--muted); }
+  .dd-card[open] > summary::before{ content: "▾"; }
+  .dd-body{ padding: 0 12px 12px; }
+  .dd-add{ display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: 12px; }
+  .dd-add input, .dd-add select{ padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12px; min-width: 180px; }
+  .note{ border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 12.5px; background: #fbfbfd; }
+  .note.warn{ border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+  .note.ok{ border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+  .cov-bar{ height: 8px; border-radius: 999px; background: #eceef2; overflow: hidden; min-width: 80px; }
+  .cov-bar span{ display: block; height: 100%; background: var(--ok); }
+  .modal{ position: fixed; inset: 0; background: rgba(15,23,42,.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 6vh; z-index: 80; }
+  .modal-card{ background: #fff; border-radius: 12px; width: 720px; max-width: 94vw; max-height: 86vh; overflow: auto; padding: 18px 22px; box-shadow: 0 20px 50px rgba(0,0,0,.25); font-size: 13.5px; line-height: 1.5; }
+  .modal-card h2{ margin: 0 0 8px; font-size: 17px; }
+  .modal-card h3{ margin: 14px 0 4px; font-size: 14px; }
+  .modal-card code{ background: #f1f3f5; padding: 0 4px; border-radius: 3px; font-size: 12px; }
+  .modal-actions{ display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+  @media (max-width: 900px){ .ob-drawer.open{ width: 100%; } .grid2, .frm{ grid-template-columns: 1fr; } #view-guide .wz-steps{ grid-template-columns: repeat(3, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="index.html" style="color:inherit;text-decoration:none" title="Workbench home">Requirements Traceability</a></h1>
+  <span class="status" id="status"></span>
+  <span class="dm-src" id="dmSrc" title="Where the applications, interfaces and datasets come from (Data mapping registry)"><i></i><span id="dmSrcTxt"></span></span>
+  <span class="spacer"></span>
+  <a class="btn" href="data-mapping.html" target="_blank" rel="noopener">Data mapping ↗</a>
+  <label class="btn" for="fileInput">Load .xlsx</label>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" />
+  <button id="exportBtn">Export .xlsx</button>
+  <button id="seedBtn" title="Load the eCommerce transformation example (samples/RTM-Sample.xlsx)">Load example</button>
+  <button class="danger" id="clearBtn">Clear</button>
+  <a class="btn help-link" href="help.html#rtm" target="_blank" rel="noopener">❓ Help</a>
+</header>
+
+<nav id="nav">
+  <button data-view="guide" class="active">Onboarding guide</button>
+  <button data-view="summary">Change summary</button>
+  <button data-view="lineage">Lineage</button>
+  <button data-view="registry">Registry</button>
+  <button data-view="issues">Coverage &amp; checks <span class="cnt" id="issueCnt" hidden></span></button>
+  <span class="spacer"></span>
+  <button class="chrome-toggle" id="chromeToggle" title="Show / hide the toolbar">▾ Toolbar</button>
+</nav>
+
+<main>
+  <!-- ============ Onboarding guide ============
+       One high-level requirement at a time: HLR → detail requirements → high-level design (impacted
+       applications, then interfaces) → detail design (data-mapping datasets, attributes, mappings, events) → review. -->
+  <section class="view active ob-layout" id="view-guide">
+    <div class="card ob-top">
+      <div class="ob-top-row"><h2>Requirement onboarding <span class="hint" id="gTopHlr"></span></h2>
+        <div class="wz-progress"><div class="wz-bar"><span id="gBar"></span></div><span class="wz-pct" id="gPct">0%</span></div>
+        <button id="gRestart" title="Pick another high-level requirement (nothing is deleted)">Restart</button></div>
+      <ol class="wz-steps" id="gSteps"></ol>
+      <div class="wz-ctx" id="gCtx"></div>
+    </div>
+    <div class="ob-bottom" style="margin-top:12px">
+      <div class="ob-main">
+        <div class="card" id="gBody"></div>
+        <div class="wz-nav"><button id="gBack">← Back</button><span class="spacer"></span><span class="hint" id="gHint"></span><button class="primary" id="gNext">Next →</button></div>
+      </div>
+      <aside class="ob-drawer open" id="gDrawer" aria-label="Live lineage">
+        <button class="ob-tab" id="gDrawerToggle" title="Show / hide the live lineage"><span class="ob-tab-open">▶</span><span class="ob-tab-closed">◀ Lineage</span></button>
+        <div class="ob-drawer-in">
+          <div class="ob-drawer-head"><b>Live lineage</b><span class="hint" id="gLinHint"></span><span class="spacer"></span>
+            <span class="seg" id="gLinMode"><button data-m="trace" class="active">Trace</button><button data-m="apps">Apps &amp; interfaces</button></span></div>
+          <div class="svg-wrap" id="gLin"></div>
+          <div class="lg" id="gLinLg"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ Change summary ============ -->
+  <section class="view" id="view-summary">
+    <div class="card">
+      <h2>Change summary across applications, interfaces and datasets</h2>
+      <p class="desc">Roll-up of the high-level and detail design. A <span class="cp Modify">Modify</span> pill is <b>declared</b> on a design row; a <span class="cp Modify drv">Modify</span> dashed pill is <b>derived</b> from a change below it (a new attribute modifies its dataset, its application and the interface that maps it).</p>
+      <div class="toolbar-inline"><span class="hint">Scope</span><select id="smHlr"></select>
+        <label class="hint"><input type="checkbox" id="smNoChange" checked /> Include “No change” (regression scope)</label>
+        <span class="spacer" style="flex:1"></span><button class="copy-btn" id="smCsv">Copy all as CSV</button></div>
+      <div class="kpis" id="smKpis"></div>
+      <div id="smByHlr"></div>
+    </div>
+    <div class="card"><div class="code-head"><h2>Applications</h2><span class="spacer"></span><span class="hint">rows: impacted applications · columns: high-level requirements</span></div><div class="scroll" id="smApps"></div></div>
+    <div class="card"><div class="code-head"><h2>Interfaces (integration flows)</h2><span class="spacer"></span><span class="hint">from the Data mapping Flows sheet</span></div><div class="scroll" id="smFlows"></div></div>
+    <div class="card"><div class="code-head"><h2>Datasets &amp; events</h2><span class="spacer"></span><span class="hint">API payloads, tables, topics, files and screens</span></div><div class="scroll" id="smDs"></div></div>
+    <div class="card"><h2>Data mapping backlog</h2><p class="desc"><span class="cp New">New</span> attributes, mappings and datasets in the detail design that are not in the Data mapping registry yet. Register them in <a href="data-mapping.html" target="_blank" rel="noopener">Data mapping</a> to complete the end-to-end lineage.</p><div id="smBacklog"></div></div>
+  </section>
+
+  <!-- ============ Lineage ============ -->
+  <section class="view" id="view-lineage">
+    <div class="card">
+      <h2>Lineage by high-level requirement</h2>
+      <div class="toolbar-inline"><span class="hint">High-level requirement</span><select id="lnHlr"></select><span class="hint" id="lnStats"></span>
+        <span class="spacer" style="flex:1"></span><button class="copy-btn" id="lnSvg">⤓ Trace SVG</button><button class="copy-btn" id="lnCsv">Copy trace as CSV</button></div>
+      <p class="desc">Requirement → detail requirements → high-level design (applications and interfaces) → detail design (data-mapping interfaces, datasets, attributes, mappings, events). Click a box to highlight its path; click it again to clear.</p>
+      <div class="svg-wrap" id="lnTrace"></div>
+      <div class="lg" id="lnLg"></div>
+    </div>
+    <div class="card">
+      <h2>Applications &amp; interfaces impacted end to end</h2>
+      <p class="desc">Each box is an application, placed by layer (core → integration → domain → router / BFF → front end); each line is an interface (data-mapping flow) the requirement touches, coloured by its change. Internal flows (database → API, outbox → topic) are counted inside the box.</p>
+      <div class="svg-wrap" id="lnApps"></div>
+    </div>
+    <div class="card">
+      <h2>Attribute data lineage</h2>
+      <p class="desc">Every changed or verified attribute, traced upstream to its source and downstream to its last consumer through the Data mapping registry plus the new mappings in the design. <span class="arr new"><span class="tx">new</span></span> marks a designed mapping that is not in the registry yet, <span class="arr chg"><span class="tx">chg</span></span> a mapping the design changes and <span class="arr ret"><span class="tx">retired</span></span> one it retires.</p>
+      <div class="toolbar-inline"><input type="search" id="lnFind" placeholder="Filter by dataset or attribute…" /><span class="hint" id="lnChainStats"></span></div>
+      <div id="lnChains"></div>
+    </div>
+  </section>
+
+  <!-- ============ Registry ============ -->
+  <section class="view" id="view-registry">
+    <div class="sheet-tabs" id="sheetTabs"></div>
+    <div class="card">
+      <h2 id="sheetTitle"></h2>
+      <p class="desc" id="sheetDesc"></p>
+      <div class="toolbar-inline">
+        <button class="primary" id="addRow">+ Add row</button>
+        <input type="search" id="gridFind" placeholder="Filter rows…" />
+        <span class="hint">HLR</span><select id="gridHlr"></select>
+        <span class="hint" id="gridStats"></span>
+        <span class="spacer" style="flex:1"></span><button class="copy-btn" id="gridCsv">Copy as CSV</button>
+      </div>
+      <div class="table-wrap" id="gridWrap"></div>
+      <div id="datalists"></div>
+    </div>
+  </section>
+
+  <!-- ============ Coverage & checks ============ -->
+  <section class="view" id="view-issues">
+    <div class="card">
+      <h2>Coverage by high-level requirement</h2>
+      <p class="desc">A detail requirement is <b>designed</b> when a high-level design row covers it, and <b>detailed</b> when every one of those rows has at least one detail-design artifact.</p>
+      <div id="isCov"></div>
+    </div>
+    <div class="card">
+      <h2>Registry checks</h2>
+      <p class="desc">Broken references, requirements without design, design rows without detail, artifacts that are not in the Data mapping registry, artifacts outside their component, and interfaces whose applications are not in the design.</p>
+      <div class="toolbar-inline"><span class="seg" id="isSev"><button data-s="" class="active">All</button><button data-s="error">Errors</button><button data-s="warning">Warnings</button><button data-s="info">Info</button></span><input type="search" id="isFind" placeholder="Filter…" /></div>
+      <div id="isOut"></div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="rtm-dm-sample.js"></script>
+<script>
+/* =====================================================================
+   Requirements Traceability (RTM)
+   One workbook (RTMRegistry.xlsx) that traces a program's high-level requirements (HLR) to detail
+   requirements (REQ), to the high-level design (the impacted business applications and interfaces),
+   to the detail design: the Data mapping registry's interfaces (flows), datasets, attributes, mappings
+   and Kafka events. Applications, flows and datasets are read from the Data mapping registry
+   (data-mapping.html in this browser, a DataMappingRegistry .xlsx, or the bundled retail sample).
+   ===================================================================== */
+const LS_KEY = "rtm.registry.v1", LS_DM = "rtm.dm.v1", LS_FILE = "rtm.file.v1", LS_GUIDE = "rtm.guide.v1", DM_LS_KEY = "dm.registry.v2";
+const STATUS = ["Draft", "Proposed", "Approved", "Implemented", "Deprecated"];
+const CHANGE = ["New", "Modify", "Retire", "No change"];
+const PRIORITY = ["Must", "Should", "Could", "Won't"];
+const REQ_TYPES = ["Functional", "Non-functional", "Data", "Integration", "Reporting", "Security"];
+const COMP_TYPES = ["Application", "Interface"];
+const ART_TYPES = ["Interface", "Dataset", "Attribute", "Mapping", "Event"];
+const CH_COLOR = { New: "#16a34a", Modify: "#d97706", Retire: "#dc2626", "No change": "#64748b" };
+const CH_RANK = { "": 0, "No change": 1, Modify: 2, Retire: 3, New: 4 };
+const TYPE_COLOR = { HLR: "#7048e8", REQ: "#2563eb", Application: "#0d9488", Interface: "#c2410c", Dataset: "#0891b2", Attribute: "#64748b", Mapping: "#db2777", Event: "#9333ea" };
+const APP_COLOR = { "Domain service": "#2563eb", "Orchestrator service": "#0d9488", "Integration service": "#c2410c", BFF: "#0891b2", "FedGQL router": "#7048e8", Frontend: "#059669", "Core system": "#b45309", "Third party": "#78716c" };
+const APP_RANK = { "Core system": 0, "Third party": 0, "Integration service": 1, "Domain service": 2, "Orchestrator service": 3, "FedGQL router": 4, BFF: 4, Frontend: 5 };
+const KN = v => String(v == null ? "" : v).replace(/^\d+\s*-\s*/, "");
+
+// Sheet definitions. opts = dropdown; ref = an id in another RTM sheet (or a comma list with multi); dm = Data mapping id.
+const RT = {
+  Programs: { id: "ProgramID", prefix: "PRG-", desc: "The program (or release) the requirements belong to.",
+    cols: [{ key: "ProgramID", w: 100 }, { key: "Name", w: 230 }, { key: "Sponsor", w: 160 }, { key: "Description", area: 1 }, { key: "TargetRelease", w: 120 }, { key: "Status", opts: STATUS }] },
+  HighLevelReqs: { id: "HLRID", prefix: "HLR-", desc: "High-level (business) requirements: an epic or BRD capability, usually spanning several business domains. BusinessDomains is a comma list of Data mapping DomainIDs.",
+    cols: [{ key: "HLRID", w: 90 }, { key: "ProgramID", ref: "Programs", w: 100 }, { key: "Title", w: 260 }, { key: "Description", area: 1 }, { key: "BusinessDomains", multi: "dom", w: 260 }, { key: "Priority", opts: PRIORITY }, { key: "Owner", w: 140 }, { key: "Source", w: 140 }, { key: "Status", opts: STATUS }] },
+  Requirements: { id: "ReqID", prefix: "REQ-", desc: "Detail requirements of a high-level requirement: functional, non-functional, data or integration statements with acceptance criteria. ReqID = REQ-<HLR no>-<seq>.",
+    cols: [{ key: "ReqID", w: 100 }, { key: "HLRID", ref: "HighLevelReqs", w: 90 }, { key: "Title", w: 260 }, { key: "Type", opts: REQ_TYPES }, { key: "Description", area: 1 }, { key: "AcceptanceCriteria", area: 1 }, { key: "DomainID", dm: "dom", w: 140 }, { key: "Priority", opts: PRIORITY }, { key: "Status", opts: STATUS }] },
+  HLDesign: { id: "HLDID", prefix: "HLD-", desc: "High-level design: each row is one impacted component, a business application (Data mapping AppID) or an interface (Data mapping FlowID), with its change and the detail requirements (comma list) it satisfies.",
+    cols: [{ key: "HLDID", w: 90 }, { key: "ReqIDs", multi: "req", w: 230 }, { key: "ComponentType", opts: COMP_TYPES }, { key: "ComponentID", dm: "comp", w: 170 }, { key: "ChangeType", opts: CHANGE }, { key: "Description", area: 1 }, { key: "Owner", w: 130 }, { key: "Status", opts: STATUS }] },
+  DetailDesign: { id: "DDID", prefix: "DD-", desc: "Detail design: the Data mapping artifacts a design row changes or verifies. ReqIDs (optional) narrows an artifact to some of the design row's requirements, for components shared by several HLRs. ArtifactID is a FlowID, DatasetID, DatasetID#path (attribute), MappingID or SRC#path -> TGT#path (a new mapping), or EventID.",
+    cols: [{ key: "DDID", w: 90 }, { key: "HLDID", ref: "HLDesign", w: 90 }, { key: "ReqIDs", multi: "req", w: 160, help: "Optional: the requirements of the design row this artifact serves (blank = all of them)" }, { key: "ArtifactType", opts: ART_TYPES }, { key: "ArtifactID", dm: "art", w: 330 }, { key: "ChangeType", opts: CHANGE }, { key: "Description", area: 1 }, { key: "Status", opts: STATUS }] },
+};
+const RT_ORDER = ["Programs", "HighLevelReqs", "Requirements", "HLDesign", "DetailDesign"];
+const SHEET_LABEL = { HighLevelReqs: "High-level reqs", Requirements: "Detail reqs", HLDesign: "High-level design", DetailDesign: "Detail design" };
+
+/* ------------------------------- helpers ------------------------------- */
+const E = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const S = v => String(v == null ? "" : v).trim();
+const uid = () => "R" + Math.random().toString(36).slice(2, 9);
+const pad = (n, w) => String(n).padStart(w || 2, "0");
+const list = v => S(v).split(/[,;\n]+/).map(x => x.trim()).filter(Boolean);
+const uniq = a => [...new Set(a)];
+const chKey = c => c === "No change" ? "None" : (c || "None");
+const cp = (c, derived) => c ? `<span class="cp ${chKey(c)}${derived ? " drv" : ""}" title="${derived ? "Derived from the detail design" : "Declared"}">${E(c)}</span>` : "";
+const maxCh = (a, b) => (CH_RANK[b] || 0) > (CH_RANK[a] || 0) ? b : a;
+const trunc = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 1700); }
+function download(text, name, type) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: type || "text/plain" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+function copyText(t) { navigator.clipboard.writeText(t).then(() => toast("Copied")).catch(() => toast("Copy failed")); }
+const csvCell = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v == null ? "" : v);
+const toCSV = rows => rows.map(r => r.map(csvCell).join(",")).join("\n");
+
+/* ------------------------------- state -------------------------------- */
+let DB = emptyDB(), UNDO = [], ISS = null, IMP = {};
+function emptyDB() { const d = {}; RT_ORDER.forEach(s => d[s] = []); return d; }
+function ensureIds(db) { RT_ORDER.forEach(s => { db[s] = db[s] || []; db[s].forEach(r => { if (!r._id) r._id = uid(); RT[s].cols.forEach(c => { if (r[c.key] == null) r[c.key] = ""; }); }); }); return db; }
+function invalidate() { ISS = null; IMP = {}; }
+function save() { invalidate(); try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch (e) {} setStatus(); }
+function load() { try { const raw = localStorage.getItem(LS_KEY); if (raw) { DB = ensureIds({ ...emptyDB(), ...JSON.parse(raw) }); return; } } catch (e) {} DB = ensureIds(exampleRTM()); }
+function pushUndo() { UNDO.push(JSON.stringify(DB)); if (UNDO.length > 40) UNDO.shift(); }
+function undo() { const s = UNDO.pop(); if (!s) { toast("Nothing to undo"); return; } DB = JSON.parse(s); save(); renderAll(); toast("Undone"); }
+function setStatus() {
+  const n = s => DB[s].length;
+  let f = ""; try { f = localStorage.getItem(LS_FILE) || ""; } catch (e) {}
+  document.getElementById("status").textContent = `${n("HighLevelReqs")} HLR · ${n("Requirements")} req · ${n("HLDesign")} HLD · ${n("DetailDesign")} DD${f ? " · " + f : ""}`;
+  const c = issueCounts(), el = document.getElementById("issueCnt");
+  el.hidden = !(c.error + c.warning); el.textContent = c.error + c.warning; el.className = "cnt" + (c.error ? " err" : "");
+}
+const byId = (sheet, id) => DB[sheet].find(r => r[RT[sheet].id] === id);
+function nextId(sheet, hlr) {
+  if (sheet === "Requirements" && hlr) {
+    const no = (hlr.match(/(\d+)$/) || [, "00"])[1], re = new RegExp("^REQ-" + no + "-(\\d+)$");
+    const max = Math.max(0, ...DB.Requirements.map(r => (r.ReqID.match(re) || [, 0])[1] * 1));
+    return `REQ-${no}-${pad(max + 1)}`;
+  }
+  const p = RT[sheet].prefix, w = { DetailDesign: 4, HLDesign: 3 }[sheet] || 2, re = new RegExp("^" + p + "(\\d+)$");
+  const max = Math.max(0, ...DB[sheet].map(r => (String(r[RT[sheet].id]).match(re) || [, 0])[1] * 1));
+  return p + pad(max + 1, w);
+}
+// Renaming an id updates every reference to it.
+function renameRef(sheet, oldId, newId) {
+  if (!oldId || oldId === newId) return;
+  const swapList = v => list(v).map(x => x === oldId ? newId : x).join(", ");
+  if (sheet === "Programs") DB.HighLevelReqs.forEach(r => { if (r.ProgramID === oldId) r.ProgramID = newId; });
+  if (sheet === "HighLevelReqs") DB.Requirements.forEach(r => { if (r.HLRID === oldId) r.HLRID = newId; });
+  if (sheet === "Requirements") DB.HLDesign.forEach(r => { if (list(r.ReqIDs).includes(oldId)) r.ReqIDs = swapList(r.ReqIDs); });
+  if (sheet === "HLDesign") DB.DetailDesign.forEach(r => { if (r.HLDID === oldId) r.HLDID = newId; });
+}
+
+/* --------------------- Data mapping registry (read-only) -------------------- */
+// DMS = { source: "sample" | "browser" | "file", name, data }. "browser" re-reads data-mapping.html's
+// local storage on every load, so the RTM follows the Data mapping registry as it is edited.
+let DMS = null, DMX = null;
+const DM_COLS = {
+  Domains: ["DomainID", "DomainNo", "Code", "Name"], Applications: ["AppID", "Name", "DomainID", "AppType", "Technology"],
+  Datasets: ["DatasetID", "AppID", "Name", "Kind", "Location"], Attributes: ["DatasetID", "Path", "DataType", "TermID"],
+  Mappings: ["MappingID", "FlowID", "SourceDatasetID", "SourcePath", "TargetDatasetID", "TargetPath", "Transformation"],
+  Flows: ["FlowID", "Name", "SourceAppID", "TargetAppID", "Pattern", "Middleware"], Events: ["EventID", "DatasetID", "EventName", "Topic"], BusinessTerms: ["TermID", "Name"],
+};
+function normDM(raw) { const o = {}; Object.keys(DM_COLS).forEach(s => o[s] = (raw[s] || []).map(r => Object.fromEntries(DM_COLS[s].map(k => [k, S(r[k])])))); return o; }
+function browserDM() { try { const raw = localStorage.getItem(DM_LS_KEY); if (raw) { const d = JSON.parse(raw); if (d && (d.Applications || []).length) return normDM(d); } } catch (e) {} return null; }
+function loadDM() {
+  let st = null; try { st = JSON.parse(localStorage.getItem(LS_DM) || "null"); } catch (e) {}
+  if (st && st.source === "browser") { const d = browserDM(); if (d) return setDM({ source: "browser", name: "data-mapping.html (this browser)", data: d }, true); }
+  if (st && st.source === "file" && st.data) return setDM(st, true);
+  if (!st) { const d = browserDM(); if (d) return setDM({ source: "browser", name: "data-mapping.html (this browser)", data: d }, true); }
+  setDM({ source: "sample", name: "Retail sample (DataMappingRegistry-sample.xlsx)", data: normDM(window.RTM_DM_SAMPLE || {}) }, true);
+}
+function setDM(st, quiet) {
+  DMS = st; indexDM(); invalidate();
+  try { localStorage.setItem(LS_DM, JSON.stringify(st.source === "file" ? st : { source: st.source, name: st.name })); } catch (e) {}
+  const d = DMS.data;
+  document.getElementById("dmSrcTxt").textContent = `Data mapping: ${st.source === "sample" ? "retail sample" : st.source === "browser" ? "this browser" : st.name} · ${d.Applications.length} apps · ${d.Flows.length} interfaces · ${d.Datasets.length} datasets`;
+  if (!quiet) { renderAll(); toast("Data mapping source: " + st.name); }
+}
+function indexDM() {
+  const d = DMS.data, M = (rows, k) => new Map(rows.map(r => [r[k], r]));
+  const X = { dom: M(d.Domains, "DomainID"), app: M(d.Applications, "AppID"), flow: M(d.Flows, "FlowID"), ds: M(d.Datasets, "DatasetID"), map: M(d.Mappings, "MappingID"), ev: M(d.Events, "EventID"), term: M(d.BusinessTerms, "TermID"),
+    attr: new Map(), attrsByDs: new Map(), dsByApp: new Map(), flowsByApp: new Map(), mapsByFlow: new Map(), evByDs: new Map(), out: new Map(), inn: new Map() };
+  d.Attributes.forEach(a => { X.attr.set(a.DatasetID + "#" + a.Path, a); (X.attrsByDs.get(a.DatasetID) || X.attrsByDs.set(a.DatasetID, []).get(a.DatasetID)).push(a); });
+  d.Datasets.forEach(s => (X.dsByApp.get(s.AppID) || X.dsByApp.set(s.AppID, []).get(s.AppID)).push(s));
+  d.Flows.forEach(f => uniq([f.SourceAppID, f.TargetAppID]).forEach(a => (X.flowsByApp.get(a) || X.flowsByApp.set(a, []).get(a)).push(f)));
+  d.Mappings.forEach(m => {
+    (X.mapsByFlow.get(m.FlowID) || X.mapsByFlow.set(m.FlowID, []).get(m.FlowID)).push(m);
+    if (!m.SourcePath || !m.SourceDatasetID) return;
+    const s = m.SourceDatasetID + "#" + m.SourcePath, t = m.TargetDatasetID + "#" + m.TargetPath, e = { s, t, m };
+    (X.out.get(s) || X.out.set(s, []).get(s)).push(e); (X.inn.get(t) || X.inn.set(t, []).get(t)).push(e);
+  });
+  d.Events.forEach(e => X.evByDs.set(e.DatasetID, e));
+  DMX = X;
+}
+const appName = id => { const a = DMX.app.get(id); return a ? a.Name : id; };
+const appType = id => { const a = DMX.app.get(id); return a ? KN(a.AppType) : ""; };
+const domName = id => { const d = DMX.dom.get(id); return d ? d.Name : id; };
+const dsName = id => { const d = DMX.ds.get(id); return d ? d.Name : id; };
+const flowLabel = f => `${appName(f.SourceAppID)} → ${appName(f.TargetAppID)}`;
+function typePill(t) { return t ? `<span class="tp" style="background:${APP_COLOR[t] || "#64748b"}">${E(t)}</span>` : ""; }
+
+// "SRC#path -> TGT#path" (a mapping that is not in the registry yet)
+function parseNewMap(id) { const m = S(id).match(/^([^#\s]+)#(.+?)\s*(?:->|→|>)\s*([^#\s]+)#(.+)$/); return m ? { sds: m[1], sp: m[2].trim(), tds: m[3], tp: m[4].trim() } : null; }
+// The flow that carries a mapping between two datasets: one that already maps between them, else the only flow between their applications.
+function guessFlow(sds, tds) {
+  const ex = DMS.data.Mappings.find(m => m.SourceDatasetID === sds && m.TargetDatasetID === tds && m.FlowID);
+  if (ex) return ex.FlowID;
+  const a = (DMX.ds.get(sds) || {}).AppID, b = (DMX.ds.get(tds) || {}).AppID; if (!a || !b) return "";
+  const c = DMS.data.Flows.filter(f => f.SourceAppID === a && f.TargetAppID === b);
+  return c.length === 1 ? c[0].FlowID : "";
+}
+// Resolve a detail-design artifact against the Data mapping registry.
+function resolveArt(t, id, hld) {
+  id = S(id); const r = { type: t, id, exists: false, label: id, sub: "", apps: [], flows: [], ds: [], attrs: [], edge: null };
+  if (t === "Interface") { const f = DMX.flow.get(id); r.flows = [id]; if (f) { r.exists = true; r.apps = uniq([f.SourceAppID, f.TargetAppID]); r.sub = `${flowLabel(f)} · ${f.Pattern}`; r.label = f.Name; } }
+  else if (t === "Dataset") { const d = DMX.ds.get(id); r.ds = [id]; if (d) { r.exists = true; r.apps = [d.AppID]; r.label = d.Name; r.sub = `${KN(d.Kind)} · ${appName(d.AppID)}`; } }
+  else if (t === "Attribute") {
+    const i = id.indexOf("#"), ds = i > 0 ? id.slice(0, i) : id, p = i > 0 ? id.slice(i + 1) : "", d = DMX.ds.get(ds);
+    r.ds = [ds]; r.attrs = [id]; r.label = p || id; r.dsOk = !!d; r.exists = DMX.attr.has(id);
+    if (d) { r.apps = [d.AppID]; r.sub = `${d.Name} · ${appName(d.AppID)}`; }
+  } else if (t === "Mapping") {
+    const m = DMX.map.get(id);
+    if (m) { r.exists = true; r.flows = m.FlowID ? [m.FlowID] : []; r.ds = uniq([m.SourceDatasetID, m.TargetDatasetID].filter(Boolean)); r.attrs = [m.SourceDatasetID && m.SourcePath ? m.SourceDatasetID + "#" + m.SourcePath : "", m.TargetDatasetID + "#" + m.TargetPath].filter(Boolean);
+      r.label = `${m.SourcePath || "∅"} → ${m.TargetPath}`; r.sub = `${m.MappingID} · ${m.Transformation || "Direct"} · ${m.FlowID}`; if (m.SourcePath) r.edge = { s: r.attrs[0], t: r.attrs[1], tx: m.Transformation, id }; }
+    else { const n = parseNewMap(id); if (n) { const f = guessFlow(n.sds, n.tds) || (hld && hld.ComponentType === "Interface" && !DMX.flow.has(hld.ComponentID) ? hld.ComponentID : ""); r.parsed = true; r.flows = f ? [f] : []; r.ds = uniq([n.sds, n.tds]); r.attrs = [n.sds + "#" + n.sp, n.tds + "#" + n.tp];
+      r.label = `${n.sp} → ${n.tp}`; r.sub = `${n.sds} → ${n.tds}${f ? " · " + f : ""}`; r.edge = { s: r.attrs[0], t: r.attrs[1], tx: "", id, isNew: true }; r.dsOk = DMX.ds.has(n.sds) && DMX.ds.has(n.tds); } }
+    r.apps = uniq(r.ds.map(x => (DMX.ds.get(x) || {}).AppID).filter(Boolean));
+  } else if (t === "Event") { const e = DMX.ev.get(id); if (e) { r.exists = true; r.ds = [e.DatasetID]; const d = DMX.ds.get(e.DatasetID); r.apps = d ? [d.AppID] : []; r.label = e.EventName; r.sub = `${e.Topic} · ${appName(r.apps[0])}`; } }
+  return r;
+}
+function resolveComp(h) {
+  if (h.ComponentType === "Interface") { const f = DMX.flow.get(h.ComponentID); return { exists: !!f, label: f ? f.Name : h.ComponentID, sub: f ? `${flowLabel(f)} · ${f.Pattern}` : "not in Data mapping", apps: f ? uniq([f.SourceAppID, f.TargetAppID]) : [] }; }
+  const a = DMX.app.get(h.ComponentID); return { exists: !!a, label: a ? a.Name : h.ComponentID, sub: a ? `${KN(a.AppType)} · ${domName(a.DomainID)}` : "not in Data mapping", apps: a ? [h.ComponentID] : [] };
+}
+
+/* --------------------------- traceability graph -------------------------- */
+const reqsOf = hlr => DB.Requirements.filter(r => r.HLRID === hlr);
+const hldsOfReq = rid => DB.HLDesign.filter(h => list(h.ReqIDs).includes(rid));
+// Detail design of a design row; with reqs, only the rows that serve one of them (a blank ReqIDs serves all the design row's requirements).
+const ddApplies = (d, reqs) => !reqs || !list(d.ReqIDs).length || list(d.ReqIDs).some(r => reqs.includes(r));
+const ddsOf = (hldId, reqs) => DB.DetailDesign.filter(d => d.HLDID === hldId && ddApplies(d, reqs));
+const reqIdsOf = hlr => reqsOf(hlr).map(r => r.ReqID);
+function hlrsOfHld(h) { return uniq(list(h.ReqIDs).map(r => (byId("Requirements", r) || {}).HLRID).filter(Boolean)); }
+function hldsOfHlr(hlr) { const rs = new Set(reqsOf(hlr).map(r => r.ReqID)); return DB.HLDesign.filter(h => list(h.ReqIDs).some(x => rs.has(x))); }
+
+// Roll the design up into impacted applications, interfaces, datasets and attributes (optionally for one HLR).
+function impact(hlr) {
+  const key = hlr || "*"; if (IMP[key]) return IMP[key];
+  const R = { apps: new Map(), flows: new Map(), ds: new Map(), attrs: new Map(), maps: new Map(), events: new Map(), edges: [], seeds: new Set(), newEnds: new Map() };
+  const reqSet = hlr ? new Set(reqsOf(hlr).map(r => r.ReqID)) : null;
+  const get = (m, id) => m.get(id) || m.set(id, { id, declared: "", derived: "", hlrs: new Set(), reqs: new Set(), hlds: new Set(), dds: new Set() }).get(id);
+  const tag = (o, ctx, dd) => { ctx.reqs.forEach(r => o.reqs.add(r)); ctx.hlrs.forEach(r => o.hlrs.add(r)); o.hlds.add(ctx.hld); if (dd) o.dds.add(dd); return o; };
+  const bump = c => c && c !== "No change" ? "Modify" : "No change";
+  const derive = (o, c) => { o.derived = maxCh(o.derived, c); return o; };
+  const ctxOf = new Map();
+  DB.HLDesign.forEach(h => {
+    const reqs = list(h.ReqIDs).filter(r => !reqSet || reqSet.has(r)); if (!reqs.length) return;
+    const ctx = { hld: h.HLDID, reqs, hlrs: uniq(reqs.map(r => (byId("Requirements", r) || {}).HLRID).filter(Boolean)) }; ctxOf.set(h.HLDID, ctx);
+    const ch = h.ChangeType || "Modify";
+    if (h.ComponentType === "Interface") { const o = tag(get(R.flows, h.ComponentID), ctx); o.declared = maxCh(o.declared, ch); const f = DMX.flow.get(h.ComponentID); if (f) uniq([f.SourceAppID, f.TargetAppID]).forEach(a => derive(tag(get(R.apps, a), ctx), "No change")); }
+    else { const o = tag(get(R.apps, h.ComponentID), ctx); o.declared = maxCh(o.declared, ch); }
+  });
+  DB.DetailDesign.forEach(dd => {
+    let ctx = ctxOf.get(dd.HLDID); if (!ctx) return;
+    if (list(dd.ReqIDs).length) { const reqs = ctx.reqs.filter(r => list(dd.ReqIDs).includes(r)); if (!reqs.length) return; ctx = { hld: ctx.hld, reqs, hlrs: uniq(reqs.map(r => (byId("Requirements", r) || {}).HLRID).filter(Boolean)) }; }
+    const ch = dd.ChangeType || "Modify", r = resolveArt(dd.ArtifactType, dd.ArtifactID, byId("HLDesign", dd.HLDID)), up = bump(ch);
+    const touchApps = c => r.apps.forEach(a => derive(tag(get(R.apps, a), ctx, dd.DDID), c));
+    const touchFlows = c => r.flows.forEach(f => derive(tag(get(R.flows, f), ctx, dd.DDID), !DMX.flow.has(f) && ch === "New" ? "New" : c));
+    if (dd.ArtifactType === "Interface") { const o = tag(get(R.flows, dd.ArtifactID), ctx, dd.DDID); o.declared = maxCh(o.declared, ch); touchApps("No change"); }
+    else if (dd.ArtifactType === "Dataset") { const o = tag(get(R.ds, dd.ArtifactID), ctx, dd.DDID); o.declared = maxCh(o.declared, ch); touchApps(r.exists ? up : ch); }
+    else if (dd.ArtifactType === "Event") { const o = tag(get(R.events, dd.ArtifactID), ctx, dd.DDID); o.declared = maxCh(o.declared, ch); r.ds.forEach(x => derive(tag(get(R.ds, x), ctx, dd.DDID), up)); touchApps(up); }
+    else if (dd.ArtifactType === "Attribute") {
+      const o = tag(get(R.attrs, dd.ArtifactID), ctx, dd.DDID); o.declared = maxCh(o.declared, ch); R.seeds.add(dd.ArtifactID);
+      r.ds.forEach(x => derive(tag(get(R.ds, x), ctx, dd.DDID), DMX.ds.has(x) ? up : ch)); touchApps(up);
+    } else if (dd.ArtifactType === "Mapping") {
+      const o = tag(get(R.maps, dd.ArtifactID), ctx, dd.DDID); o.declared = maxCh(o.declared, ch); touchFlows(up);
+      r.attrs.forEach(a => R.seeds.add(a));
+      const tds = r.ds[r.ds.length - 1]; r.ds.forEach(x => derive(tag(get(R.ds, x), ctx, dd.DDID), x === tds ? up : "No change"));
+      r.apps.forEach(a => derive(tag(get(R.apps, a), ctx, dd.DDID), (DMX.ds.get(tds) || {}).AppID === a ? up : "No change"));
+      if (r.edge) R.edges.push(Object.assign({ ch, dd: dd.DDID }, r.edge));
+      const sa = (DMX.ds.get(r.ds[0]) || {}).AppID, ta = (DMX.ds.get(tds) || {}).AppID; r.flows.forEach(f => { if (!DMX.flow.has(f) && sa && ta && !R.newEnds.has(f)) R.newEnds.set(f, [sa, ta]); });
+    }
+  });
+  R.eff = o => o.declared || o.derived || "No change";
+  IMP[key] = R; return R;
+}
+
+/* ------------------------------- checks -------------------------------- */
+function issues() {
+  if (ISS) return ISS; const out = [], add = (sev, msg, sheet, id) => out.push({ sev, msg, sheet, id });
+  RT_ORDER.forEach(s => { const k = RT[s].id, seen = new Set(); DB[s].forEach(r => { const v = r[k]; if (!v) add("error", `${SHEET_LABEL[s] || s}: a row has no ${k}`, s, ""); else if (seen.has(v)) add("error", `Duplicate ${k} ${v}`, s, v); seen.add(v); }); });
+  DB.HighLevelReqs.forEach(h => {
+    if (h.ProgramID && !byId("Programs", h.ProgramID)) add("error", `${h.HLRID}: program ${h.ProgramID} does not exist`, "HighLevelReqs", h.HLRID);
+    list(h.BusinessDomains).forEach(d => { if (!DMX.dom.has(d)) add("warning", `${h.HLRID}: business domain ${d} is not in the Data mapping registry`, "HighLevelReqs", h.HLRID); });
+    if (!reqsOf(h.HLRID).length) add("warning", `${h.HLRID} has no detail requirements`, "HighLevelReqs", h.HLRID);
+  });
+  DB.Requirements.forEach(r => {
+    if (!byId("HighLevelReqs", r.HLRID)) add("error", `${r.ReqID}: high-level requirement ${r.HLRID || "(empty)"} does not exist`, "Requirements", r.ReqID);
+    if (r.DomainID && !DMX.dom.has(r.DomainID)) add("warning", `${r.ReqID}: domain ${r.DomainID} is not in the Data mapping registry`, "Requirements", r.ReqID);
+    if (r.Status !== "Deprecated" && !hldsOfReq(r.ReqID).length) add("warning", `${r.ReqID} “${trunc(r.Title, 60)}” is not covered by any high-level design row`, "Requirements", r.ReqID);
+  });
+  DB.HLDesign.forEach(h => {
+    list(h.ReqIDs).forEach(x => { if (!byId("Requirements", x)) add("error", `${h.HLDID}: requirement ${x} does not exist`, "HLDesign", h.HLDID); });
+    if (!list(h.ReqIDs).length) add("warning", `${h.HLDID} is not linked to any requirement`, "HLDesign", h.HLDID);
+    const c = resolveComp(h);
+    if (!c.exists) add(h.ChangeType === "New" ? "info" : "error", `${h.HLDID}: ${h.ComponentType === "Interface" ? "interface" : "application"} ${h.ComponentID || "(empty)"} is not in the Data mapping registry${h.ChangeType === "New" ? " (new: register it in Data mapping)" : ""}`, "HLDesign", h.HLDID);
+    if (!ddsOf(h.HLDID).length) add("warning", `${h.HLDID} (${c.label}) has no detail design`, "HLDesign", h.HLDID);
+    if (h.ComponentType === "Interface" && c.exists) {
+      const hlrs = hlrsOfHld(h);
+      c.apps.forEach(a => { if (!hlrs.some(x => hldsOfHlr(x).some(o => o.ComponentType === "Application" && o.ComponentID === a))) add("info", `${h.HLDID}: interface ${h.ComponentID} reaches ${appName(a)}, which is not an impacted application of ${hlrs.join(", ")}`, "HLDesign", h.HLDID); });
+    }
+  });
+  DB.DetailDesign.forEach(d => {
+    const h = byId("HLDesign", d.HLDID); if (!h) { add("error", `${d.DDID}: design row ${d.HLDID || "(empty)"} does not exist`, "DetailDesign", d.DDID); return; }
+    const r = resolveArt(d.ArtifactType, d.ArtifactID, h);
+    list(d.ReqIDs).forEach(x => { if (!list(h.ReqIDs).includes(x)) add("warning", `${d.DDID}: requirement ${x} is not on design row ${h.HLDID}`, "DetailDesign", d.DDID); });
+    if (!d.ArtifactID) { add("error", `${d.DDID}: no ArtifactID`, "DetailDesign", d.DDID); return; }
+    if (d.ArtifactType === "Mapping" && !r.exists && !r.parsed) { add("error", `${d.DDID}: ${d.ArtifactID} is neither a MappingID nor SRC#path -> TGT#path`, "DetailDesign", d.DDID); return; }
+    if (r.exists && d.ChangeType === "New") add("warning", `${d.DDID}: ${d.ArtifactType.toLowerCase()} ${d.ArtifactID} is marked New but already exists in Data mapping`, "DetailDesign", d.DDID);
+    if (!r.exists && d.ChangeType !== "New") add("error", `${d.DDID}: ${d.ArtifactType.toLowerCase()} ${d.ArtifactID} is not in the Data mapping registry`, "DetailDesign", d.DDID);
+    if (!r.exists && d.ChangeType === "New") {
+      add("info", `${d.DDID}: new ${d.ArtifactType.toLowerCase()} ${d.ArtifactID}: add it to the Data mapping registry`, "DetailDesign", d.DDID);
+      if ((d.ArtifactType === "Attribute" || d.ArtifactType === "Mapping") && r.dsOk === false) add("error", `${d.DDID}: dataset in ${d.ArtifactID} is not in the Data mapping registry`, "DetailDesign", d.DDID);
+    }
+    if (d.ArtifactType === "Mapping" && r.parsed && !r.flows.length && r.apps.length > 1 && h.ComponentType !== "Interface") add("warning", `${d.DDID}: no single Data mapping flow connects ${r.ds.join(" → ")}`, "DetailDesign", d.DDID);
+    // the artifact must sit inside its design component
+    if (h.ComponentType === "Interface") {
+      const f = DMX.flow.get(h.ComponentID);
+      if (f && d.ArtifactType === "Mapping" && r.flows.length && !r.flows.includes(h.ComponentID)) add("warning", `${d.DDID}: mapping belongs to ${r.flows.join(", ")}, not ${h.ComponentID} (${h.HLDID})`, "DetailDesign", d.DDID);
+      if (f && d.ArtifactType === "Interface" && d.ArtifactID !== h.ComponentID) add("warning", `${d.DDID}: interface ${d.ArtifactID} is not ${h.HLDID}'s interface ${h.ComponentID}`, "DetailDesign", d.DDID);
+      if (f && r.apps.length && !r.apps.some(a => a === f.SourceAppID || a === f.TargetAppID)) add("warning", `${d.DDID}: ${d.ArtifactID} is owned by ${r.apps.map(appName).join(", ")}, outside interface ${h.ComponentID}`, "DetailDesign", d.DDID);
+    } else if (DMX.app.has(h.ComponentID) && r.apps.length && !r.apps.includes(h.ComponentID))
+      add("warning", `${d.DDID}: ${d.ArtifactID} is owned by ${r.apps.map(appName).join(", ")}, not ${appName(h.ComponentID)} (${h.HLDID})`, "DetailDesign", d.DDID);
+  });
+  ISS = out; return out;
+}
+function issueCounts() { const c = { error: 0, warning: 0, info: 0 }; issues().forEach(i => c[i.sev]++); return c; }
+const SEV_RANK = { error: 3, warning: 2, info: 1 };
+function issuesFor(sheet, id) { return issues().filter(i => i.sheet === sheet && i.id === id); }
+function issueBadge(li) { if (!li.length) return ""; const w = li.reduce((a, i) => SEV_RANK[i.sev] > SEV_RANK[a] ? i.sev : a, "info"); return `<span class="ibadge ${w}" title="${E(li.map(i => i.msg).join("\n"))}">${li.length}</span>`; }
+function coverage(hlr) {
+  const reqs = reqsOf(hlr).filter(r => r.Status !== "Deprecated");
+  const designed = reqs.filter(r => hldsOfReq(r.ReqID).length), detailed = designed.filter(r => hldsOfReq(r.ReqID).every(h => ddsOf(h.HLDID, [r.ReqID]).length));
+  return { reqs: reqs.length, designed: designed.length, detailed: detailed.length, pct: reqs.length ? Math.round(100 * (designed.length + detailed.length) / (2 * reqs.length)) : 0 };
+}
+
+/* ============================ LINEAGE (SVG) ============================ */
+// Trace tree: HLR → REQ → HLD → DD, one column each.
+function traceModel(hlrId) {
+  const h = byId("HighLevelReqs", hlrId); if (!h) return null;
+  const nodes = [], edges = [], at = new Map(), node = (id, col, t, title, sub, ch, miss, color) => { if (!at.has(id)) { const n = { id, col, t, title, sub, ch, miss, color }; at.set(id, n); nodes.push(n); } return at.get(id); };
+  node("H:" + h.HLRID, 0, "HLR", h.HLRID, h.Title, "", false, TYPE_COLOR.HLR);
+  const reqs = reqsOf(h.HLRID);
+  reqs.forEach(r => { node("R:" + r.ReqID, 1, "REQ", `${r.ReqID} · ${r.Type || ""}`, r.Title, "", false, TYPE_COLOR.REQ); edges.push(["H:" + h.HLRID, "R:" + r.ReqID]); });
+  const hlds = hldsOfHlr(h.HLRID).sort((a, b) => Math.min(...list(a.ReqIDs).map(x => reqs.findIndex(r => r.ReqID === x)).filter(i => i >= 0)) - Math.min(...list(b.ReqIDs).map(x => reqs.findIndex(r => r.ReqID === x)).filter(i => i >= 0)));
+  hlds.forEach(d => {
+    const c = resolveComp(d);
+    node("D:" + d.HLDID, 2, d.ComponentType, `${d.HLDID} · ${trunc(c.label, 26)}`, `${d.ComponentType} ${d.ComponentID}`, d.ChangeType, !c.exists, TYPE_COLOR[d.ComponentType]);
+    list(d.ReqIDs).forEach(x => { if (at.has("R:" + x)) edges.push(["R:" + x, "D:" + d.HLDID]); });
+    ddsOf(d.HLDID, reqs.map(r => r.ReqID)).forEach(a => { const r = resolveArt(a.ArtifactType, a.ArtifactID, d); node("A:" + a.DDID, 3, a.ArtifactType, `${a.DDID} · ${a.ArtifactType} · ${trunc(r.label, 30)}`, r.sub || a.ArtifactID, a.ChangeType, !r.exists, TYPE_COLOR[a.ArtifactType]); edges.push(["D:" + d.HLDID, "A:" + a.DDID]); });
+  });
+  return { nodes, edges };
+}
+const COLX = [10, 250, 520, 820], COLW = [220, 250, 280, 340], NH = 42, NG = 8;
+function traceSVG(hlrId, compact) {
+  const M = traceModel(hlrId); if (!M) return `<div class="empty">Pick a high-level requirement.</div>`;
+  const cols = [0, 1, 2, 3].map(c => M.nodes.filter(n => n.col === c)), by = new Map(M.nodes.map(n => [n.id, n]));
+  cols.forEach((c, ci) => c.forEach(n => { n.x = COLX[ci]; n.w = COLW[ci]; n.y = null; }));
+  // tree layout: leaves stack top-down; each parent sits level with the middle of its children
+  cols[3].forEach((n, i) => n.y = 30 + i * (NH + NG));
+  [2, 1, 0].forEach(ci => { let next = 30; cols[ci].forEach(n => {
+    const ys = M.edges.filter(e => e[0] === n.id).map(e => by.get(e[1])).filter(k => k && k.y != null).map(k => k.y);
+    n.y = Math.max(next, ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : next); next = n.y + NH + NG; }); });
+  const H = Math.max(...M.nodes.map(n => n.y)) + NH + 20, W = COLX[3] + COLW[3] + 12;
+  const heads = ["HIGH-LEVEL REQ", "DETAIL REQUIREMENTS", "HIGH-LEVEL DESIGN", "DETAIL DESIGN (DATA MAPPING)"].map((t, i) => `<text class="colh" x="${COLX[i]}" y="16">${t}</text>`).join("");
+  const eds = M.edges.map(([a, b]) => { const s = by.get(a), t = by.get(b); if (!s || !t) return ""; const x1 = s.x + s.w, y1 = s.y + NH / 2, x2 = t.x, y2 = t.y + NH / 2, mx = (x1 + x2) / 2; return `<path class="edge" data-a="${E(a)}" data-b="${E(b)}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`; }).join("");
+  const nds = M.nodes.map(n => {
+    const chars = Math.floor((n.w - 18) / 6.4), pill = n.ch ? `<rect x="${n.x + n.w - 62}" y="${n.y + 5}" width="56" height="14" rx="7" fill="${CH_COLOR[n.ch] || "#94a3b8"}"/><text x="${n.x + n.w - 34}" y="${n.y + 15}" text-anchor="middle" style="font-size:9.5px;font-weight:700;fill:#fff">${E(n.ch)}</text>` : "";
+    return `<g class="node${n.miss ? " miss" : ""}" data-id="${E(n.id)}"><title>${E(n.title + "\n" + n.sub + (n.miss ? "\n(not in the Data mapping registry)" : ""))}</title><rect class="box" x="${n.x}" y="${n.y}" width="${n.w}" height="${NH}" rx="7"/><rect x="${n.x}" y="${n.y}" width="5" height="${NH}" rx="2" fill="${n.color}"/>
+      <text class="t" x="${n.x + 12}" y="${n.y + 17}">${E(trunc(n.title, n.ch ? chars - 9 : chars))}</text>${pill}<text class="s" x="${n.x + 12}" y="${n.y + 33}">${E(trunc(n.sub, chars + 4))}</text></g>`;
+  }).join("");
+  return `<svg class="rtl" xmlns="http://www.w3.org/2000/svg" width="${compact ? "100%" : W}" ${compact ? `viewBox="0 0 ${W} ${H}"` : `height="${H}"`} style="${compact ? "min-width:" + Math.round(W * .62) + "px" : ""}">${heads}${eds}${nds}</svg>`;
+}
+function wireTrace(wrap) {
+  const svg = wrap.querySelector("svg.rtl"); if (!svg) return;
+  svg.addEventListener("click", ev => {
+    const g = ev.target.closest(".node"); svg.querySelectorAll(".on").forEach(x => x.classList.remove("on"));
+    if (!g || svg.dataset.sel === g.dataset.id) { svg.classList.remove("focus"); svg.dataset.sel = ""; return; }
+    const id = g.dataset.id, es = [...svg.querySelectorAll(".edge")].map(e => [e.dataset.a, e.dataset.b, e]), on = new Set([id]);
+    let grow = true; const up = new Set([id]), dn = new Set([id]);
+    while (grow) { grow = false; es.forEach(([a, b]) => { if (dn.has(a) && !dn.has(b)) { dn.add(b); grow = true; } if (up.has(b) && !up.has(a)) { up.add(a); grow = true; } }); }
+    up.forEach(x => on.add(x)); dn.forEach(x => on.add(x));
+    svg.querySelectorAll(".node").forEach(n => n.classList.toggle("on", on.has(n.dataset.id)));
+    es.forEach(([a, b, e]) => e.classList.toggle("on", on.has(a) && on.has(b) && ((up.has(a) && up.has(b)) || (dn.has(a) && dn.has(b)))));
+    svg.classList.add("focus"); svg.dataset.sel = id;
+  });
+}
+function legendTrace() { return ["HLR", "REQ", "Application", "Interface", "Dataset", "Attribute", "Mapping", "Event"].map(k => `<span><i style="background:${TYPE_COLOR[k]}"></i>${k}</span>`).join("") + CHANGE.map(c => `<span><i style="background:${CH_COLOR[c]};border-radius:50%"></i>${c}</span>`).join("") + `<span><i style="border:1.5px dashed #dc2626;background:#fff"></i>not in Data mapping</span>`; }
+
+// Applications & interfaces map for one HLR (or the whole program).
+function appsSVG(hlr, compact) {
+  const R = impact(hlr), apps = [...R.apps.values()];
+  if (!apps.length) return `<div class="empty">No impacted applications yet.</div>`;
+  const rank = a => APP_RANK[appType(a.id)] ?? 2, cols = new Map();
+  apps.sort((a, b) => rank(a) - rank(b) || String((DMX.app.get(a.id) || {}).DomainID).localeCompare((DMX.app.get(b.id) || {}).DomainID) || appName(a.id).localeCompare(appName(b.id)));
+  apps.forEach(a => { const r = rank(a); (cols.get(r) || cols.set(r, []).get(r)).push(a); });
+  const ranks = [...cols.keys()].sort((a, b) => a - b), NW = 210, NHh = 70, GX = 120, GY = 26, pos = new Map();
+  const H = Math.max(...[...cols.values()].map(c => c.length)) * (NHh + GY) + 40;
+  ranks.forEach((r, ci) => { const c = cols.get(r), y0 = 30 + (H - 40 - c.length * (NHh + GY)) / 2; c.forEach((a, i) => pos.set(a.id, { x: 14 + ci * (NW + GX), y: y0 + i * (NHh + GY) })); });
+  const W = 14 + ranks.length * (NW + GX) - GX + 20;
+  const internal = new Map(); let eds = "", lbls = "";
+  [...R.flows.values()].forEach((o, i) => {
+    const ne = R.newEnds.get(o.id), f = DMX.flow.get(o.id) || (ne && { FlowID: o.id, Name: o.id + " (new: not in Data mapping)", SourceAppID: ne[0], TargetAppID: ne[1], Pattern: "" }); if (!f) return; const ch = R.eff(o);
+    if (f.SourceAppID === f.TargetAppID) { (internal.get(f.SourceAppID) || internal.set(f.SourceAppID, []).get(f.SourceAppID)).push(o); return; }
+    const s = pos.get(f.SourceAppID), t = pos.get(f.TargetAppID); if (!s || !t) return;
+    let d, lx, ly;
+    if (t.x > s.x) { const x1 = s.x + NW, y1 = s.y + NHh / 2 + 6, x2 = t.x, y2 = t.y + NHh / 2 + 6, mx = (x1 + x2) / 2; d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`; lx = mx; ly = (y1 + y2) / 2; }
+    else if (t.x < s.x) { const x1 = s.x, y1 = s.y + NHh / 2 - 6, x2 = t.x + NW, y2 = t.y + NHh / 2 - 6, mx = (x1 + x2) / 2; d = `M${x1},${y1} C${mx},${y1 - 40} ${mx},${y2 - 40} ${x2},${y2}`; lx = mx; ly = (y1 + y2) / 2 - 30; }
+    else { const x1 = s.x + NW, y1 = s.y + NHh / 2, x2 = t.x + NW, y2 = t.y + NHh / 2; d = `M${x1},${y1} C${x1 + 60},${y1} ${x2 + 60},${y2} ${x2},${y2}`; lx = x1 + 45; ly = (y1 + y2) / 2; }
+    const col = CH_COLOR[ch] || "#94a3b8", w = Math.max(56, f.FlowID.length * 6.2 + 10);
+    eds += `<path class="edge" d="${d}" style="stroke:${col};stroke-width:${ch === "No change" ? 1.5 : 2.6};${ch === "No change" ? "stroke-dasharray:5 4" : ""}" marker-end="url(#ah-${chKey(ch)})"><title>${E(`${f.FlowID}: ${f.Name}\n${f.Pattern} · ${ch}${o.declared ? "" : " (derived)"}\n${[...o.hlrs].join(", ")}`)}</title></path>`;
+    lbls += `<g class="elbl"><rect x="${lx - w / 2}" y="${ly - 8}" width="${w}" height="16" rx="8" style="stroke:${col}"/><text x="${lx}" y="${ly + 4}" text-anchor="middle" style="fill:${col}">${E(f.FlowID)}</text></g>`;
+  });
+  const marks = CHANGE.map(c => `<marker id="ah-${chKey(c)}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${CH_COLOR[c]}"/></marker>`).join("");
+  const nds = apps.map(o => {
+    const p = pos.get(o.id), a = DMX.app.get(o.id) || {}, ch = R.eff(o), t = KN(a.AppType), inn = internal.get(o.id) || [], nds2 = [...R.ds.values()].filter(d => (DMX.ds.get(d.id) || {}).AppID === o.id).length;
+    return `<g class="node${a.AppID ? "" : " miss"}"><title>${E(`${a.Name || o.id} (${o.id})\n${t} · ${domName(a.DomainID)}\nChange: ${ch}${o.declared ? "" : " (derived)"}\n${[...o.hlrs].join(", ")}${inn.length ? "\nInternal: " + inn.map(x => x.id).join(", ") : ""}`)}</title>
+      <rect class="box" x="${p.x}" y="${p.y}" width="${NW}" height="${NHh}" rx="8" style="stroke:${CH_COLOR[ch]};stroke-width:${o.declared ? 2 : 1.2};${o.declared ? "" : "stroke-dasharray:5 3"}"/><rect x="${p.x}" y="${p.y}" width="${NW}" height="5" rx="2" fill="${APP_COLOR[t] || "#64748b"}"/>
+      <text class="t" x="${p.x + 10}" y="${p.y + 22}">${E(trunc(a.Name || o.id, 26))}</text><text class="s" x="${p.x + 10}" y="${p.y + 37}">${E(trunc(`${t} · ${domName(a.DomainID)}`, 34))}</text>
+      <text class="s" x="${p.x + 10}" y="${p.y + 56}">${nds2} dataset${nds2 === 1 ? "" : "s"}${inn.length ? ` · ⟲ ${inn.length} internal` : ""}</text>
+      <rect x="${p.x + NW - 64}" y="${p.y + 46}" width="56" height="15" rx="7.5" fill="${CH_COLOR[ch]}"/><text x="${p.x + NW - 36}" y="${p.y + 57}" text-anchor="middle" style="font-size:9.5px;font-weight:700;fill:#fff">${E(ch)}</text></g>`;
+  }).join("");
+  const heads = ranks.map((r, ci) => `<text class="colh" x="${14 + ci * (NW + GX)}" y="16">${["CORE / THIRD PARTY", "INTEGRATION", "DOMAIN SERVICES", "ORCHESTRATION", "ROUTER / BFF", "FRONT END"][r]}</text>`).join("");
+  return `<svg class="rtl" xmlns="http://www.w3.org/2000/svg" width="${compact ? "100%" : W}" ${compact ? `viewBox="0 0 ${W} ${H}" style="min-width:${Math.round(W * .6)}px"` : `height="${H}"`}><defs>${marks}</defs>${heads}${eds}${nds}${lbls}</svg>`;
+}
+function legendApps() { return Object.entries(APP_COLOR).map(([k, c]) => `<span><i style="background:${c}"></i>${k}</span>`).join("") + CHANGE.map(c => `<span><i style="background:${CH_COLOR[c]};height:3px"></i>${c}</span>`).join("") + `<span><i style="border:1.5px dashed #64748b;background:#fff"></i>derived (no declared change)</span>`; }
+
+// Attribute lineage chains: root → leaf paths through Data mapping mappings + the design's new mappings that touch a seed attribute.
+function chains(hlr) {
+  const R = impact(hlr), out = new Map(), inn = new Map(), chg = new Map();
+  const add = (m, k, e) => (m.get(k) || m.set(k, []).get(k)).push(e);
+  DMX.out.forEach((es, k) => es.forEach(e => add(out, k, { s: e.s, t: e.t, tx: e.m.Transformation, id: e.m.MappingID })));
+  DMX.inn.forEach((es, k) => es.forEach(e => add(inn, k, { s: e.s, t: e.t, tx: e.m.Transformation, id: e.m.MappingID })));
+  R.edges.forEach(e => { chg.set(e.id, e.ch); if (e.isNew) { add(out, e.s, e); add(inn, e.t, e); } });
+  const seeds = [...R.seeds]; if (!seeds.length) return [];
+  const anc = new Set(), des = new Set(), walk = (k, m, dir, set, d) => { if (set.has(k) || d > 14) return; set.add(k); (m.get(k) || []).forEach(e => walk(dir ? e.t : e.s, m, dir, set, d + 1)); };
+  seeds.forEach(s => { walk(s, inn, 0, anc, 0); walk(s, out, 1, des, 0); });
+  const U = new Set([...anc, ...des]), seedSet = new Set(seeds), paths = [];
+  const outU = k => (out.get(k) || []).filter(e => U.has(e.t) && (des.has(e.t) || anc.has(e.t)) && !(des.has(k) && !anc.has(k) && anc.has(e.t) && !des.has(e.t)));
+  const roots = [...U].filter(k => !(inn.get(k) || []).some(e => U.has(e.s)));
+  const dfs = (k, path, edges, seen) => {
+    if (paths.length > 150) return;
+    const nx = outU(k).filter(e => !seen.has(e.t));
+    if (!nx.length) { if (path.some(p => seedSet.has(p))) paths.push({ nodes: path, edges }); return; }
+    nx.forEach(e => dfs(e.t, [...path, e.t], [...edges, e], new Set([...seen, e.t])));
+  };
+  roots.forEach(r => dfs(r, [r], [], new Set([r])));
+  // keep only paths that pass through a seed's ancestry line (drop siblings that only share a root)
+  return paths.filter(p => p.nodes.some(n => seedSet.has(n))).map(p => Object.assign(p, { chg }));
+}
+function chainHTML(p, R) {
+  const node = k => { const i = k.indexOf("#"), ds = k.slice(0, i), path = k.slice(i + 1), o = R.attrs.get(k), ch = o ? R.eff(o) : "", miss = !DMX.attr.has(k);
+    return `<span class="chip ${ch && ch !== "No change" ? ch : ""}${miss ? " miss" : ""}" title="${E(dsName(ds) + " · " + appName((DMX.ds.get(ds) || {}).AppID) + (miss ? "\nnot in Data mapping yet" : ""))}"><small>${E(trunc(dsName(ds), 28))}</small> <b>${E(path)}</b>${ch ? " " + cp(ch) : ""}</span>`; };
+  let h = node(p.nodes[0]);
+  p.edges.forEach((e, i) => { const c = p.chg.get(e.id), cls = e.isNew ? "new" : c === "Retire" ? "ret" : c && c !== "No change" ? "chg" : ""; h += `<span class="arr ${cls}" title="${E((e.isNew ? "New mapping" : e.id) + (e.tx ? " · " + e.tx : "") + (c ? " · " + c : ""))}">→<span class="tx">${E(e.isNew ? "new" : c === "Retire" ? "retired" : c && c !== "No change" ? "chg" : (e.tx || "Direct"))}</span>→</span>` + node(p.nodes[i + 1]); });
+  return `<div class="chain">${h}</div>`;
+}
+
+/* ============================== GUIDE ============================== */
+const STEPS = [
+  { k: "hlr", t: "High-level requirement" }, { k: "req", t: "Detail requirements" }, { k: "apps", t: "Impacted applications" },
+  { k: "ifaces", t: "Impacted interfaces" }, { k: "dd", t: "Detail design (data mapping)" }, { k: "review", t: "Review & lineage" },
+];
+let G = (() => { try { return JSON.parse(localStorage.getItem(LS_GUIDE)) || {}; } catch (e) { return {}; } })();
+G.step = G.step || 0; G.ifAll = !!G.ifAll; G.lin = G.lin || "trace";
+function saveG() { try { localStorage.setItem(LS_GUIDE, JSON.stringify(G)); } catch (e) {} }
+const curHlr = () => byId("HighLevelReqs", G.hlr);
+function stepDone(i) {
+  const h = curHlr(); if (!h) return false; const hl = hldsOfHlr(h.HLRID);
+  return [true, reqsOf(h.HLRID).length > 0, hl.some(x => x.ComponentType === "Application"), hl.some(x => x.ComponentType === "Interface"), hl.length > 0 && hl.every(x => ddsOf(x.HLDID, reqIdsOf(h.HLRID)).length), coverage(h.HLRID).pct === 100][i];
+}
+function renderGuide() {
+  const h = curHlr(); if (!h && G.step) G.step = 0;
+  const done = STEPS.map((_, i) => stepDone(i)), pct = Math.round(100 * done.filter(Boolean).length / STEPS.length);
+  document.getElementById("gBar").style.width = pct + "%";
+  const pe = document.getElementById("gPct"); if (pe.textContent !== pct + "%") { pe.textContent = pct + "%"; pe.classList.remove("bump"); void pe.offsetWidth; pe.classList.add("bump"); }
+  document.getElementById("gSteps").innerHTML = STEPS.map((s, i) => `<li data-i="${i}" class="${i === G.step ? "cur" : done[i] && i < G.step ? "done" : ""}${!h && i ? " locked" : ""}">${s.t}</li>`).join("");
+  document.getElementById("gTopHlr").textContent = h ? `· ${h.HLRID} ${trunc(h.Title, 60)}` : "";
+  if (h) { const c = coverage(h.HLRID), hl = hldsOfHlr(h.HLRID), R = impact(h.HLRID);
+    document.getElementById("gCtx").innerHTML = `<span><b>${E(h.HLRID)}</b> ${E(trunc(h.Title, 50))}</span><span>${reqsOf(h.HLRID).length} requirements</span><span>${hl.filter(x => x.ComponentType === "Application").length} applications · ${hl.filter(x => x.ComponentType === "Interface").length} interfaces</span><span>${hl.reduce((n, x) => n + ddsOf(x.HLDID, reqIdsOf(h.HLRID)).length, 0)} detail-design artifacts</span><span>${R.ds.size} datasets impacted</span><span>coverage ${c.pct}%</span>`;
+  } else document.getElementById("gCtx").innerHTML = `<span>Pick or create a high-level requirement to start.</span>`;
+  const body = document.getElementById("gBody");
+  body.innerHTML = [stepHlr, stepReq, stepApps, stepIfaces, stepDD, stepReview][G.step]();
+  if (G.step === 5) { wireTrace(document.getElementById("rvTrace")); }
+  document.getElementById("gBack").disabled = G.step === 0;
+  document.getElementById("gNext").textContent = G.step === STEPS.length - 1 ? "Open change summary →" : "Next →";
+  document.getElementById("gHint").textContent = !h ? "Select a high-level requirement" : done[G.step] || G.step === 5 ? "" : ["", "Add at least one detail requirement", "Tick at least one application", "Tick at least one interface", "Every design row needs a detail-design artifact", ""][G.step];
+  renderDrawer(); saveG();
+}
+function renderDrawer() {
+  const h = curHlr(), el = document.getElementById("gLin");
+  document.querySelectorAll("#gLinMode button").forEach(b => b.classList.toggle("active", b.dataset.m === G.lin));
+  if (!h) { el.innerHTML = `<div class="empty">The requirement's lineage builds up here as you go.</div>`; document.getElementById("gLinLg").innerHTML = ""; return; }
+  el.innerHTML = G.lin === "trace" ? traceSVG(h.HLRID, true) : appsSVG(h.HLRID, true);
+  document.getElementById("gLinHint").textContent = h.HLRID;
+  document.getElementById("gLinLg").innerHTML = G.lin === "trace" ? legendTrace() : legendApps();
+  if (G.lin === "trace") wireTrace(el);
+}
+const bind = (sheet, row, key, extra) => `data-bind="${sheet}|${row._id}|${key}"${extra || ""}`;
+const optsHTML = (opts, v, blank) => (blank ? `<option value=""></option>` : "") + (v && !opts.includes(v) ? `<option selected>${E(v)}</option>` : "") + opts.map(o => `<option${o === v ? " selected" : ""}>${E(o)}</option>`).join("");
+function domainChips(sel, act) { return `<div class="wz-chips">${DMS.data.Domains.map(d => `<span class="wz-chip sm${sel.includes(d.DomainID) ? " sel" : ""}" data-act="${act}" data-id="${E(d.DomainID)}" title="${E(d.DomainID)}">${E(d.Name)}</span>`).join("")}</div>`; }
+
+function stepHlr() {
+  const h = curHlr(), cards = DB.HighLevelReqs.map(x => { const c = coverage(x.HLRID); return `<div class="wz-card${x.HLRID === G.hlr ? " sel" : ""}" data-act="pickHlr" data-id="${E(x.HLRID)}"><h4><span class="idc">${E(x.HLRID)}</span>${E(x.Title)}</h4><p>${E(trunc(x.Description, 140))}</p><p>${list(x.BusinessDomains).map(d => `<span class="idc">${E(domName(d))}</span>`).join(" ")}</p><p>${reqsOf(x.HLRID).length} requirements · coverage ${c.pct}% <span class="st-chip st-${E(x.Status)}">${E(x.Status)}</span></p></div>`; }).join("");
+  const progs = DB.Programs.map(p => p.ProgramID);
+  return `<div class="g-sec">Step 1 · pick a high-level requirement, or add one</div>
+    <p class="hint">A high-level requirement is a business capability (an epic or BRD section). It usually spans several business domains; tick them so the next steps show their applications first.</p>
+    <div class="wz-cards">${cards}<div class="wz-card" data-act="newHlr" style="display:flex;align-items:center;justify-content:center;border-style:dashed;color:var(--accent);font-weight:600">+ New high-level requirement</div></div>
+    ${h ? `<div class="g-sec">${E(h.HLRID)} details</div>
+    <div class="frm">
+      <label class="wide">Title<input ${bind("HighLevelReqs", h, "Title")} value="${E(h.Title)}" /></label>
+      <label class="wide">Description<textarea ${bind("HighLevelReqs", h, "Description")}>${E(h.Description)}</textarea></label>
+      <label>Program<select ${bind("HighLevelReqs", h, "ProgramID")}>${optsHTML(progs, h.ProgramID, true)}</select></label>
+      <label>Priority<select ${bind("HighLevelReqs", h, "Priority")}>${optsHTML(PRIORITY, h.Priority, true)}</select></label>
+      <label>Owner<input ${bind("HighLevelReqs", h, "Owner")} value="${E(h.Owner)}" /></label>
+      <label>Source (epic / BRD)<input ${bind("HighLevelReqs", h, "Source")} value="${E(h.Source)}" /></label>
+      <label>Status<select ${bind("HighLevelReqs", h, "Status")}>${optsHTML(STATUS, h.Status)}</select></label>
+      <label class="wide">Business domains impacted ${domainChips(list(h.BusinessDomains), "hlrDom")}</label>
+    </div>` : ""}`;
+}
+function stepReq() {
+  const h = curHlr(), rows = reqsOf(h.HLRID), doms = DMS.data.Domains.map(d => d.DomainID);
+  return `<div class="g-sec">Step 2 · detail requirements of ${E(h.HLRID)}</div>
+    <p class="hint">Break the requirement down into testable statements. Set the domain that owns each one: the next step pre-links applications in that domain to it.</p>
+    <div class="table-wrap" style="max-height:none"><table><thead><tr><th>ReqID</th><th>Title</th><th>Type</th><th>Domain</th><th>Priority</th><th>Acceptance criteria</th><th>Status</th><th>Design</th><th></th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td class="ro">${E(r.ReqID)}</td><td><input ${bind("Requirements", r, "Title")} value="${E(r.Title)}" style="min-width:220px" /></td>
+      <td><select ${bind("Requirements", r, "Type")}>${optsHTML(REQ_TYPES, r.Type, true)}</select></td>
+      <td><select ${bind("Requirements", r, "DomainID")}>${optsHTML(doms, r.DomainID, true).replace(/<option>([^<]+)<\/option>/g, (m, v) => `<option value="${v}">${E(domName(v))}</option>`).replace(/<option selected>([^<]+)<\/option>/, (m, v) => `<option value="${v}" selected>${E(domName(v))}</option>`)}</select></td>
+      <td><select ${bind("Requirements", r, "Priority")}>${optsHTML(PRIORITY, r.Priority, true)}</select></td>
+      <td><textarea ${bind("Requirements", r, "AcceptanceCriteria")}>${E(r.AcceptanceCriteria)}</textarea></td>
+      <td><select ${bind("Requirements", r, "Status")}>${optsHTML(STATUS, r.Status)}</select></td>
+      <td class="ro">${hldsOfReq(r.ReqID).length} HLD</td>
+      <td><button class="icon-btn" data-act="delRow" data-sheet="Requirements" data-rid="${r._id}" title="Delete">✕</button></td></tr>`).join("") || `<tr><td colspan="9" class="empty">No detail requirements yet.</td></tr>`}
+    </tbody></table></div>
+    <div class="dd-add"><button class="primary" data-act="addReq">+ Requirement</button><span class="hint">ID ${E(nextId("Requirements", h.HLRID))}</span></div>`;
+}
+// One HLD row per component; a component shared by several HLRs keeps one row whose ReqIDs span them.
+const hldFor = (type, id) => DB.HLDesign.find(x => x.ComponentType === type && x.ComponentID === id);
+function compRow(type, id, title, meta, h) {
+  const row = hldFor(type, id), reqs = reqsOf(h.HLRID), mine = row ? list(row.ReqIDs).filter(x => reqs.some(r => r.ReqID === x)) : [], on = mine.length > 0;
+  const others = row ? list(row.ReqIDs).filter(x => !mine.includes(x)) : [];
+  return `<div class="comp${on ? " on" : ""}"><div class="comp-h"><input type="checkbox" data-act="togComp" data-t="${type}" data-id="${E(id)}"${on ? " checked" : ""} /><b>${title}</b>${meta}<span class="spacer"></span>${on ? `<span class="idc">${E(row.HLDID)}</span>` : ""}${others.length ? `<span class="hint" title="${E(others.join(", "))}">also ${others.length} req in other HLRs</span>` : ""}</div>
+    ${on ? `<div class="comp-b">Change <select ${bind("HLDesign", row, "ChangeType")}>${optsHTML(CHANGE, row.ChangeType)}</select>
+      <span>Satisfies</span>${reqs.map(r => `<span class="wz-chip sm${mine.includes(r.ReqID) ? " sel" : ""}" data-act="togReq" data-rid="${row._id}" data-req="${E(r.ReqID)}" title="${E(r.Title)}">${E(r.ReqID)}</span>`).join("")}
+      <input class="desc" ${bind("HLDesign", row, "Description")} value="${E(row.Description)}" placeholder="What changes in this component…" /></div>` : ""}</div>`;
+}
+function stepApps() {
+  const h = curHlr(), mineDoms = list(h.BusinessDomains), doms = [...DMS.data.Domains].sort((a, b) => (mineDoms.includes(b.DomainID) - mineDoms.includes(a.DomainID)) || a.DomainID.localeCompare(b.DomainID));
+  return `<div class="g-sec">Step 3 · high-level design: impacted business applications</div>
+    <p class="hint">Tick each application the requirement changes (or must regression-test as <b>No change</b>), pick the change and the detail requirements it satisfies. Applications come from the Data mapping registry, grouped by domain; ${E(h.HLRID)}'s domains are open.</p>
+    ${doms.map(d => { const apps = DMS.data.Applications.filter(a => a.DomainID === d.DomainID); if (!apps.length) return ""; const n = apps.filter(a => { const r = hldFor("Application", a.AppID); return r && hlrsOfHld(r).includes(h.HLRID); }).length;
+      return `<details class="dd-card"${mineDoms.includes(d.DomainID) || n ? " open" : ""}><summary><b>${E(d.Name)}</b><span class="idc">${E(d.DomainID)}</span><span class="hint">${apps.length} applications${n ? ` · <b>${n} impacted</b>` : ""}</span></summary><div class="dd-body">
+        ${apps.map(a => compRow("Application", a.AppID, E(a.Name), `${typePill(KN(a.AppType))}<span class="idc">${E(a.AppID)}</span><span class="hint">${E(trunc(a.Technology, 60))}</span>`, h)).join("")}</div></details>`; }).join("")}`;
+}
+function stepIfaces() {
+  const h = curHlr(), apps = new Set(hldsOfHlr(h.HLRID).filter(x => x.ComponentType === "Application").map(x => x.ComponentID));
+  let flows = DMS.data.Flows.filter(f => apps.has(f.SourceAppID) || apps.has(f.TargetAppID) || (hldFor("Interface", f.FlowID) && hlrsOfHld(hldFor("Interface", f.FlowID)).includes(h.HLRID)));
+  const both = f => apps.has(f.SourceAppID) && apps.has(f.TargetAppID);
+  if (!G.ifAll) flows = flows.filter(f => both(f) || (hldFor("Interface", f.FlowID) && hlrsOfHld(hldFor("Interface", f.FlowID)).includes(h.HLRID)));
+  flows.sort((a, b) => (both(b) - both(a)) || (a.SourceAppID === a.TargetAppID) - (b.SourceAppID === b.TargetAppID) || a.FlowID.localeCompare(b.FlowID));
+  return `<div class="g-sec">Step 4 · high-level design: impacted interfaces</div>
+    <p class="hint">Interfaces are the Data mapping registry's integration flows that start or end at an impacted application. Flows between two impacted applications come first; internal flows (database → API, outbox → topic) follow.</p>
+    <div class="toolbar-inline"><label class="hint"><input type="checkbox" data-act="ifAll"${G.ifAll ? " checked" : ""} /> Also show flows to applications outside the design</label><span class="hint">${flows.length} interfaces</span></div>
+    ${!apps.size ? `<div class="note warn">No impacted applications yet: go back a step and tick some.</div>` : ""}
+    ${flows.map(f => { const n = (DMX.mapsByFlow.get(f.FlowID) || []).length, out = !both(f);
+      return compRow("Interface", f.FlowID, `${E(appName(f.SourceAppID))} → ${E(appName(f.TargetAppID))}`, `<span class="idc">${E(f.FlowID)}</span><span class="tp" style="background:#475569">${E(f.Pattern)}</span><span class="hint">${n} mappings · ${E(trunc(f.Name, 50))}</span>${out ? `<span class="cp Retire" title="One end is not an impacted application">outside design</span>` : ""}`, h); }).join("") || `<div class="empty">No interfaces.</div>`}`;
+}
+function ddRow(hld, t, id, label, extra, indent) {
+  const dd = DB.DetailDesign.find(d => d.HLDID === hld.HLDID && d.ArtifactType === t && d.ArtifactID === id && ddApplies(d, reqIdsOf(G.hlr)));
+  return `<tr class="${dd ? "on" : ""}"><td class="${indent ? "sub" : ""}" style="width:1%"><input type="checkbox" data-act="togArt" data-hld="${E(hld.HLDID)}" data-t="${t}" data-id="${E(id)}"${dd ? " checked" : ""} /></td>
+    <td><span class="tp" style="background:${TYPE_COLOR[t]}">${t}</span></td><td>${label}</td><td class="hint">${extra || ""}</td>
+    <td>${dd ? `<select ${bind("DetailDesign", dd, "ChangeType")}>${optsHTML(CHANGE, dd.ChangeType)}</select>` : ""}</td>
+    <td>${dd ? `<input type="text" ${bind("DetailDesign", dd, "Description")} value="${E(dd.Description)}" placeholder="Design note…" style="width:100%;min-width:160px" />` : ""}</td></tr>`;
+}
+function stepDD() {
+  const h = curHlr(), hl = hldsOfHlr(h.HLRID);
+  const cards = hl.map(x => {
+    const c = resolveComp(x), dds = ddsOf(x.HLDID, reqIdsOf(h.HLRID)); let rows = "", dsChoices = [];
+    if (x.ComponentType === "Application") {
+      const dss = DMX.dsByApp.get(x.ComponentID) || []; dsChoices = dss;
+      dss.forEach(d => {
+        rows += ddRow(x, "Dataset", d.DatasetID, `<b>${E(d.Name)}</b> <span class="idc">${E(d.DatasetID)}</span>`, E(KN(d.Kind)));
+        const ev = DMX.evByDs.get(d.DatasetID); if (ev) rows += ddRow(x, "Event", ev.EventID, `${E(ev.EventName)} <span class="idc">${E(ev.EventID)}</span>`, E(ev.Topic), 1);
+        const open = dds.some(a => a.ArtifactType === "Attribute" && a.ArtifactID.startsWith(d.DatasetID + "#"));
+        const attrs = DMX.attrsByDs.get(d.DatasetID) || [];
+        if (attrs.length) rows += `<tr><td></td><td colspan="5"><details${open ? " open" : ""}><summary class="hint">${attrs.length} attributes${open ? " · " + dds.filter(a => a.ArtifactType === "Attribute" && a.ArtifactID.startsWith(d.DatasetID + "#")).length + " in design" : ""}</summary><table class="art-t">${attrs.map(a => ddRow(x, "Attribute", d.DatasetID + "#" + a.Path, `<b>${E(a.Path)}</b>`, E(a.DataType + (a.TermID ? " · " + a.TermID : "")), 1)).join("")}</table></details></td></tr>`;
+      });
+    } else {
+      const f = DMX.flow.get(x.ComponentID); if (f) {
+        rows += ddRow(x, "Interface", f.FlowID, `<b>${E(f.Name)}</b>`, E(f.Pattern + (f.Middleware ? " · " + f.Middleware : "")));
+        (DMX.mapsByFlow.get(f.FlowID) || []).forEach(m => rows += ddRow(x, "Mapping", m.MappingID, `<span class="idc">${E(m.MappingID)}</span> ${E(m.SourceDatasetID ? m.SourceDatasetID + "." : "")}${E(m.SourcePath || "∅")} → ${E(m.TargetDatasetID)}.<b>${E(m.TargetPath)}</b>`, E(m.Transformation), 1));
+        dsChoices = uniq([...(DMX.dsByApp.get(f.SourceAppID) || []), ...(DMX.dsByApp.get(f.TargetAppID) || [])]);
+      }
+    }
+    // artifacts in the design that the lists above don't show (new attributes / mappings, or picked elsewhere)
+    const shown = new Set(); rows.replace(/data-t="(\w+)" data-id="([^"]*)"/g, (m, t, id) => shown.add(t + "|" + id.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&#39;/g, "'")));
+    const extra = dds.filter(a => !shown.has(a.ArtifactType + "|" + a.ArtifactID));
+    if (extra.length) rows += `<tr><td colspan="6" class="hint" style="padding-top:8px"><b>Also in the design</b> (new, or outside this component)</td></tr>` + extra.map(a => { const r = resolveArt(a.ArtifactType, a.ArtifactID); return ddRow(x, a.ArtifactType, a.ArtifactID, `<b>${E(r.label)}</b> <span class="idc">${E(a.ArtifactID)}</span>${r.exists ? "" : ` <span class="cp New" title="Not in the Data mapping registry">not in DM</span>`}`, E(r.sub)); }).join("");
+    const dl = `dl-${x._id}`, attrOpts = dsChoices.flatMap(d => (DMX.attrsByDs.get(d.DatasetID) || []).map(a => d.DatasetID + "#" + a.Path));
+    const add = `<div class="dd-add"><datalist id="${dl}">${attrOpts.map(o => `<option value="${E(o)}">`).join("")}</datalist>
+      <b>+ New attribute</b><select id="na-ds-${x._id}">${dsChoices.map(d => `<option value="${E(d.DatasetID)}">${E(d.DatasetID)}</option>`).join("")}</select><input id="na-p-${x._id}" placeholder="path, e.g. pickupStoreId" /><button data-act="addAttr" data-rid="${x._id}">Add</button></div>
+      <div class="dd-add"><b>+ New mapping</b><input id="nm-s-${x._id}" list="${dl}" placeholder="SOURCE-DS#path" /><span>→</span><input id="nm-t-${x._id}" list="${dl}" placeholder="TARGET-DS#path" /><button data-act="addMap" data-rid="${x._id}">Add</button></div>`;
+    return `<details class="dd-card"${dds.length ? "" : " open"}><summary><span class="idc">${E(x.HLDID)}</span><span class="tp" style="background:${TYPE_COLOR[x.ComponentType]}">${x.ComponentType}</span><b>${E(c.label)}</b>${cp(x.ChangeType)}<span class="hint">${E(c.sub)} · ${dds.length} artifact${dds.length === 1 ? "" : "s"}</span>${dds.length ? "" : `<span class="cp Retire">needs detail</span>`}</summary>
+      <div class="dd-body"><table class="art-t"><thead><tr><th></th><th>Type</th><th>Artifact</th><th></th><th>Change</th><th>Note</th></tr></thead><tbody>${rows || `<tr><td colspan="6" class="empty">Not in the Data mapping registry.</td></tr>`}</tbody></table>${add}</div></details>`;
+  }).join("");
+  return `<div class="g-sec">Step 5 · detail design: data-mapping interfaces, datasets, attributes and mappings</div>
+    <p class="hint">For each design row, tick the Data mapping artifacts it changes or must verify, and add the attributes and mappings that don't exist yet. New ones go to the <b>Data mapping backlog</b> on the change summary.</p>
+    <div class="note"><b>End-to-end helper</b> · trace an attribute through the Data mapping registry and add every hop to the design (interface rows + mapping rows).
+      <div class="dd-add"><datalist id="dlAllAttr">${[...DMX.attr.keys()].map(k => `<option value="${E(k)}">`).join("")}</datalist>
+      <input id="e2eAttr" list="dlAllAttr" placeholder="DATASET#path, e.g. ROUTER-PDP#product.storeContext.price.amount" style="min-width:360px" value="${E(G.e2e || "")}" /><button data-act="e2eTrace">Trace</button></div><div id="e2eOut">${G.e2e ? e2eHTML(G.e2e) : ""}</div></div>
+    ${cards || `<div class="note warn">No high-level design rows yet: go back and tick applications and interfaces.</div>`}`;
+}
+function e2eEdges(key) {
+  const up = [], dn = [], seen = new Set(), walk = (k, dir, d) => { if (d > 14) return; ((dir ? DMX.out : DMX.inn).get(k) || []).forEach(e => { if (seen.has(e.m.MappingID)) return; seen.add(e.m.MappingID); (dir ? dn : up).push(e.m); walk(dir ? e.t : e.s, dir, d + 1); }); };
+  walk(key, 0, 0); walk(key, 1, 0); return { up: up.reverse(), dn };
+}
+function e2eHTML(key) {
+  if (!DMX.attr.has(key)) return `<div class="hint missing">${E(key)} is not an attribute in the Data mapping registry.</div>`;
+  const { up, dn } = e2eEdges(key), all = [...up, ...dn], h = curHlr();
+  if (!all.length) return `<div class="hint">No mappings reach ${E(key)}.</div>`;
+  const flows = uniq(all.map(m => m.FlowID));
+  return `<table class="art-t" style="margin-top:6px"><tbody>${all.map(m => `<tr><td><span class="idc">${E(m.MappingID)}</span></td><td>${E(m.SourceDatasetID)}.${E(m.SourcePath)} → ${E(m.TargetDatasetID)}.<b>${E(m.TargetPath)}</b></td><td class="hint">${E(m.Transformation)}</td><td><span class="idc">${E(m.FlowID)}</span></td><td class="hint">${E(flowLabel(DMX.flow.get(m.FlowID) || {}))}</td></tr>`).join("")}</tbody></table>
+    <div class="dd-add">${all.length} mappings over ${flows.length} interfaces · add as <select id="e2eCh">${optsHTML(CHANGE, "No change")}</select> for <select id="e2eReq">${reqsOf(h.HLRID).map(r => `<option value="${E(r.ReqID)}">${E(r.ReqID)} ${E(trunc(r.Title, 40))}</option>`).join("")}</select><button class="primary" data-act="e2eAdd">Add all hops to the design</button></div>`;
+}
+function stepReview() {
+  const h = curHlr(), c = coverage(h.HLRID), iss = issues().filter(i => { if (i.sheet === "HighLevelReqs") return i.id === h.HLRID; if (i.sheet === "Requirements") return reqsOf(h.HLRID).some(r => r.ReqID === i.id); const hl = hldsOfHlr(h.HLRID); if (i.sheet === "HLDesign") return hl.some(x => x.HLDID === i.id); if (i.sheet === "DetailDesign") return hl.some(x => ddsOf(x.HLDID).some(d => d.DDID === i.id)); return false; });
+  const R = impact(h.HLRID), cnt = m => { const o = { New: 0, Modify: 0, Retire: 0, "No change": 0 }; m.forEach(x => o[R.eff(x)]++); return o; }, line = (lbl, m) => { const o = cnt(m); return `<tr><td>${lbl}</td><td class="num">${m.size}</td>${CHANGE.map(k => `<td class="num">${o[k] || ""}</td>`).join("")}</tr>`; };
+  return `<div class="g-sec">Step 6 · review ${E(h.HLRID)}</div>
+    <div class="kpis"><div class="kpi"><b>${c.reqs}</b><span>requirements</span></div><div class="kpi"><b>${c.designed}/${c.reqs}</b><span>designed</span></div><div class="kpi"><b>${c.detailed}/${c.reqs}</b><span>detailed</span></div><div class="kpi"><b>${c.pct}%</b><span>coverage</span></div></div>
+    <table class="sum-table" style="max-width:640px"><thead><tr><th>Impacted</th><th>Total</th>${CHANGE.map(k => `<th>${cp(k)}</th>`).join("")}</tr></thead><tbody>${line("Applications", R.apps)}${line("Interfaces", R.flows)}${line("Datasets", R.ds)}${line("Attributes", R.attrs)}${line("Mappings", R.maps)}${line("Events", R.events)}</tbody></table>
+    <div class="g-sec">Checks (${iss.length})</div>${iss.length ? iss.map(i => `<div class="iss sev-${i.sev}"><span class="sev-dot"></span><span>${E(i.msg)}</span></div>`).join("") : `<div class="note ok">No issues ✓</div>`}
+    <div class="g-sec">Trace</div><div class="svg-wrap" id="rvTrace">${traceSVG(h.HLRID)}</div>
+    <div class="dd-add"><button data-act="goView" data-v="lineage">Open full lineage →</button><button data-act="goView" data-v="summary">Change summary →</button><button data-act="export">Export .xlsx</button></div>`;
+}
+function guideAction(el, ev) {
+  const act = el.dataset.act, h = curHlr();
+  if (act === "pickHlr") { G.hlr = el.dataset.id; renderGuide(); return; }
+  if (act === "newHlr") { pushUndo(); const id = nextId("HighLevelReqs"); DB.HighLevelReqs.push(ensureIds({ HighLevelReqs: [{ HLRID: id, ProgramID: (DB.Programs[0] || {}).ProgramID || "", Title: "New high-level requirement", Status: "Draft", Priority: "Must" }] }).HighLevelReqs[0]); G.hlr = id; save(); renderGuide(); toast(id + " added"); return; }
+  if (act === "hlrDom") { const s = new Set(list(h.BusinessDomains)); s.has(el.dataset.id) ? s.delete(el.dataset.id) : s.add(el.dataset.id); h.BusinessDomains = [...s].join(", "); save(); renderGuide(); return; }
+  if (act === "addReq") { pushUndo(); const dom = list(h.BusinessDomains)[0] || ""; DB.Requirements.push(newRow("Requirements", { ReqID: nextId("Requirements", h.HLRID), HLRID: h.HLRID, Type: "Functional", DomainID: dom, Priority: "Must", Status: "Draft" })); save(); renderGuide(); return; }
+  if (act === "delRow") { pushUndo(); deleteRow(el.dataset.sheet, el.dataset.rid); save(); renderGuide(); return; }
+  if (act === "togComp") {
+    pushUndo(); const t = el.dataset.t, id = el.dataset.id, mine = reqsOf(h.HLRID).map(r => r.ReqID); let row = hldFor(t, id);
+    if (el.checked) {
+      let pre = mine;
+      if (t === "Application") { const d = (DMX.app.get(id) || {}).DomainID, m = reqsOf(h.HLRID).filter(r => r.DomainID === d).map(r => r.ReqID); if (m.length) pre = m; }
+      else { const f = DMX.flow.get(id), linked = f ? hldsOfHlr(h.HLRID).filter(x => x.ComponentType === "Application" && (x.ComponentID === f.SourceAppID || x.ComponentID === f.TargetAppID)).flatMap(x => list(x.ReqIDs).filter(r => mine.includes(r))) : []; if (linked.length) pre = uniq(linked); }
+      if (!pre.length) { toast("Add a detail requirement first"); el.checked = false; UNDO.pop(); return; }
+      if (row) row.ReqIDs = uniq([...list(row.ReqIDs), ...pre]).join(", ");
+      else DB.HLDesign.push(row = newRow("HLDesign", { HLDID: nextId("HLDesign"), ReqIDs: pre.join(", "), ComponentType: t, ComponentID: id, ChangeType: "Modify", Status: "Draft" }));
+    } else if (row) {
+      const rest = list(row.ReqIDs).filter(r => !mine.includes(r));
+      if (rest.length) row.ReqIDs = rest.join(", ");
+      else { if (ddsOf(row.HLDID).length && !confirm(`${row.HLDID} has ${ddsOf(row.HLDID).length} detail-design rows. Delete them too?`)) { el.checked = true; UNDO.pop(); return; } deleteRow("HLDesign", row._id); }
+    }
+    save(); renderGuide(); return;
+  }
+  if (act === "togReq") { const row = DB.HLDesign.find(x => x._id === el.dataset.rid); const s = list(row.ReqIDs), r = el.dataset.req; const n = s.includes(r) ? s.filter(x => x !== r) : [...s, r]; if (!n.some(x => reqsOf(h.HLRID).some(q => q.ReqID === x))) { toast("Keep at least one requirement, or untick the component"); return; } pushUndo(); row.ReqIDs = n.join(", "); save(); renderGuide(); return; }
+  if (act === "ifAll") { G.ifAll = el.checked; renderGuide(); return; }
+  if (act === "togArt") {
+    pushUndo(); const mine = reqIdsOf(h.HLRID), hd = byId("HLDesign", el.dataset.hld), share = hldShare(hd, mine), ex = DB.DetailDesign.find(d => d.HLDID === el.dataset.hld && d.ArtifactType === el.dataset.t && d.ArtifactID === el.dataset.id);
+    if (ex && ddApplies(ex, mine)) { const rest = list(ex.ReqIDs).filter(r => !mine.includes(r)); if (rest.length) ex.ReqIDs = rest.join(", "); else if (!list(ex.ReqIDs).length && share.length < list(hd.ReqIDs).length) ex.ReqIDs = list(hd.ReqIDs).filter(r => !mine.includes(r)).join(", "); else deleteRow("DetailDesign", ex._id); }
+    else if (ex) ex.ReqIDs = uniq([...list(ex.ReqIDs), ...share]).join(", ");
+    else DB.DetailDesign.push(newRow("DetailDesign", { DDID: nextId("DetailDesign"), HLDID: el.dataset.hld, ReqIDs: share.length < list(hd.ReqIDs).length ? share.join(", ") : "", ArtifactType: el.dataset.t, ArtifactID: el.dataset.id, ChangeType: "Modify", Status: "Draft" }));
+    save(); keepScroll(renderGuide); return; }
+  if (act === "addAttr") { const row = DB.HLDesign.find(x => x._id === el.dataset.rid), ds = document.getElementById("na-ds-" + row._id).value, p = S(document.getElementById("na-p-" + row._id).value);
+    if (!ds || !p) { toast("Pick a dataset and type a path"); return; } pushUndo(); const id = ds + "#" + p;
+    DB.DetailDesign.push(newRow("DetailDesign", { DDID: nextId("DetailDesign"), HLDID: row.HLDID, ReqIDs: shareOf(row), ArtifactType: "Attribute", ArtifactID: id, ChangeType: DMX.attr.has(id) ? "Modify" : "New", Status: "Draft" })); save(); keepScroll(renderGuide); toast("Attribute added"); return; }
+  if (act === "addMap") { const row = DB.HLDesign.find(x => x._id === el.dataset.rid), s = S(document.getElementById("nm-s-" + row._id).value), t = S(document.getElementById("nm-t-" + row._id).value);
+    if (!/#/.test(s) || !/#/.test(t)) { toast("Use DATASET#path on both sides"); return; } pushUndo();
+    DB.DetailDesign.push(newRow("DetailDesign", { DDID: nextId("DetailDesign"), HLDID: row.HLDID, ReqIDs: shareOf(row), ArtifactType: "Mapping", ArtifactID: `${s} -> ${t}`, ChangeType: "New", Status: "Draft" })); save(); keepScroll(renderGuide); toast("Mapping added"); return; }
+  if (act === "e2eTrace") { G.e2e = S(document.getElementById("e2eAttr").value); saveG(); document.getElementById("e2eOut").innerHTML = e2eHTML(G.e2e); return; }
+  if (act === "e2eAdd") { e2eAdd(G.e2e, document.getElementById("e2eCh").value, document.getElementById("e2eReq").value); return; }
+  if (act === "goView") { showView(el.dataset.v); return; }
+  if (act === "export") { exportXlsx(); return; }
+}
+// The design row's requirements that belong to the current HLR.
+const hldShare = (hd, mine) => list(hd.ReqIDs).filter(r => mine.includes(r));
+const shareOf = hd => { const mine = reqIdsOf(G.hlr), sh = hldShare(hd, mine); return sh.length < list(hd.ReqIDs).length ? sh.join(", ") : ""; };
+// Add every hop of an attribute's end-to-end path: interface rows (plus their applications) and one mapping row per hop.
+function e2eAdd(key, ch, req) {
+  const { up, dn } = e2eEdges(key), all = [...up, ...dn]; if (!all.length || !req) return; pushUndo(); let nH = 0, nD = 0;
+  const ensure = (t, id) => { let r = hldFor(t, id); if (!r) { DB.HLDesign.push(r = newRow("HLDesign", { HLDID: nextId("HLDesign"), ReqIDs: req, ComponentType: t, ComponentID: id, ChangeType: ch, Status: "Draft", Description: "End-to-end path of " + key })); nH++; } else if (!list(r.ReqIDs).includes(req)) r.ReqIDs = [...list(r.ReqIDs), req].join(", "); return r; };
+  all.forEach(m => {
+    const f = DMX.flow.get(m.FlowID); if (!f) return;
+    uniq([f.SourceAppID, f.TargetAppID]).forEach(a => ensure("Application", a));
+    const r = ensure("Interface", f.FlowID);
+    if (!DB.DetailDesign.some(d => d.HLDID === r.HLDID && d.ArtifactType === "Mapping" && d.ArtifactID === m.MappingID && ddApplies(d, [req]))) { DB.DetailDesign.push(newRow("DetailDesign", { DDID: nextId("DetailDesign"), HLDID: r.HLDID, ReqIDs: list(r.ReqIDs).length > 1 ? req : "", ArtifactType: "Mapping", ArtifactID: m.MappingID, ChangeType: ch, Status: "Draft", Description: "E2E " + key })); nD++; }
+  });
+  save(); renderGuide(); toast(`Added ${nH} design rows and ${nD} mapping rows`);
+}
+function keepScroll(fn) { const m = document.querySelector("#view-guide .ob-main"), y = m ? m.scrollTop : 0; fn(); if (m) m.scrollTop = y; }
+function newRow(sheet, o) { const r = { _id: uid() }; RT[sheet].cols.forEach(c => r[c.key] = ""); return Object.assign(r, o); }
+function deleteRow(sheet, rid) {
+  const r = DB[sheet].find(x => x._id === rid); if (!r) return;
+  DB[sheet] = DB[sheet].filter(x => x !== r);
+  if (sheet === "HLDesign") DB.DetailDesign = DB.DetailDesign.filter(d => d.HLDID !== r.HLDID);
+  if (sheet === "Requirements") DB.HLDesign.forEach(h => { if (list(h.ReqIDs).includes(r.ReqID)) h.ReqIDs = list(h.ReqIDs).filter(x => x !== r.ReqID).join(", "); });
+}
+// data-bind="Sheet|_id|Key" inputs: write through without re-rendering (keeps focus); refresh progress + lineage.
+function onBind(el) {
+  const [sheet, rid, key] = el.dataset.bind.split("|"), row = DB[sheet].find(r => r._id === rid); if (!row) return;
+  pushUndo(); const old = row[key]; row[key] = el.value;
+  if (key === RT[sheet].id) renameRef(sheet, old, el.value);
+  save();
+  if (currentView === "guide") { if (key === "ChangeType" && G.step === 4) keepScroll(renderGuide); else renderGuideChrome(); }
+}
+// Re-render everything in the guide except the step body.
+function renderGuideChrome() {
+  const h = curHlr(), done = STEPS.map((_, i) => stepDone(i)), pct = Math.round(100 * done.filter(Boolean).length / STEPS.length);
+  document.getElementById("gBar").style.width = pct + "%"; document.getElementById("gPct").textContent = pct + "%";
+  document.getElementById("gSteps").innerHTML = STEPS.map((s, i) => `<li data-i="${i}" class="${i === G.step ? "cur" : done[i] && i < G.step ? "done" : ""}${!h && i ? " locked" : ""}">${s.t}</li>`).join("");
+  document.getElementById("gTopHlr").textContent = h ? `· ${h.HLRID} ${trunc(h.Title, 60)}` : "";
+  renderDrawer();
+}
+
+/* ============================== SUMMARY ============================== */
+function hlrOptions(sel, all) { return (all ? `<option value="">${all}</option>` : "") + DB.HighLevelReqs.map(h => `<option value="${E(h.HLRID)}"${h.HLRID === sel ? " selected" : ""}>${E(h.HLRID)} · ${E(trunc(h.Title, 50))}</option>`).join(""); }
+let SM = { hlr: "", none: true };
+function summaryRows(hlr) {
+  const R = impact(hlr || null), hl = hlr ? [hlr] : DB.HighLevelReqs.map(h => h.HLRID), per = hl.map(x => impact(x));
+  const keep = o => SM.none || R.eff(o) !== "No change";
+  const apps = [...R.apps.values()].filter(keep).sort((a, b) => String((DMX.app.get(a.id) || {}).DomainID).localeCompare((DMX.app.get(b.id) || {}).DomainID) || appName(a.id).localeCompare(appName(b.id)));
+  const flows = [...R.flows.values()].filter(keep).sort((a, b) => a.id.localeCompare(b.id));
+  const ds = [...R.ds.values(), ...[...R.events.values()].map(e => Object.assign({}, e, { isEv: true }))].filter(keep).sort((a, b) => String((DMX.ds.get(a.id) || DMX.ds.get((DMX.ev.get(a.id) || {}).DatasetID) || {}).AppID).localeCompare(String((DMX.ds.get(b.id) || DMX.ds.get((DMX.ev.get(b.id) || {}).DatasetID) || {}).AppID)) || a.id.localeCompare(b.id));
+  return { R, hl, per, apps, flows, ds };
+}
+function renderSummary() {
+  document.getElementById("smHlr").innerHTML = hlrOptions(SM.hlr, "Whole program (all HLRs)");
+  document.getElementById("smNoChange").checked = SM.none;
+  const { R, hl, per, apps, flows, ds } = summaryRows(SM.hlr);
+  const cnt = m => { const o = { New: 0, Modify: 0, Retire: 0, "No change": 0 }; m.forEach(x => o[R.eff(x)]++); return o; };
+  const doms = new Set([...R.apps.keys()].map(a => (DMX.app.get(a) || {}).DomainID).filter(Boolean));
+  const kpi = (n, l, m) => { const o = m ? cnt(m) : null; return `<div class="kpi"><b>${n}</b><span>${l}</span>${o ? `<small>${CHANGE.filter(k => o[k]).map(k => `${o[k]} ${k.toLowerCase()}`).join(" · ")}</small>` : ""}</div>`; };
+  const reqN = SM.hlr ? reqsOf(SM.hlr).length : DB.Requirements.length;
+  document.getElementById("smKpis").innerHTML = kpi(hl.length, "high-level reqs") + kpi(reqN, "detail reqs") + kpi(doms.size, "business domains") + kpi(R.apps.size, "applications", R.apps) + kpi(R.flows.size, "interfaces", R.flows) + kpi(R.ds.size, "datasets", R.ds) + kpi(R.attrs.size, "attributes", R.attrs) + kpi(R.maps.size, "mappings", R.maps) + kpi(R.events.size, "events", R.events);
+  // HLR roll-up with coverage + domain heat
+  const allDoms = DMS.data.Domains.filter(d => per.some(p => [...p.apps.keys()].some(a => (DMX.app.get(a) || {}).DomainID === d.DomainID)));
+  document.getElementById("smByHlr").innerHTML = `<div class="scroll"><table class="sum-table mx"><thead><tr><th>High-level requirement</th><th>Coverage</th><th>Apps</th><th>Interfaces</th><th>Datasets</th>${allDoms.map(d => `<th title="${E(d.DomainID)}">${E(d.Name)}</th>`).join("")}</tr></thead><tbody>
+    ${hl.map((x, i) => { const h = byId("HighLevelReqs", x), p = per[i], c = coverage(x);
+      return `<tr><td><span class="idc lnk" data-lin="${E(x)}">${E(x)}</span> ${E(trunc(h.Title, 60))}</td><td><div style="display:flex;gap:6px;align-items:center"><div class="cov-bar"><span style="width:${c.pct}%"></span></div><span class="hint">${c.pct}%</span></div></td><td class="num">${p.apps.size}</td><td class="num">${p.flows.size}</td><td class="num">${p.ds.size}</td>
+      ${allDoms.map(d => { const n = [...p.apps.values()].filter(a => (DMX.app.get(a.id) || {}).DomainID === d.DomainID && p.eff(a) !== "No change").length, z = [...p.apps.values()].filter(a => (DMX.app.get(a.id) || {}).DomainID === d.DomainID).length; return `<td class="c heat${Math.min(3, n)}" title="${n} changed, ${z - n} verify-only applications">${z ? `${n || "–"}${z - n ? `<span class="hint"> +${z - n}</span>` : ""}` : ""}</td>`; }).join("")}</tr>`; }).join("")}
+    </tbody></table></div><p class="hint">Domain cells: changed applications (+ applications only verified / on an interface end).</p>`;
+  const hcol = (o, col) => hl.map((x, i) => { const p = per[i][col].get(o.id); return `<td class="c">${p ? cp(per[i].eff(p), !p.declared) : ""}</td>`; }).join("");
+  const hHead = hl.map(x => `<th class="c" title="${E((byId("HighLevelReqs", x) || {}).Title)}">${E(x)}</th>`).join("");
+  let lastDom = "";
+  document.getElementById("smApps").innerHTML = apps.length ? `<table class="sum-table"><thead><tr><th>Application</th><th>Type</th><th>Change</th>${hHead}<th>Reqs</th><th>Interfaces</th><th>Datasets</th><th>Design rows</th></tr></thead><tbody>${apps.map(o => {
+    const a = DMX.app.get(o.id) || {}, dom = a.DomainID || "", grp = dom !== lastDom ? `<tr class="grp"><td colspan="${7 + hl.length}">${E(domName(dom) || "Not in Data mapping")}</td></tr>` : ""; lastDom = dom;
+    const nF = [...R.flows.keys()].filter(f => { const x = DMX.flow.get(f); return x && (x.SourceAppID === o.id || x.TargetAppID === o.id); }).length, nD = [...R.ds.keys()].filter(d => (DMX.ds.get(d) || {}).AppID === o.id).length;
+    return grp + `<tr><td><b>${E(a.Name || o.id)}</b> <span class="idc">${E(o.id)}</span>${a.AppID ? "" : ` <span class="missing">not in Data mapping</span>`}</td><td>${typePill(KN(a.AppType))}</td><td>${cp(R.eff(o), !o.declared)}</td>${hcol(o, "apps")}<td class="hint">${E([...o.reqs].join(", "))}</td><td class="num">${nF}</td><td class="num">${nD}</td><td class="hint">${E([...o.hlds].join(", "))}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty">No impacted applications.</div>`;
+  document.getElementById("smFlows").innerHTML = flows.length ? `<table class="sum-table"><thead><tr><th>Interface</th><th>Source → target</th><th>Pattern</th><th>Change</th>${hHead}<th>Mappings in design</th><th>Reqs</th></tr></thead><tbody>${flows.map(o => { const f = DMX.flow.get(o.id) || {}, nm = [...R.maps.values()].filter(m => [...m.dds].some(x => { const d = byId("DetailDesign", x); return d && resolveArt("Mapping", m.id, byId("HLDesign", d.HLDID)).flows.includes(o.id); }));
+    return `<tr><td><span class="idc">${E(o.id)}</span> ${E(f.Name || "")}${f.FlowID ? "" : ` <span class="missing">not in Data mapping</span>`}</td><td>${f.FlowID ? `${E(appName(f.SourceAppID))} → ${E(appName(f.TargetAppID))}` : ""}</td><td>${E(f.Pattern || "")}</td><td>${cp(R.eff(o), !o.declared)}</td>${hcol(o, "flows")}<td class="num" title="${E(nm.map(m => m.id + " (" + R.eff(m) + ")").join("\n"))}">${nm.length || ""}${nm.filter(m => R.eff(m) === "New").length ? ` <span class="cp New">${nm.filter(m => R.eff(m) === "New").length} new</span>` : ""}</td><td class="hint">${E([...o.reqs].join(", "))}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty">No impacted interfaces.</div>`;
+  document.getElementById("smDs").innerHTML = ds.length ? `<table class="sum-table"><thead><tr><th>Dataset / event</th><th>Kind</th><th>Application</th><th>Change</th>${hHead}<th>Attributes in design</th><th>Reqs</th></tr></thead><tbody>${ds.map(o => {
+    const ev = o.isEv ? DMX.ev.get(o.id) : null, d = DMX.ds.get(ev ? ev.DatasetID : o.id) || {}, at = o.isEv ? [] : [...R.attrs.values()].filter(a => a.id.startsWith(o.id + "#")), nNew = at.filter(a => R.eff(a) === "New").length;
+    return `<tr><td>${ev ? `⚡ <b>${E(ev.EventName)}</b> <span class="idc">${E(o.id)}</span>` : `<b>${E(d.Name || o.id)}</b> <span class="idc">${E(o.id)}</span>`}${d.DatasetID ? "" : ` <span class="missing">not in Data mapping</span>`}</td><td>${E(o.isEv ? "Kafka event (registration)" : KN(d.Kind))}</td><td>${E(appName(d.AppID))}</td><td>${cp(R.eff(o), !o.declared)}</td>${hcol(o, o.isEv ? "events" : "ds")}
+      <td title="${E(at.map(a => a.id.split("#")[1] + " (" + R.eff(a) + ")").join("\n"))}">${at.length ? `${at.length}${nNew ? ` <span class="cp New">${nNew} new</span>` : ""} <span class="hint">${E(trunc(at.map(a => a.id.split("#")[1]).join(", "), 70))}</span>` : ""}</td><td class="hint">${E([...o.reqs].join(", "))}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty">No impacted datasets.</div>`;
+  // backlog
+  const bl = DB.DetailDesign.filter(d => { if (SM.hlr) { const h = byId("HLDesign", d.HLDID); if (!h || !hlrsOfHld(h).includes(SM.hlr)) return false; } return !resolveArt(d.ArtifactType, d.ArtifactID).exists; });
+  document.getElementById("smBacklog").innerHTML = bl.length ? `<table class="sum-table"><thead><tr><th>DD</th><th>Type</th><th>Artifact to register</th><th>Where</th><th>Change</th><th>Note</th><th>HLR</th></tr></thead><tbody>${bl.map(d => { const r = resolveArt(d.ArtifactType, d.ArtifactID), h = byId("HLDesign", d.HLDID);
+    return `<tr><td><span class="idc">${E(d.DDID)}</span></td><td><span class="tp" style="background:${TYPE_COLOR[d.ArtifactType]}">${E(d.ArtifactType)}</span></td><td class="mono" style="font-size:12px">${E(d.ArtifactID)}</td><td class="hint">${E(r.sub || "")}${r.apps.length ? " · " + E(r.apps.map(appName).join(", ")) : ""}</td><td>${cp(d.ChangeType)}</td><td class="hint">${E(d.Description)}</td><td class="hint">${E(h ? hlrsOfHld(h).join(", ") : "")}</td></tr>`; }).join("")}</tbody></table>` : `<div class="note ok">Every artifact in the design is in the Data mapping registry ✓</div>`;
+}
+function summaryCSV() {
+  const { R, hl, per, apps, flows, ds } = summaryRows(SM.hlr), ch = (p, col, id) => { const o = p[col].get(id); return o ? p.eff(o) : ""; };
+  const rows = [["Section", "ID", "Name", "Domain / kind", "Owner / route", "Change", "Declared", ...hl, "Requirements", "Design rows"]];
+  apps.forEach(o => { const a = DMX.app.get(o.id) || {}; rows.push(["Application", o.id, a.Name || "", domName(a.DomainID), KN(a.AppType), R.eff(o), o.declared ? "Y" : "derived", ...per.map(p => ch(p, "apps", o.id)), [...o.reqs].join(" "), [...o.hlds].join(" ")]); });
+  flows.forEach(o => { const f = DMX.flow.get(o.id) || {}; rows.push(["Interface", o.id, f.Name || "", f.Pattern || "", f.FlowID ? flowLabel(f) : "", R.eff(o), o.declared ? "Y" : "derived", ...per.map(p => ch(p, "flows", o.id)), [...o.reqs].join(" "), [...o.hlds].join(" ")]); });
+  ds.forEach(o => { const ev = o.isEv ? DMX.ev.get(o.id) : null, d = DMX.ds.get(ev ? ev.DatasetID : o.id) || {}; rows.push([o.isEv ? "Event" : "Dataset", o.id, ev ? ev.EventName : d.Name || "", o.isEv ? "Kafka event" : KN(d.Kind), appName(d.AppID), R.eff(o), o.declared ? "Y" : "derived", ...per.map(p => ch(p, o.isEv ? "events" : "ds", o.id)), [...o.reqs].join(" "), [...o.hlds].join(" ")]); });
+  return rows;
+}
+
+/* ============================== LINEAGE VIEW ============================== */
+let LN = { hlr: "" };
+function traceRows(hlr) {
+  const rows = [["HLRID", "HLR title", "ReqID", "Requirement", "HLDID", "Component type", "ComponentID", "Component", "HLD change", "DDID", "Artifact type", "ArtifactID", "Artifact", "DD change", "Applications", "Interfaces", "Datasets", "In Data mapping"]];
+  const hs = hlr ? [byId("HighLevelReqs", hlr)].filter(Boolean) : DB.HighLevelReqs;
+  hs.forEach(h => { const reqs = reqsOf(h.HLRID); if (!reqs.length) rows.push([h.HLRID, h.Title]);
+    reqs.forEach(r => { const hl = hldsOfReq(r.ReqID); if (!hl.length) rows.push([h.HLRID, h.Title, r.ReqID, r.Title]);
+      hl.forEach(d => { const c = resolveComp(d), dds = ddsOf(d.HLDID, [r.ReqID]); if (!dds.length) rows.push([h.HLRID, h.Title, r.ReqID, r.Title, d.HLDID, d.ComponentType, d.ComponentID, c.label, d.ChangeType]);
+        dds.forEach(a => { const x = resolveArt(a.ArtifactType, a.ArtifactID, d); rows.push([h.HLRID, h.Title, r.ReqID, r.Title, d.HLDID, d.ComponentType, d.ComponentID, c.label, d.ChangeType, a.DDID, a.ArtifactType, a.ArtifactID, x.label, a.ChangeType, x.apps.map(appName).join("; "), x.flows.join("; "), x.ds.join("; "), x.exists ? "Y" : "N"]); }); }); }); });
+  return rows;
+}
+function renderLineage() {
+  if (!LN.hlr || !byId("HighLevelReqs", LN.hlr)) LN.hlr = G.hlr && byId("HighLevelReqs", G.hlr) ? G.hlr : (DB.HighLevelReqs[0] || {}).HLRID || "";
+  document.getElementById("lnHlr").innerHTML = hlrOptions(LN.hlr);
+  if (!LN.hlr) { ["lnTrace", "lnApps", "lnChains"].forEach(i => document.getElementById(i).innerHTML = `<div class="empty">No high-level requirements yet.</div>`); return; }
+  const R = impact(LN.hlr), c = coverage(LN.hlr);
+  document.getElementById("lnStats").textContent = `${reqsOf(LN.hlr).length} requirements · ${hldsOfHlr(LN.hlr).length} design rows · ${R.apps.size} applications · ${R.flows.size} interfaces · ${R.ds.size} datasets · coverage ${c.pct}%`;
+  const tw = document.getElementById("lnTrace"); tw.innerHTML = traceSVG(LN.hlr); wireTrace(tw);
+  document.getElementById("lnLg").innerHTML = legendTrace();
+  document.getElementById("lnApps").innerHTML = appsSVG(LN.hlr) + `<div class="lg" style="padding:6px 10px">${legendApps()}</div>`;
+  renderChains();
+}
+function renderChains() {
+  const R = impact(LN.hlr), q = S(document.getElementById("lnFind").value).toLowerCase();
+  let ps = chains(LN.hlr); const total = ps.length;
+  if (q) ps = ps.filter(p => p.nodes.some(n => n.toLowerCase().includes(q) || dsName(n.split("#")[0]).toLowerCase().includes(q)));
+  document.getElementById("lnChainStats").textContent = `${ps.length}${q ? " of " + total : ""} paths through ${R.seeds.size} designed attributes`;
+  document.getElementById("lnChains").innerHTML = ps.slice(0, 120).map(p => chainHTML(p, R)).join("") || `<div class="empty">No attribute-level design yet: add attributes or mappings in step 5 of the guide.</div>`;
+}
+
+/* ============================== REGISTRY GRID ============================== */
+let GR = { sheet: "HighLevelReqs", hlr: "" };
+function renderDatalists() {
+  const d = DMS.data, o = v => `<option value="${E(v)}">`;
+  document.getElementById("datalists").innerHTML =
+    `<datalist id="dl-dom">${d.Domains.map(x => `<option value="${E(x.DomainID)}">${E(x.Name)}</option>`).join("")}</datalist>` +
+    `<datalist id="dl-app">${d.Applications.map(x => `<option value="${E(x.AppID)}">${E(x.Name)}</option>`).join("")}</datalist>` +
+    `<datalist id="dl-flow">${d.Flows.map(x => `<option value="${E(x.FlowID)}">${E(x.Name)}</option>`).join("")}</datalist>` +
+    `<datalist id="dl-ds">${d.Datasets.map(x => `<option value="${E(x.DatasetID)}">${E(x.Name)}</option>`).join("")}</datalist>` +
+    `<datalist id="dl-attr">${[...DMX.attr.keys()].map(o).join("")}</datalist>` +
+    `<datalist id="dl-map">${d.Mappings.map(x => `<option value="${E(x.MappingID)}">${E(x.SourcePath + " → " + x.TargetDatasetID + "." + x.TargetPath)}</option>`).join("")}</datalist>` +
+    `<datalist id="dl-ev">${d.Events.map(x => `<option value="${E(x.EventID)}">${E(x.EventName)}</option>`).join("")}</datalist>` +
+    RT_ORDER.map(s => `<datalist id="dl-${s}">${DB[s].map(r => `<option value="${E(r[RT[s].id])}">${E(r.Title || r.Name || r.ComponentID || "")}</option>`).join("")}</datalist>`).join("");
+}
+function cellHTML(sheet, r, c) {
+  const v = r[c.key] == null ? "" : r[c.key], b = `data-g="${r._id}|${c.key}"`, w = c.w ? ` style="min-width:${c.w}px"` : "";
+  if (c.opts) return `<select ${b}>${optsHTML(c.opts, v, true)}</select>`;
+  if (c.area) return `<textarea ${b}${w}>${E(v)}</textarea>`;
+  let dl = "";
+  if (c.ref) dl = "dl-" + c.ref; else if (c.multi === "req") dl = "dl-Requirements"; else if (c.multi === "dom" || c.dm === "dom") dl = "dl-dom";
+  else if (c.dm === "comp") dl = r.ComponentType === "Interface" ? "dl-flow" : "dl-app";
+  else if (c.dm === "art") dl = { Interface: "dl-flow", Dataset: "dl-ds", Attribute: "dl-attr", Mapping: "dl-map", Event: "dl-ev" }[r.ArtifactType] || "";
+  return `<input ${b}${dl ? ` list="${dl}"` : ""} value="${E(v)}"${w} />`;
+}
+function resolvedLabel(sheet, r) {
+  if (sheet === "HLDesign") { const c = resolveComp(r); return `<span class="${c.exists ? "" : "missing"}">${E(c.label)}</span>`; }
+  if (sheet === "DetailDesign") { const x = resolveArt(r.ArtifactType, r.ArtifactID); return `<span class="${x.exists ? "" : r.ChangeType === "New" ? "" : "missing"}">${E(trunc(x.label, 40))}</span>${x.exists ? "" : ` <span class="cp New">not in DM</span>`}`; }
+  if (sheet === "Requirements") return E(domName(r.DomainID));
+  if (sheet === "HighLevelReqs") return E(list(r.BusinessDomains).map(domName).join(", "));
+  return "";
+}
+function gridRows() {
+  const s = GR.sheet, q = S(document.getElementById("gridFind").value).toLowerCase(); let rows = DB[s];
+  if (GR.hlr) { const h = GR.hlr, rs = new Set(reqsOf(h).map(r => r.ReqID)), hs = new Set(hldsOfHlr(h).map(x => x.HLDID));
+    rows = rows.filter(r => s === "HighLevelReqs" ? r.HLRID === h : s === "Requirements" ? r.HLRID === h : s === "HLDesign" ? hs.has(r.HLDID) : s === "DetailDesign" ? hs.has(r.HLDID) : s === "Programs" ? r.ProgramID === (byId("HighLevelReqs", h) || {}).ProgramID : true); }
+  if (q) rows = rows.filter(r => RT[s].cols.some(c => String(r[c.key] || "").toLowerCase().includes(q)));
+  return rows;
+}
+function renderGrid() {
+  const s = GR.sheet, def = RT[s];
+  document.getElementById("sheetTabs").innerHTML = RT_ORDER.map(x => `<button data-s="${x}" class="${x === s ? "active" : ""}">${SHEET_LABEL[x] || x}<span class="n">${DB[x].length}</span></button>`).join("") + `<button data-s="Trace" class="${s === "Trace" ? "active" : ""}">Trace matrix (flat)</button>`;
+  document.getElementById("gridHlr").innerHTML = hlrOptions(GR.hlr, "All");
+  if (s === "Trace") {
+    document.getElementById("sheetTitle").textContent = "Trace matrix"; document.getElementById("sheetDesc").textContent = "One row per HLR → requirement → design row → detail-design artifact, resolved against the Data mapping registry. Read-only; it is also exported as the TraceMatrix sheet.";
+    document.getElementById("addRow").hidden = true;
+    const rows = traceRows(GR.hlr), q = S(document.getElementById("gridFind").value).toLowerCase(), body = rows.slice(1).filter(r => !q || r.join(" ").toLowerCase().includes(q));
+    document.getElementById("gridStats").textContent = `${body.length} rows`;
+    document.getElementById("gridWrap").innerHTML = `<table><thead><tr>${rows[0].map(c => `<th>${E(c)}</th>`).join("")}</tr></thead><tbody>${body.map(r => `<tr>${rows[0].map((_, i) => `<td class="${[8, 13].includes(i) ? "" : "ro"}" style="white-space:nowrap">${[8, 13].includes(i) ? cp(r[i]) : E(r[i] == null ? "" : r[i])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    return;
+  }
+  document.getElementById("addRow").hidden = false;
+  document.getElementById("sheetTitle").textContent = SHEET_LABEL[s] || s; document.getElementById("sheetDesc").textContent = def.desc;
+  const rows = gridRows(); document.getElementById("gridStats").textContent = `${rows.length} of ${DB[s].length} rows`;
+  const extra = { HighLevelReqs: "Domains", Requirements: "Domain", HLDesign: "Component", DetailDesign: "Resolved" }[s];
+  document.getElementById("gridWrap").innerHTML = `<table><thead><tr><th></th>${def.cols.map(c => `<th>${c.key}</th>`).join("")}${extra ? `<th>${extra}</th>` : ""}<th></th></tr></thead><tbody>${rows.map(r => `<tr data-rid="${r._id}"><td>${issueBadge(issuesFor(s, r[def.id]))}</td>${def.cols.map(c => `<td>${cellHTML(s, r, c)}</td>`).join("")}${extra ? `<td class="ro" style="white-space:normal;min-width:160px">${resolvedLabel(s, r)}</td>` : ""}<td><button class="icon-btn" data-del="${r._id}" title="Delete row">✕</button></td></tr>`).join("") || `<tr><td colspan="${def.cols.length + 3}" class="empty">No rows.</td></tr>`}</tbody></table>`;
+}
+function wireGrid() {
+  document.getElementById("sheetTabs").onclick = e => { const b = e.target.closest("button"); if (b) { GR.sheet = b.dataset.s; renderGrid(); } };
+  document.getElementById("gridFind").oninput = renderGrid;
+  document.getElementById("gridHlr").onchange = e => { GR.hlr = e.target.value; renderGrid(); };
+  document.getElementById("addRow").onclick = () => {
+    const s = GR.sheet; pushUndo(); const o = { [RT[s].id]: nextId(s, s === "Requirements" ? GR.hlr || (DB.HighLevelReqs[0] || {}).HLRID : null), Status: "Draft" };
+    if (s === "Requirements") o.HLRID = GR.hlr || (DB.HighLevelReqs[0] || {}).HLRID || "";
+    if (s === "HLDesign") Object.assign(o, { ComponentType: "Application", ChangeType: "Modify" });
+    if (s === "DetailDesign") Object.assign(o, { ArtifactType: "Dataset", ChangeType: "Modify" });
+    DB[s].unshift(newRow(s, o)); save(); renderGrid();
+  };
+  document.getElementById("gridCsv").onclick = () => { if (GR.sheet === "Trace") return copyText(toCSV(traceRows(GR.hlr))); const c = RT[GR.sheet].cols.map(x => x.key); copyText(toCSV([c, ...gridRows().map(r => c.map(k => r[k]))])); };
+  const wrap = document.getElementById("gridWrap");
+  wrap.addEventListener("change", e => {
+    const el = e.target.closest("[data-g]"); if (!el) return; const [rid, key] = el.dataset.g.split("|"), s = GR.sheet, r = DB[s].find(x => x._id === rid); if (!r) return;
+    pushUndo(); const old = r[key]; r[key] = el.value; if (key === RT[s].id) renameRef(s, old, el.value); save();
+    if (["ComponentType", "ArtifactType", "ArtifactID", "ComponentID", "ChangeType", RT[s].id, "HLRID", "ReqIDs", "HLDID", "DomainID", "BusinessDomains"].includes(key)) { const y = wrap.scrollTop; renderDatalists(); renderGrid(); wrap.scrollTop = y; }
+  });
+  wrap.addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; const s = GR.sheet, r = DB[s].find(x => x._id === b.dataset.del); if (!r) return;
+    const n = s === "HLDesign" ? ddsOf(r.HLDID).length : 0; if (n && !confirm(`Delete ${r.HLDID} and its ${n} detail-design rows?`)) return; pushUndo(); deleteRow(s, r._id); save(); renderGrid(); toast("Deleted (Ctrl/⌘+Z to undo)"); });
+}
+
+/* ============================== COVERAGE & CHECKS ============================== */
+let IS = { sev: "" };
+function renderIssues() {
+  document.getElementById("isCov").innerHTML = DB.HighLevelReqs.length ? `<table class="sum-table"><thead><tr><th>HLR</th><th>Title</th><th class="c">Requirements</th><th class="c">Designed</th><th class="c">Detailed</th><th>Coverage</th><th>Uncovered requirements</th></tr></thead><tbody>${DB.HighLevelReqs.map(h => { const c = coverage(h.HLRID), un = reqsOf(h.HLRID).filter(r => r.Status !== "Deprecated" && (!hldsOfReq(r.ReqID).length || !hldsOfReq(r.ReqID).every(x => ddsOf(x.HLDID, [r.ReqID]).length)));
+    return `<tr><td><span class="idc lnk" data-lin="${E(h.HLRID)}">${E(h.HLRID)}</span></td><td>${E(h.Title)}</td><td class="num">${c.reqs}</td><td class="num">${c.designed}</td><td class="num">${c.detailed}</td><td><div style="display:flex;gap:6px;align-items:center"><div class="cov-bar"><span style="width:${c.pct}%"></span></div><span class="hint">${c.pct}%</span></div></td><td class="hint">${un.map(r => `${E(r.ReqID)} ${hldsOfReq(r.ReqID).length ? "(no detail)" : "(no design)"}`).join(", ")}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty">No high-level requirements.</div>`;
+  document.querySelectorAll("#isSev button").forEach(b => b.classList.toggle("active", b.dataset.s === IS.sev));
+  const q = S(document.getElementById("isFind").value).toLowerCase(), li = issues().filter(i => (!IS.sev || i.sev === IS.sev) && (!q || i.msg.toLowerCase().includes(q))).sort((a, b) => SEV_RANK[b.sev] - SEV_RANK[a.sev]);
+  document.getElementById("isOut").innerHTML = li.map(i => `<div class="iss sev-${i.sev}"><span class="sev-dot"></span><span>${E(i.msg)}</span><span class="where"><span class="idc lnk" data-goto="${E(i.sheet)}|${E(i.id)}">${E(SHEET_LABEL[i.sheet] || i.sheet)} ${E(i.id)}</span></span></div>`).join("") || `<div class="note ok">No issues ✓</div>`;
+}
+
+/* ============================== EXCEL ============================== */
+const GUIDE_ROWS = [["Sheet", "What it holds"],
+  ["Programs", "The program / release. HLRs point at it with ProgramID."],
+  ["HighLevelReqs", "High-level requirements (epics). BusinessDomains = comma list of Data mapping DomainIDs."],
+  ["Requirements", "Detail requirements, each under one HLR (HLRID). ReqID = REQ-<HLR no>-<seq>."],
+  ["HLDesign", "High-level design: one row per impacted component. ComponentType Application → ComponentID is a Data mapping AppID; Interface → a FlowID. ReqIDs = comma list."],
+  ["DetailDesign", "Detail design: Data mapping artifacts per HLD row. ReqIDs (optional) = the HLD row's requirements this artifact serves; blank = all. ArtifactType Interface (FlowID), Dataset (DatasetID), Attribute (DatasetID#path), Mapping (MappingID, or SRC#path -> TGT#path for a new one), Event (EventID)."],
+  ["TraceMatrix", "Flattened HLR → REQ → HLD → DD trace (generated; ignored on load)."],
+  ["AppImpact / InterfaceImpact / DatasetImpact", "Change summary (generated; ignored on load). Declared = set on a design row; derived = rolled up from the detail design."],
+  ["ChangeType", "New · Modify · Retire · No change (in regression scope only)."]];
+function exportXlsx(name) {
+  if (!name) { name = "RTMRegistry.xlsx"; try { name = localStorage.getItem(LS_FILE) || name; } catch (e) {} }
+  const wb = XLSX.utils.book_new();
+  RT_ORDER.forEach(s => { const cols = RT[s].cols.map(c => c.key), ws = XLSX.utils.json_to_sheet(DB[s].map(r => Object.fromEntries(cols.map(k => [k, r[k] == null ? "" : r[k]]))), { header: cols });
+    ws["!cols"] = RT[s].cols.map(c => ({ wch: Math.max(12, Math.round((c.w || (c.area ? 300 : 120)) / 7)) })); XLSX.utils.book_append_sheet(wb, ws, s); });
+  const add = (rows, n) => { const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = rows[0].map(() => ({ wch: 22 })); XLSX.utils.book_append_sheet(wb, ws, n); };
+  add(traceRows(""), "TraceMatrix");
+  const keep = SM; SM = { hlr: "", none: true }; const sum = summaryCSV(); SM = keep;
+  ["Application", "Interface", "Dataset"].forEach(k => add([sum[0], ...sum.slice(1).filter(r => k === "Dataset" ? r[0] === "Dataset" || r[0] === "Event" : r[0] === k)], k === "Application" ? "AppImpact" : k + "Impact"));
+  add(GUIDE_ROWS, "Guide");
+  XLSX.writeFile(wb, name); toast("Exported " + name);
+}
+function readXlsx(file) {
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" }), norm = x => x.replace(/\s+/g, "").toLowerCase();
+      // a Data mapping workbook: use it as the DM source instead
+      if (wb.SheetNames.some(n => norm(n) === "flows") && wb.SheetNames.some(n => norm(n) === "datasets") && !wb.SheetNames.some(n => norm(n) === "hldesign")) { readDMWorkbook(wb, file.name); return; }
+      const db = emptyDB(); let found = 0;
+      RT_ORDER.forEach(s => { const n = wb.SheetNames.find(x => norm(x) === norm(s)); if (!n) return; found++;
+        db[s] = XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: "", raw: false }).map(row => { const o = {}; RT[s].cols.forEach(c => { const k = Object.keys(row).find(x => norm(x) === norm(c.key)); o[c.key] = k ? S(row[k]) : ""; }); return o; }).filter(o => Object.values(o).some(Boolean)); });
+      if (!found) { toast("No RTM sheets found in that workbook"); return; }
+      pushUndo(); DB = ensureIds(db); try { localStorage.setItem(LS_FILE, file.name); } catch (x) {}
+      save(); renderAll(); toast("Loaded " + file.name);
+    } catch (err) { console.error(err); toast("Could not read workbook: " + err.message); }
+  };
+  r.readAsArrayBuffer(file);
+}
+function readDMWorkbook(wb, name) {
+  const norm = x => x.replace(/\s+/g, "").toLowerCase(), raw = {};
+  Object.keys(DM_COLS).forEach(s => { const n = wb.SheetNames.find(x => norm(x) === norm(s) || (s === "Applications" && norm(x) === "systems")); raw[s] = n ? XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: "", raw: false }) : []; });
+  setDM({ source: "file", name, data: normDM(raw) });
+  closeModal();
+}
+function dmSourceModal() {
+  const b = browserDM();
+  openModal(`<h2>Data mapping source</h2><p>Applications, interfaces (flows), datasets, attributes, mappings and events come from a Data mapping registry. The RTM only reads it.</p>
+    <p>Current: <b>${E(DMS.name)}</b></p>
+    <div class="modal-actions" style="justify-content:flex-start">
+      <button data-src="browser"${b ? "" : " disabled"} title="${b ? "" : "Open data-mapping.html in this browser and load or edit a registry first"}">Use data-mapping.html (this browser)${b ? ` · ${b.Applications.length} apps` : " · empty"}</button>
+      <label class="btn" for="dmFile">Load DataMappingRegistry .xlsx</label><input type="file" id="dmFile" accept=".xlsx,.xls" />
+      <button data-src="sample">Use bundled retail sample</button></div>
+    <p class="hint">Design rows keep their IDs when you switch: anything the new source doesn't have shows as “not in Data mapping” on the Coverage &amp; checks tab.</p>
+    <div class="modal-actions"><button id="mClose">Close</button></div>`);
+  document.getElementById("mClose").onclick = closeModal;
+  document.querySelectorAll("[data-src]").forEach(x => x.onclick = () => { if (x.dataset.src === "browser") setDM({ source: "browser", name: "data-mapping.html (this browser)", data: browserDM() }); else setDM({ source: "sample", name: "Retail sample (DataMappingRegistry-sample.xlsx)", data: normDM(window.RTM_DM_SAMPLE || {}) }); closeModal(); });
+  document.getElementById("dmFile").onchange = e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => readDMWorkbook(XLSX.read(new Uint8Array(ev.target.result), { type: "array" }), f.name); r.readAsArrayBuffer(f); };
+}
+function openModal(html) { document.getElementById("modalCard").innerHTML = html; document.getElementById("modal").hidden = false; }
+function closeModal() { document.getElementById("modal").hidden = true; }
+
+/* ============================== SHELL ============================== */
+let currentView = "guide";
+function showView(v) {
+  currentView = v; document.querySelectorAll("#nav button[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  document.querySelectorAll("main > .view").forEach(s => s.classList.toggle("active", s.id === "view-" + v));
+  document.body.classList.toggle("guide-on", v === "guide"); renderView();
+}
+function renderView() { ({ guide: renderGuide, summary: renderSummary, lineage: renderLineage, registry: renderGrid, issues: renderIssues })[currentView](); }
+function renderAll() { setStatus(); renderDatalists(); renderView(); }
+function wire() {
+  document.getElementById("nav").onclick = e => { const b = e.target.closest("button[data-view]"); if (b) showView(b.dataset.view); };
+  document.getElementById("chromeToggle").onclick = () => document.body.classList.toggle("chrome-collapsed");
+  document.getElementById("fileInput").onchange = e => { const f = e.target.files[0]; if (f) readXlsx(f); e.target.value = ""; };
+  document.getElementById("exportBtn").onclick = () => exportXlsx();
+  document.getElementById("seedBtn").onclick = () => { if (DB.HighLevelReqs.length && !confirm("Replace the registry with the eCommerce transformation example? (Ctrl/⌘+Z undoes)")) return; pushUndo(); DB = ensureIds(exampleRTM()); G = { step: 0, hlr: "HLR-01", lin: G.lin }; try { localStorage.removeItem(LS_FILE); } catch (e) {} if (DMS.source !== "sample") toast("The example uses the retail sample's IDs: switch the Data mapping source to the sample if checks fail"); save(); renderAll(); };
+  document.getElementById("clearBtn").onclick = () => { if (!confirm("Clear the whole RTM registry? (Ctrl/⌘+Z undoes)")) return; pushUndo(); DB = emptyDB(); G = { step: 0, lin: G.lin }; try { localStorage.removeItem(LS_FILE); } catch (e) {} save(); renderAll(); };
+  document.getElementById("dmSrc").onclick = dmSourceModal;
+  document.getElementById("modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
+  // guide
+  document.getElementById("gSteps").onclick = e => { const li = e.target.closest("li"); if (!li || li.classList.contains("locked")) return; G.step = +li.dataset.i; renderGuide(); };
+  document.getElementById("gBack").onclick = () => { if (G.step > 0) { G.step--; renderGuide(); } };
+  document.getElementById("gNext").onclick = () => { if (!curHlr()) { toast("Pick or add a high-level requirement"); return; } if (G.step < STEPS.length - 1) { G.step++; renderGuide(); document.querySelector("#view-guide .ob-main").scrollTop = 0; } else { SM.hlr = G.hlr; showView("summary"); } };
+  document.getElementById("gRestart").onclick = () => { G.step = 0; G.hlr = ""; renderGuide(); };
+  document.getElementById("gDrawerToggle").onclick = () => document.getElementById("gDrawer").classList.toggle("open");
+  document.getElementById("gLinMode").onclick = e => { const b = e.target.closest("button"); if (b) { G.lin = b.dataset.m; saveG(); renderDrawer(); } };
+  const body = document.getElementById("gBody");
+  body.addEventListener("click", e => { const el = e.target.closest("[data-act]"); if (!el || el.tagName === "INPUT" && el.type === "checkbox") return; guideAction(el, e); });
+  body.addEventListener("change", e => { const el = e.target; if (el.dataset.bind) onBind(el); else if (el.dataset.act && el.type === "checkbox") guideAction(el, e); });
+  // summary / lineage / issues
+  document.getElementById("smHlr").onchange = e => { SM.hlr = e.target.value; renderSummary(); };
+  document.getElementById("smNoChange").onchange = e => { SM.none = e.target.checked; renderSummary(); };
+  document.getElementById("smCsv").onclick = () => copyText(toCSV(summaryCSV()));
+  document.getElementById("view-summary").addEventListener("click", e => { const x = e.target.closest("[data-lin]"); if (x) { LN.hlr = x.dataset.lin; showView("lineage"); } });
+  document.getElementById("lnHlr").onchange = e => { LN.hlr = e.target.value; renderLineage(); };
+  document.getElementById("lnFind").oninput = renderChains;
+  document.getElementById("lnCsv").onclick = () => copyText(toCSV(traceRows(LN.hlr)));
+  document.getElementById("lnSvg").onclick = () => { const s = document.querySelector("#lnTrace svg"); if (!s) return; const css = `<style>text{font-family:Helvetica,Arial,sans-serif}.node rect.box{fill:#fff;stroke:#d6dae0}.node.miss rect.box{stroke:#dc2626;stroke-dasharray:4 3}.t{font-size:12px;font-weight:700;fill:#1f2933}.s{font-size:10.5px;fill:#6b7280}.edge{fill:none;stroke:#94a3b8;stroke-width:1.4}.colh{font-size:10.5px;font-weight:700;fill:#9aa3ae}</style>`; download(s.outerHTML.replace(/(<svg[^>]*>)/, "$1" + css), `lineage-${LN.hlr}.svg`, "image/svg+xml"); };
+  document.getElementById("isSev").onclick = e => { const b = e.target.closest("button"); if (b) { IS.sev = b.dataset.s; renderIssues(); } };
+  document.getElementById("isFind").oninput = renderIssues;
+  document.getElementById("view-issues").addEventListener("click", e => {
+    const x = e.target.closest("[data-lin]"); if (x) { LN.hlr = x.dataset.lin; showView("lineage"); return; }
+    const g = e.target.closest("[data-goto]"); if (g) { const [s, id] = g.dataset.goto.split("|"); GR.sheet = s; GR.hlr = ""; showView("registry"); document.getElementById("gridFind").value = id; renderGrid(); }
+  });
+  wireGrid();
+  document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "z" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); undo(); } if (e.key === "Escape") closeModal(); });
+  window.addEventListener("storage", e => { if (e.key === DM_LS_KEY && DMS.source === "browser") { const d = browserDM(); if (d) setDM({ source: "browser", name: DMS.name, data: d }); } });
+}
+
+/* ============================== EXAMPLE ============================== */
+// "eCommerce transformation 2027": four HLRs over the retail Data mapping sample (samples/DataMappingRegistry-sample.xlsx).
+function exampleRTM() {
+  const rows = (sheet, arr) => arr.map(a => Object.fromEntries(RT[sheet].cols.map((c, i) => [c.key, a[i] == null ? "" : a[i]])));
+  const db = emptyDB();
+  db.Programs = rows("Programs", [["PRG-01", "eCommerce transformation 2027", "GM Digital & Stores", "Move the retail web and app onto the federated GraphQL supergraph and launch click & collect: store-aware PDP and cart, pickup checkout, richer supplier logistics data for search, and retirement of the BFF product endpoints.", "2027.R1", "Approved"]]);
+  db.HighLevelReqs = rows("HighLevelReqs", [
+    ["HLR-01", "PRG-01", "Store-aware product page and add to cart", "Customers pick a store and see that store's price and stock on the product page; the store travels with the item into the cart.", "DOM-02-DGEXP, DOM-04-PRODT, DOM-06-INVTY, DOM-03-CRTCK", "Must", "Head of Digital", "EPIC-OMNI-101", "Approved"],
+    ["HLR-02", "PRG-01", "Click & collect checkout", "Checkout supports collecting in store: it reserves stock at the pickup store, authorises payment and publishes the order with the pickup store for store fulfilment.", "DOM-03-CRTCK, DOM-06-INVTY, DOM-07-PAYMT", "Must", "Checkout product owner", "EPIC-OMNI-102", "Approved"],
+    ["HLR-03", "PRG-01", "Supplier logistics data for search and pickup", "Weight and dimensions from the GS1 supplier feed reach the product catalogue, the product events and the search index, so stores can stage parcels and customers can filter by size.", "DOM-01-MSTDT, DOM-04-PRODT, DOM-05-SRCHD", "Should", "Product data lead", "EPIC-OMNI-103", "Proposed"],
+    ["HLR-04", "PRG-01", "Mobile app moves from the BFF to the federated supergraph", "The Retail App reads the product page from the FedGQL router like the web, and the BFF product-detail endpoint and its feeds are retired.", "DOM-02-DGEXP, DOM-04-PRODT", "Must", "Head of Digital", "EPIC-ECOM-201", "Approved"],
+  ]);
+  db.Requirements = rows("Requirements", [
+    ["REQ-01-01", "HLR-01", "PDP shows the selected store's price", "Functional", "", "Given a selected store, when the PDP loads, then the price is that store's price with the label “Price at <store>”.", "DOM-04-PRODT", "Must", "Approved"],
+    ["REQ-01-02", "HLR-01", "PDP shows stock availability at the selected store", "Functional", "", "In stock (>5), Low stock (1–5) or Out of stock (0) from availableToSell at the store.", "DOM-06-INVTY", "Must", "Approved"],
+    ["REQ-01-03", "HLR-01", "Add to cart captures the pickup store and price", "Functional", "", "The cart line stores storeId and the unit price at the time of adding.", "DOM-03-CRTCK", "Must", "Approved"],
+    ["REQ-01-04", "HLR-01", "Store-aware PDP p95 under 300 ms", "Non-functional", "", "p95 latency of query ProductDetail through the FedGQL router < 300 ms at 2× peak.", "DOM-02-DGEXP", "Should", "Proposed"],
+    ["REQ-02-01", "HLR-02", "submitCheckout accepts fulfilment type and pickup store", "Functional", "", "fulfilmentType = DELIVERY | PICKUP; pickupStoreId is required for PICKUP and stored on the order.", "DOM-03-CRTCK", "Must", "Approved"],
+    ["REQ-02-02", "HLR-02", "Reserve inventory at the pickup store", "Integration", "", "Saga step 2 reserves at pickupStoreId with a 48 h hold; the hold expiry is returned and published.", "DOM-06-INVTY", "Must", "Approved"],
+    ["REQ-02-03", "HLR-02", "Authorise payment for click & collect orders", "Functional", "", "Payment is authorised for the order total; no change to the payments API.", "DOM-07-PAYMT", "Must", "Approved"],
+    ["REQ-02-04", "HLR-02", "order.placed carries the pickup store", "Data", "", "order.placed.v1 gains optional pickupStoreId (BACKWARD compatible) for store fulfilment.", "DOM-03-CRTCK", "Must", "Approved"],
+    ["REQ-02-05", "HLR-02", "Order confirmation email shows the pickup store", "Functional", "", "The email lists store name, address and opening hours.", "DOM-03-CRTCK", "Could", "Draft"],
+    ["REQ-03-01", "HLR-03", "Ingest weight and dimensions from the GS1 supplier feed", "Data", "", "Feed v3 adds DIMENSIONS_MM (LxWxH); rows without weight are rejected instead of defaulted. SUPPLIER_TAX_ID is no longer sent.", "DOM-01-MSTDT", "Should", "Proposed"],
+    ["REQ-03-02", "HLR-03", "Product catalogue stores and publishes weight and dimensions", "Data", "", "product table, product API and product.updated.v1 carry weight and dimensions.", "DOM-04-PRODT", "Should", "Proposed"],
+    ["REQ-03-03", "HLR-03", "Search can filter by weight", "Functional", "", "The products index has a numeric weightGrams facet.", "DOM-05-SRCHD", "Could", "Proposed"],
+    ["REQ-04-01", "HLR-04", "App product screen reads query ProductDetail from the FedGQL router", "Functional", "", "The app shows the same fields as today (sku, name, brand, image, can buy) from the supergraph.", "DOM-02-DGEXP", "Must", "Approved"],
+    ["REQ-04-02", "HLR-04", "Retire GET /bff/product-detail/{sku}", "Integration", "", "Removed once 95% of app sessions are on the new release; no traffic for 14 days.", "DOM-02-DGEXP", "Must", "Approved"],
+    ["REQ-04-03", "HLR-04", "No change to the product subgraph contract", "Integration", "", "Federated ProductDetail resolves with the existing product subgraph fields.", "DOM-04-PRODT", "Should", "Approved"],
+  ]);
+  db.HLDesign = rows("HLDesign", [
+    ["HLD-001", "REQ-01-01, REQ-01-02, REQ-01-03, REQ-02-01", "Application", "APP-02-DGEXP-06", "Modify", "Store selector, store price and stock badge on the PDP; add to cart and checkout send the store.", "Web squad", "Approved"],
+    ["HLD-002", "REQ-01-01, REQ-01-02, REQ-01-03, REQ-01-04, REQ-02-01, REQ-04-01", "Application", "APP-02-DGEXP-05", "Modify", "ProductDetail composes pnp and inventory by storeId and serves the app; addItemToCart and submitCheckout inputs gain store fields; 300 ms query-plan budget.", "API Platform", "Approved"],
+    ["HLD-003", "REQ-01-01", "Application", "APP-04-PRODT-01-02", "No change", "Reuse productStoreContext(sku, storeId).", "Pricing squad", "Approved"],
+    ["HLD-004", "REQ-01-02, REQ-02-02", "Application", "APP-06-INVTY-01", "Modify", "availableToSell to the supergraph; pickup hold window on reservations.", "Fulfilment squad", "Approved"],
+    ["HLD-005", "REQ-01-01", "Interface", "FL-PNP-ROUTER", "No change", "Store price already flows into Product.storeContext: regression only.", "API Platform", "Approved"],
+    ["HLD-006", "REQ-01-02", "Interface", "FL-INV-ROUTER", "Modify", "inventory subgraph contributes Product.storeContext.availableToSell.", "Fulfilment squad", "Approved"],
+    ["HLD-007", "REQ-01-01, REQ-01-02", "Interface", "FL-ROUTER-WEB", "Modify", "PDP query reads the store price label and stock.", "Web squad", "Approved"],
+    ["HLD-008", "REQ-01-03", "Application", "APP-03-CRTCK-01", "Modify", "Cart line keeps storeId and a unit-price snapshot.", "Cart squad", "Approved"],
+    ["HLD-009", "REQ-01-03", "Interface", "FL-WEB-ROUTER", "Modify", "addItemToCart sends storeId.", "Web squad", "Approved"],
+    ["HLD-010", "REQ-01-03", "Interface", "FL-ROUTER-CART", "Modify", "storeId routed to the cart subgraph.", "Cart squad", "Approved"],
+    ["HLD-011", "REQ-01-03", "Interface", "FL-PNP-CART", "Modify", "Line price looked up for the line's store and snapshotted.", "Cart squad", "Approved"],
+    ["HLD-012", "REQ-01-03", "Interface", "FL-CART-DB", "Modify", "Persist storeId on cart_items.", "Cart squad", "Approved"],
+    ["HLD-013", "REQ-02-01, REQ-02-02, REQ-02-03, REQ-02-04", "Application", "APP-03-CRTCK-02", "Modify", "Pickup fulfilment on the order and in the checkout saga.", "Checkout squad", "Approved"],
+    ["HLD-014", "REQ-02-01", "Interface", "FL-CHK-ROUTER", "Modify", "submitCheckout input gains fulfilment fields.", "Checkout squad", "Approved"],
+    ["HLD-015", "REQ-02-02", "Interface", "FL-CHK-INV", "Modify", "Reserve at the pickup store with a hold window.", "Checkout squad", "Approved"],
+    ["HLD-016", "REQ-02-03", "Interface", "FL-CHK-PAY", "No change", "Authorise amount unchanged: regression only.", "Payments squad", "Approved"],
+    ["HLD-017", "REQ-02-03", "Application", "APP-07-PAYMT-01", "No change", "No change to the payments API.", "Payments squad", "Approved"],
+    ["HLD-018", "REQ-02-04", "Interface", "FL-CHK-OUTBOX", "Modify", "order.placed.v1 gains pickupStoreId.", "Checkout squad", "Approved"],
+    ["HLD-019", "REQ-03-01", "Application", "APP-01-MSTDT-08", "Modify", "Supplier feed spec v3.", "Supplier onboarding", "Proposed"],
+    ["HLD-020", "REQ-03-01", "Interface", "FL-SUP-INT", "Modify", "Parse DIMENSIONS_MM; reject rows without weight.", "Product squad", "Proposed"],
+    ["HLD-021", "REQ-03-01, REQ-03-02", "Application", "APP-04-PRODT-03", "Modify", "product.ingested.v1 gains dimensions.", "Product squad", "Proposed"],
+    ["HLD-022", "REQ-03-02", "Interface", "FL-INT-PRD", "Modify", "Store dimensions on the product table.", "Product squad", "Proposed"],
+    ["HLD-023", "REQ-03-02", "Application", "APP-04-PRODT-01", "Modify", "product table, REST and subgraph expose weight and dimensions.", "Product squad", "Proposed"],
+    ["HLD-024", "REQ-03-02", "Interface", "FL-PRD-OUTBOX", "Modify", "product.updated.v1 gains weightGrams.", "Product squad", "Proposed"],
+    ["HLD-025", "REQ-03-03", "Interface", "FL-PRD-SEARCH", "Modify", "Index weightGrams.", "Search squad", "Proposed"],
+    ["HLD-026", "REQ-03-03", "Application", "APP-05-SRCHD-01", "Modify", "Numeric weight facet.", "Search squad", "Proposed"],
+    ["HLD-027", "REQ-04-01", "Application", "APP-02-DGEXP-06-02", "Modify", "Product screen uses Apollo Client and query ProductDetail.", "App squad", "Approved"],
+    ["HLD-028", "REQ-04-02", "Application", "APP-02-DGEXP-04", "Modify", "Remove the product-detail endpoint; other BFF endpoints stay.", "App squad", "Approved"],
+    ["HLD-029", "REQ-04-02", "Interface", "FL-BFF-APP", "Retire", "App no longer calls the BFF for the product screen.", "App squad", "Approved"],
+    ["HLD-030", "REQ-04-02", "Interface", "FL-PRD-BFF", "Retire", "BFF no longer calls the product REST API.", "App squad", "Approved"],
+    ["HLD-031", "REQ-04-03", "Interface", "FL-PRD-ROUTER", "No change", "Product subgraph → router: regression only.", "Product squad", "Approved"],
+    ["HLD-032", "REQ-04-01", "Interface", "FL-ROUTER-APP", "New", "FedGQL router → Retail App (GraphQL, Apollo Client). Register it in Data mapping.", "App squad", "Approved"],
+  ]);
+  let n = 0; const dd = (hld, t, id, ch, desc, reqs) => [`DD-${pad(++n, 4)}`, hld, reqs || "", t, id, ch, desc || "", "Draft"];
+  db.DetailDesign = rows("DetailDesign", [
+    dd("HLD-001", "Dataset", "UI-PDP", "Modify", "Store selector and stock badge", "REQ-01-01, REQ-01-02"),
+    dd("HLD-001", "Attribute", "UI-PDP#pdp.priceDisplay", "Modify", "Label “Price at <store>”", "REQ-01-01"),
+    dd("HLD-001", "Attribute", "UI-PDP#pdp.stockBadge", "New", "In stock / Low stock / Out of stock", "REQ-01-02"),
+    dd("HLD-001", "Attribute", "UI-PDP#pdp.selectedStoreId", "New", "Persisted in a cookie", "REQ-01-01, REQ-01-02"),
+    dd("HLD-001", "Attribute", "UI-ADD-TO-CART#storeId", "New", "", "REQ-01-03"),
+    dd("HLD-001", "Dataset", "UI-CHECKOUT", "New", "Checkout page: delivery / pickup choice and store picker", "REQ-02-01"),
+    dd("HLD-002", "Dataset", "ROUTER-PDP", "Modify", "storeContext by storeId; 300 ms budget", "REQ-01-01, REQ-01-02, REQ-01-04"),
+    dd("HLD-002", "Attribute", "ROUTER-PDP#product.storeContext.availableToSell", "New", "Resolved by the inventory subgraph", "REQ-01-02"),
+    dd("HLD-002", "Attribute", "ROUTER-ADD-TO-CART#input.storeId", "New", "", "REQ-01-03"),
+    dd("HLD-002", "Interface", "FL-CHK-ROUTER", "Modify", "submitCheckout input in the supergraph", "REQ-02-01"),
+    dd("HLD-002", "Interface", "FL-ROUTER-APP", "New", "Router serves the app's ProductDetail", "REQ-04-01"),
+    dd("HLD-003", "Dataset", "GQL-PNP", "No change"),
+    dd("HLD-004", "Dataset", "GQL-INVENTORY", "No change", "availableToSell already exposed", "REQ-01-02"),
+    dd("HLD-004", "Attribute", "REST-INVENTORY-RESERVE#holdUntil", "New", "Pickup hold expiry (48 h)", "REQ-02-02"),
+    dd("HLD-004", "Event", "EV-INVENTORY-RESERVED", "Modify", "Add optional holdUntil (BACKWARD)", "REQ-02-02"),
+    dd("HLD-004", "Attribute", "KFK-INVENTORY-RESERVED#holdUntil", "New", "", "REQ-02-02"),
+    dd("HLD-005", "Mapping", "MAP-144", "No change"),
+    dd("HLD-005", "Mapping", "MAP-145", "No change"),
+    dd("HLD-006", "Mapping", "GQL-INVENTORY#inventory.availableToSell -> ROUTER-PDP#product.storeContext.availableToSell", "New", "Direct, keyed by sku + storeId"),
+    dd("HLD-007", "Mapping", "MAP-101", "Modify", "Format “Price at {store}”"),
+    dd("HLD-007", "Mapping", "MAP-102", "No change"),
+    dd("HLD-007", "Mapping", "ROUTER-PDP#product.storeContext.availableToSell -> UI-PDP#pdp.stockBadge", "New", "Derive: >5 In stock, 1–5 Low, 0 Out"),
+    dd("HLD-008", "Attribute", "GQL-ADD-TO-CART#input.storeId", "New"),
+    dd("HLD-008", "Attribute", "DB-CART-ITEM#storeId", "New"),
+    dd("HLD-008", "Attribute", "DB-CART-ITEM#unitPrice", "New", "Price snapshot at add time"),
+    dd("HLD-009", "Mapping", "UI-ADD-TO-CART#storeId -> ROUTER-ADD-TO-CART#input.storeId", "New"),
+    dd("HLD-009", "Mapping", "MAP-115", "No change"),
+    dd("HLD-010", "Mapping", "ROUTER-ADD-TO-CART#input.storeId -> GQL-ADD-TO-CART#input.storeId", "New"),
+    dd("HLD-010", "Mapping", "MAP-118", "No change"),
+    dd("HLD-011", "Mapping", "MAP-198", "Modify", "Look up by the line's storeId instead of the default store"),
+    dd("HLD-011", "Mapping", "REST-PNP-GET#price.amount -> DB-CART-ITEM#unitPrice", "New", "Snapshot at add time"),
+    dd("HLD-012", "Mapping", "GQL-ADD-TO-CART#input.storeId -> DB-CART-ITEM#storeId", "New"),
+    dd("HLD-013", "Attribute", "GQL-SUBMIT-CHECKOUT#input.fulfilmentType", "New", "DELIVERY | PICKUP"),
+    dd("HLD-013", "Attribute", "GQL-SUBMIT-CHECKOUT#input.pickupStoreId", "New"),
+    dd("HLD-013", "Attribute", "DB-ORDER#fulfilment_type", "New"),
+    dd("HLD-013", "Attribute", "DB-ORDER#pickup_store_id", "New"),
+    dd("HLD-013", "Mapping", "GQL-SUBMIT-CHECKOUT#input.pickupStoreId -> DB-ORDER#pickup_store_id", "New"),
+    dd("HLD-014", "Interface", "FL-CHK-ROUTER", "Modify", "submitCheckout input gains fulfilmentType and pickupStoreId"),
+    dd("HLD-015", "Mapping", "DB-ORDER#pickup_store_id -> REST-INVENTORY-RESERVE#storeId", "New", "Reserve at the pickup store"),
+    dd("HLD-016", "Interface", "FL-CHK-PAY", "No change", "Regression"),
+    dd("HLD-017", "Dataset", "REST-PAYMENT", "No change"),
+    dd("HLD-018", "Event", "EV-ORDER-PLACED", "Modify", "Add optional pickupStoreId (BACKWARD)"),
+    dd("HLD-018", "Attribute", "KFK-ORDER-PLACED#pickupStoreId", "New"),
+    dd("HLD-018", "Mapping", "DB-ORDER#pickup_store_id -> KFK-ORDER-PLACED#pickupStoreId", "New"),
+    dd("HLD-018", "Mapping", "MAP-189", "No change"),
+    dd("HLD-019", "Attribute", "FILE-SUPPLIER#DIMENSIONS_MM", "New", "LxWxH in mm"),
+    dd("HLD-019", "Attribute", "FILE-SUPPLIER#SUPPLIER_TAX_ID", "Retire", "Dropped from feed v3"),
+    dd("HLD-020", "Mapping", "MAP-029", "Modify", "Reject rows without weight instead of defaulting"),
+    dd("HLD-020", "Mapping", "FILE-SUPPLIER#DIMENSIONS_MM -> KFK-PRODUCT-INGESTED#dimensions", "New", "Split into length / width / height"),
+    dd("HLD-021", "Event", "EV-PRODUCT-INGESTED", "Modify"),
+    dd("HLD-021", "Attribute", "KFK-PRODUCT-INGESTED#dimensions", "New"),
+    dd("HLD-022", "Mapping", "KFK-PRODUCT-INGESTED#dimensions -> DB-PRODUCT#dimensions_mm", "New"),
+    dd("HLD-022", "Mapping", "MAP-050", "No change"),
+    dd("HLD-023", "Attribute", "DB-PRODUCT#dimensions_mm", "New"),
+    dd("HLD-023", "Dataset", "REST-PRODUCT-GET", "Modify", "Expose weight and dimensions"),
+    dd("HLD-023", "Dataset", "GQL-PRODUCT", "Modify", "Expose weight and dimensions"),
+    dd("HLD-024", "Attribute", "KFK-PRODUCT-UPDATED#weightGrams", "New"),
+    dd("HLD-024", "Mapping", "DB-PRODUCT#weight_grams -> KFK-PRODUCT-UPDATED#weightGrams", "New"),
+    dd("HLD-024", "Event", "EV-PRODUCT-UPDATED", "Modify"),
+    dd("HLD-025", "Mapping", "KFK-PRODUCT-UPDATED#weightGrams -> SEARCH-PRODUCT#weightGrams", "New"),
+    dd("HLD-026", "Attribute", "SEARCH-PRODUCT#weightGrams", "New", "Numeric facet"),
+    dd("HLD-026", "Dataset", "SEARCH-PRODUCT", "Modify"),
+    dd("HLD-027", "Dataset", "UI-APP-PDP", "Modify", "Apollo Client query instead of fetch"),
+    dd("HLD-028", "Dataset", "BFF-PDP", "Retire", "GET /bff/product-detail/{sku} removed after cut-over"),
+    dd("HLD-029", "Interface", "FL-BFF-APP", "Retire"),
+    ...["MAP-109", "MAP-110", "MAP-111", "MAP-112", "MAP-113"].map(m => dd("HLD-029", "Mapping", m, "Retire")),
+    dd("HLD-030", "Interface", "FL-PRD-BFF", "Retire"),
+    ...["MAP-103", "MAP-104", "MAP-105", "MAP-106", "MAP-107", "MAP-108"].map(m => dd("HLD-030", "Mapping", m, "Retire")),
+    dd("HLD-031", "Mapping", "MAP-086", "No change"),
+    dd("HLD-031", "Mapping", "MAP-087", "No change"),
+    dd("HLD-031", "Mapping", "MAP-089", "No change"),
+    dd("HLD-032", "Mapping", "ROUTER-PDP#product.sku -> UI-APP-PDP#product.sku", "New", "Direct"),
+    dd("HLD-032", "Mapping", "ROUTER-PDP#product.title -> UI-APP-PDP#product.name", "New", "Direct"),
+    dd("HLD-032", "Mapping", "ROUTER-PDP#product.brand -> UI-APP-PDP#product.brand", "New", "Direct"),
+    dd("HLD-032", "Mapping", "ROUTER-PDP#product.imageUrl -> UI-APP-PDP#product.image", "New", "Direct"),
+    dd("HLD-032", "Mapping", "ROUTER-PDP#product.status -> UI-APP-PDP#product.canBuy", "New", "Derive: ACTIVE → true"),
+  ]);
+  return db;
+}
+
+/* ============================== BOOT ============================== */
+loadDM(); load(); if (!G.hlr && DB.HighLevelReqs.length) G.hlr = DB.HighLevelReqs[0].HLRID;
+wire(); setStatus(); renderDatalists(); showView("guide");
+</script>
+<script src="versions.js" defer></script>
+</body>
+</html>

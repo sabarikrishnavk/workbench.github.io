@@ -264,25 +264,27 @@
   <span class="status" id="fileName"></span>
   <span class="spacer"></span>
   <a class="btn" href="workbench.html" target="_blank" rel="noopener">GQL registry ↗</a>
-  <label class="btn" for="fileInput">Load .xlsx</label>
+  <label class="btn" for="fileInput" data-help="dm-load">Load .xlsx</label>
   <input type="file" id="fileInput" accept=".xlsx,.xls" />
-  <button id="exportBtn">Export .xlsx</button>
-  <button id="templateBtn">Template</button>
-  <button id="seedBtn">Load example</button>
-  <button class="danger" id="clearBtn">Clear</button>
-  <button id="helpBtn">❓ Help</button>
+  <button id="exportBtn" data-help="dm-load">Export .xlsx</button>
+  <button id="templateBtn" data-help="dm-load">Template</button>
+  <button id="seedBtn" data-help="dm-example" title="Load the retail example (samples/DataMappingRegistry-sample.xlsx)">Load example</button>
+  <button class="danger" id="clearBtn" data-help="dm-example">Clear</button>
+  <button id="helpBtn" title="Short in-page guide">ⓘ Quick guide</button>
+  <a class="btn help-link" href="help.html#data-mapping" target="_blank" rel="noopener" title="How to use the data mapping registry">❓ Help</a>
+  <a class="btn help-link" href="demo.html#dm" target="_blank" rel="noopener" title="Slide walkthrough of the features">▶ Demo</a>
 </header>
 
 <nav id="nav">
-  <button data-view="guide" class="active">Onboarding guide</button>
-  <button data-view="flows">Domains &amp; apps</button>
-  <button data-view="canvas">Mapping canvas</button>
-  <button data-view="registry">Registry</button>
-  <button data-view="lineage">Lineage</button>
-  <button data-view="events">Kafka &amp; schemas</button>
-  <button data-view="issues">Issues <span class="cnt" id="issueCnt" hidden></span></button>
+  <button data-view="guide" data-help="dm-guide" class="active">Onboarding guide</button>
+  <button data-view="flows" data-help="dm-flows">Domains &amp; apps</button>
+  <button data-view="canvas" data-help="dm-canvas">Mapping canvas</button>
+  <button data-view="registry" data-help="dm-registry">Registry</button>
+  <button data-view="lineage" data-help="dm-lineage">Lineage</button>
+  <button data-view="events" data-help="dm-events">Kafka &amp; schemas</button>
+  <button data-view="issues" data-help="dm-issues">Issues <span class="cnt" id="issueCnt" hidden></span></button>
   <span class="spacer"></span>
-  <button class="chrome-toggle" id="chromeToggle" title="Show / hide the toolbar: Load / Export / Template / Example / Clear / Help">▾ Toolbar</button>
+  <button class="chrome-toggle" id="chromeToggle" title="Show / hide the toolbar: Load / Export / Template / Example / Clear / Quick guide / Help / Demo">▾ Toolbar</button>
 </nav>
 
 <main>
@@ -396,7 +398,7 @@
     <div class="card">
       <h2>Domains &amp; applications</h2>
       <p class="desc"><b>Step 1:</b> register every application under its domain. A domain, orchestrator or integration service owns its REST <i>and</i> GraphQL API, its database and the Kafka events it produces, so it is one application, not one entry per endpoint. Front ends integrate only through the <b>BFF</b> (REST) or the <b>FedGQL router</b>. Core and third-party systems feed an <b>integration service</b> through an API, a Kafka event or a CSV file.</p>
-      <div class="toolbar-inline"><button class="primary" id="addDomain">+ Domain</button><button class="primary" id="addApp">+ Application</button><button id="addFlow">+ Flow</button><button id="idConv" title="Rename domains to DOM-<no>-<CODE> and applications to APP-<no>-<CODE>-<type no>; every reference is updated">Apply ID convention</button></div>
+      <div class="toolbar-inline"><button class="primary" id="addDomain">+ Domain</button><button class="primary" id="addApp">+ Application</button><button id="addFlow">+ Flow</button><button id="idConv" data-help="dm-flows" title="Rename domains to DOM-<no>-<CODE> and applications to APP-<no>-<CODE>-<type no>; every reference is updated">Apply ID convention</button></div>
       <div class="kpis" id="flKpis"></div>
       <div class="dom-grid" id="domGrid"></div>
     </div>
@@ -478,6 +480,8 @@ const APP_KINDS = {
   "Core system": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP API", "Kafka Event"],
   "Third party": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP API", "Kafka Event"],
 };
+// Kind used by the ownership rule: a GraphQL HTTP Request / Response is one direction of an HTTP API call.
+const ruleKind = d => /^HTTP (Request|Response)$/.test(KN(d.Kind)) ? "HTTP API" : KN(d.Kind);
 const DS_KINDS = ["01-DB Table", "02-DB Collection", "03-CSV Schema", "04-JSON Schema", "05-Kafka Event", "06-HTTP API", "07-GQL Type", "08-MDM Entity", "09-PIM Entity", "10-ERP Object", "11-Search Index", "12-UI Component", "13-UI Form", "14-Databricks Table", "15-Other"];
 // Older kinds, converted on load: [new kind, style, GraphQL operation type]. REST request / response
 // datasets merge into one HTTP API dataset; GraphQL query / mutation keep their per-direction kinds.
@@ -551,7 +555,9 @@ function emptyDB() { const d = {}; DM_ORDER.forEach(s => d[s] = []); return d; }
 function ensureIds(db) {
   DM_ORDER.forEach(s => { db[s] = db[s] || []; db[s].forEach(r => { if (!r._id) r._id = uid(); }); });
   // numbered Kinds / AppTypes (older workbooks used the plain names), two-digit DomainNo, upper-case codes
+  const respIds = new Set(db.Datasets.filter(d => KN(d.Kind) === "REST Response").map(d => d.DatasetID));   // legacy REST response: its fields are response fields of the merged HTTP API
   db.Datasets.forEach(d => { migrateKind(d); d.Kind = withSeq(DS_KINDS, d.Kind); });
+  db.Attributes.forEach(a => { if (respIds.has(a.DatasetID) && !(a.Spec && a.Spec.In)) a.Spec = Object.assign({}, a.Spec, { In: "response" }); });
   db.Applications.forEach(a => a.AppType = withSeq(APP_TYPES, a.AppType));
   db.Domains.forEach(d => { if (/^\d+$/.test(String(d.DomainNo || "").trim())) d.DomainNo = pad2(d.DomainNo); d.Code = String(d.Code || "").trim().toUpperCase(); });
   return db;
@@ -669,7 +675,7 @@ function issues() {
     const app = appById(d.AppID);
     if (!S(d.AppID)) add("warning", "Datasets", d, `"${dsLabel(d)}" has no owning application`, { ds: d.DatasetID });
     else if (!app) add("error", "Datasets", d, `Unknown AppID "${d.AppID}"`, { ds: d.DatasetID });
-    else if (APP_KINDS[KN(app.AppType)] && KN(d.Kind) && !APP_KINDS[KN(app.AppType)].includes(KN(d.Kind))) add("warning", "Datasets", d, `"${dsLabel(d)}": a ${KN(app.AppType)} (${app.Name}) should not own ${KN(d.Kind)} datasets; expected ${APP_KINDS[KN(app.AppType)].join(", ")}`, { ds: d.DatasetID });
+    else if (APP_KINDS[KN(app.AppType)] && KN(d.Kind) && !APP_KINDS[KN(app.AppType)].includes(ruleKind(d))) add("warning", "Datasets", d, `"${dsLabel(d)}": a ${KN(app.AppType)} (${app.Name}) should not own ${KN(d.Kind)} datasets; expected ${APP_KINDS[KN(app.AppType)].join(", ")}`, { ds: d.DatasetID });
     if (KN(d.Kind) === "Kafka Event" && !DB.Events.some(e => e.DatasetID === d.DatasetID)) add("warning", "Datasets", d, `Kafka dataset "${dsLabel(d)}" has no Events row (topic / subject / compatibility)`, { ds: d.DatasetID });
     if (!attrsOf(d.DatasetID).length) add("info", "Datasets", d, `"${dsLabel(d)}" has no attributes`, { ds: d.DatasetID });
   }
@@ -1882,7 +1888,10 @@ function openModal(html) { const c = document.getElementById("modalCard"); c.cla
 function closeModal() { document.getElementById("modal").hidden = true; }
 function helpHTML() {
   return `<h2>Data Mapping Registry: how to use it</h2>
-  <p>One Excel workbook (<code>DataMappingRegistry.xlsx</code>) records how each business attribute moves between applications, layer by layer. Everything runs in the browser and is cached in local storage. The workbook is the copy you share.</p>
+  <p>One Excel workbook (<code>DataMappingRegistry.xlsx</code>) records how each business attribute moves between applications, layer by layer. Everything runs in the browser and is cached in local storage. The workbook is the copy you share. Full documentation: <a href="help.html#data-mapping" target="_blank" rel="noopener">Help → Data mapping</a> · <a href="demo.html#dm" target="_blank" rel="noopener">slides</a>.</p>
+  <h3>Samples</h3>
+  <ul><li><b>Load example</b> or <code>samples/DataMappingRegistry-sample.xlsx</code>: the retail product, cart and checkout flow from MDM / PIM / supplier CSV to the web and the app.</li>
+  <li><code>samples/DataMappingRegistry-FCC-sample.xlsx</code>: cart &amp; checkout on Flipkart Commerce Cloud (FCC Transact API). <a href="help.html#dm-samples" target="_blank" rel="noopener">What's in it</a>.</li></ul>
   <h3>Onboarding guide</h3>
   <ul><li>The <b>Onboarding guide</b> tab walks one domain and one business application at a time: domain &amp; business terms → business application → datasets and their types (DB table / collection, CSV, JSON, Kafka event, REST, GQL, MDM / PIM / ERP, UI) → attributes tagged with terms → integration mapping with applications in any domain → lineage → export schemas and save as Excel (.xlsx) and Markdown (.md).</li>
   <li><b>Dataset details by type:</b> adding a dataset in step 3 (or <b>✎ Details</b>) opens a dialog shaped by its type: an HTTP request / response as a REST operation (OpenAPI) or a GraphQL operation (SDL), a GraphQL type, ER columns (PK, FK, not null, default) for DB tables and collections, an Avro record plus the Databricks StructType for Kafka events, a Delta table for Databricks and columns for CSV / JSON files. Its <b>Source</b> tab edits the same thing as GraphQL SDL, OpenAPI YAML, SQL DDL, MongoDB $jsonSchema, Avro JSON, Databricks SQL or YAML: paste one and click <i>Apply to fields</i>.</li>
@@ -1893,6 +1902,7 @@ function helpHTML() {
   <ul><li>Every application belongs to one <b>domain</b> and has a numbered <b>AppType</b>: 01-Domain service, 02-Orchestrator service, 03-Integration service, 04-BFF, 05-FedGQL router, 06-Frontend, 07-Core system or 08-Third party.</li>
   <li><b>IDs:</b> a domain has a two-digit number and a unique 5-letter code, giving <code>DOM-04-PRODT</code>. Its applications are <code>APP-04-PRODT-&lt;type no&gt;</code>, so <code>APP-04-PRODT-01</code> is the Product domain service and <code>APP-04-PRODT-03</code> its integration service; a second app of the same type gets <code>-02</code>. New apps get their ID automatically, IDs follow domain / type changes, and <b>Apply ID convention</b> renames older IDs (every reference is updated).</li>
   <li><b>Registry → By application</b> lists an application's datasets grouped by numbered Kind (01-DB Table … 17-Other), each with its attributes and Kafka event registration, all editable in place.</li>
+  <li>A REST endpoint is one <b>HTTP API</b> dataset (request + response); a GraphQL call is an <b>HTTP Request</b> / <b>HTTP Response</b> dataset, which counts as an HTTP API of its owner in the ownership checks.</li>
   <li>A domain, orchestrator or integration service is <b>one application</b> that owns its REST <i>and</i> GraphQL (subgraph) API, its database and the Kafka events it produces. You don't register each endpoint as a separate system; each endpoint is a dataset of the service.</li>
   <li><b>Integration service:</b> core systems (MDM / PIM / ERP) and third parties reach it through a <b>REST API</b>, a <b>Kafka event</b> or a <b>File (CSV)</b>. It typically publishes a canonical Kafka event for domain services.</li>
   <li><b>Domain service:</b> its REST / GraphQL API maps to its own database schema (an Internal flow), and it publishes or consumes <b>Kafka events</b>.</li>
@@ -2129,6 +2139,8 @@ function exampleDB() {
     ["product.brand", "String", "N", "Public", "BT-BRAND-NAME", "", ""],
     ["product.status", "ProductStatus!", "Y", "Public", "BT-STATUS", "", ""],
     ["product.color", "String", "N", "Public", "BT-COLOR", "", ""],
+    ["product.storeContext.price.amount", "Money!", "Y", "Public", "BT-PRICE", "", "pnp subgraph: Product.storeContext(storeId)"],
+    ["product.storeContext.price.currency", "String!", "Y", "Public", "BT-CURRENCY", "", "pnp subgraph"],
   ]);
   DS("UI-PDP", "APP-02-DGEXP-06", "Product detail page (PDP)", "15-UI Component", "/p/[sku] — <ProductDetail/>", "JSX props", "1", "Props the web PDP renders.");
   A("UI-PDP", [
@@ -2140,7 +2152,7 @@ function exampleDB() {
     ["pdp.brandLabel", "string", "N", "Public", "BT-BRAND-NAME", "NIKE", ""],
     ["pdp.colorSwatch", "string", "N", "Public", "BT-COLOR", "#111111", "Design-token colour"],
     ["pdp.isPurchasable", "boolean", "Y", "Public", "BT-PURCHASABLE", "", "Enables Add to cart"],
-    ["pdp.priceDisplay", "string", "Y", "Public", "", "$189.99", "From the pnp subgraph — not mapped yet"],
+    ["pdp.priceDisplay", "string", "Y", "Public", "BT-PRICE", "$189.99", "Store price from the pnp subgraph"],
   ]);
   DS("BFF-PDP", "APP-02-DGEXP-04", "GET /bff/product-detail/{sku} — response", "07-REST Response", "GET /bff/product-detail/{sku}", "JSON", "1", "Screen-shaped product detail for the app (samples/bff-openapi.yaml).");
   A("BFF-PDP", [
@@ -2297,23 +2309,23 @@ function exampleDB() {
   A("DB-PAYMENT", [
     ["id", "UUID", "Y", "Internal", "BT-PAYMENT-ID", "", "PK"],
     ["reference_id", "VARCHAR(40)", "Y", "Internal", "BT-REFERENCE-ID", "", "Order / checkout session id"],
-    ["amount", "NUMERIC(12,2)", "Y", "Confidential", "BT-AMOUNT", "209.98", ""],
+    ["amount", "NUMERIC(12,2)", "Y", "Internal", "BT-AMOUNT", "209.98", ""],
     ["currency", "CHAR(3)", "Y", "Public", "BT-CURRENCY", "USD", ""],
     ["status", "VARCHAR(10)", "Y", "Internal", "BT-PAYMENT-STATUS", "SUCCESS|FAILED|DECLINED", ""],
-    ["gateway_reference", "VARCHAR(64)", "Y", "Confidential", "", "", "PSP reference"],
+    ["gateway_reference", "VARCHAR(64)", "Y", "Internal", "", "", "PSP reference"],
     ["created_at", "TIMESTAMPTZ", "Y", "Internal", "BT-UPDATED", "", ""],
   ]);
   DS("REST-PAYMENT", "APP-07-PAYMT-01", "POST /payments — response", "07-REST Response", "POST /v1/payments", "JSON", "1.2", "Payments REST API, called by the checkout orchestrator (samples/subgraph/payments/openapi.yaml).");
   A("REST-PAYMENT", [
     ["id", "string", "Y", "Internal", "BT-PAYMENT-ID", "", ""],
     ["status", "enum", "Y", "Internal", "BT-PAYMENT-STATUS", "SUCCESS|FAILED|DECLINED", ""],
-    ["gatewayReference", "string", "Y", "Confidential", "", "", ""],
-    ["amount", "decimal", "Y", "Confidential", "BT-AMOUNT", "209.98", ""],
+    ["gatewayReference", "string", "Y", "Internal", "", "", ""],
+    ["amount", "decimal", "Y", "Internal", "BT-AMOUNT", "209.98", ""],
     ["currency", "string", "Y", "Public", "BT-CURRENCY", "USD", ""],
   ]);
   DS("GQL-PAYMENT", "APP-07-PAYMT-01", "payments subgraph: mutation processPayment", "09-GQL Mutation", "processPayment(input: ProcessPaymentInput!): PaymentTransaction!", "GraphQL", "1", "Payments subgraph (samples/subgraph/payments/subgraph.gql).");
   A("GQL-PAYMENT", [
-    ["input.amount", "Money!", "Y", "Confidential", "BT-AMOUNT", "", ""],
+    ["input.amount", "Money!", "Y", "Internal", "BT-AMOUNT", "", ""],
     ["input.currency", "String!", "Y", "Public", "BT-CURRENCY", "USD", ""],
     ["input.paymentMethodId", "String!", "Y", "Confidential", "BT-PAYMENT-METHOD", "", ""],
     ["input.referenceId", "ID!", "Y", "Internal", "BT-REFERENCE-ID", "", "Pending order id"],
@@ -2324,10 +2336,10 @@ function exampleDB() {
     ["occurredAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", ""],
     ["transactionId", "string", "Y", "Internal", "BT-PAYMENT-ID", "", "Message key"],
     ["referenceId", "string", "Y", "Internal", "BT-REFERENCE-ID", "", ""],
-    ["amount", "decimal", "Y", "Confidential", "BT-AMOUNT", "", ""],
+    ["amount", "decimal", "Y", "Internal", "BT-AMOUNT", "", ""],
     ["currency", "string", "Y", "Public", "BT-CURRENCY", "", ""],
     ["status", "enum", "Y", "Internal", "BT-PAYMENT-STATUS", "SUCCESS|FAILED|DECLINED", ""],
-    ["gatewayReference", "string", "Y", "Confidential", "", "", ""],
+    ["gatewayReference", "string", "Y", "Internal", "", "", ""],
   ]);
 
   // ---- Checkout (checkout subgraph): orchestrator ----
@@ -2336,7 +2348,7 @@ function exampleDB() {
     ["id", "UUID", "Y", "Internal", "BT-ORDER-ID", "", "PK"],
     ["cart_id", "VARCHAR(40)", "Y", "Internal", "BT-CART-ID", "", ""],
     ["status", "VARCHAR(10)", "Y", "Internal", "BT-ORDER-STATUS", "PENDING|PLACED|FAILED", ""],
-    ["total_paid", "NUMERIC(12,2)", "Y", "Confidential", "BT-AMOUNT", "209.98", ""],
+    ["total_paid", "NUMERIC(12,2)", "Y", "Internal", "BT-AMOUNT", "209.98", ""],
     ["currency", "CHAR(3)", "Y", "Public", "BT-CURRENCY", "USD", ""],
     ["payment_transaction_id", "UUID", "N", "Internal", "BT-PAYMENT-ID", "", ""],
     ["created_at", "TIMESTAMPTZ", "Y", "Internal", "BT-UPDATED", "", ""],
@@ -2351,7 +2363,7 @@ function exampleDB() {
   A("GQL-ORDER", [
     ["order.id", "ID!", "Y", "Internal", "BT-ORDER-ID", "", "@key"],
     ["order.status", "OrderStatus!", "Y", "Internal", "BT-ORDER-STATUS", "", ""],
-    ["order.totalPaid", "Money!", "Y", "Confidential", "BT-AMOUNT", "", ""],
+    ["order.totalPaid", "Money!", "Y", "Internal", "BT-AMOUNT", "", ""],
     ["order.paymentTransaction.id", "ID", "N", "Internal", "BT-PAYMENT-ID", "", "Resolved by the payments subgraph"],
   ]);
   DS("KFK-ORDER-PLACED", "APP-03-CRTCK-02", "order.placed.v1", "05-Kafka Event", "order.placed.v1", "Avro", "1", "Published by the Checkout Service when the saga completes (samples/subgraph/checkout/order.placed.v1.avsc).");
@@ -2360,7 +2372,7 @@ function exampleDB() {
     ["occurredAt", "timestamp", "Y", "Internal", "BT-UPDATED", "", ""],
     ["orderId", "string", "Y", "Internal", "BT-ORDER-ID", "", "Message key"],
     ["cartId", "string", "Y", "Internal", "BT-CART-ID", "", ""],
-    ["totalPaid", "decimal", "Y", "Confidential", "BT-AMOUNT", "", ""],
+    ["totalPaid", "decimal", "Y", "Internal", "BT-AMOUNT", "", ""],
     ["currency", "string", "Y", "Public", "BT-CURRENCY", "", ""],
     ["status", "enum", "Y", "Internal", "BT-ORDER-STATUS", "PENDING|PLACED|FAILED", ""],
     ["paymentTransactionId", "string", "N", "Internal", "BT-PAYMENT-ID", "", ""],
@@ -2451,6 +2463,7 @@ function exampleDB() {
   FL("FL-CHK-INV", "Checkout → Inventory REST (saga step 2)", "APP-03-CRTCK-02", "APP-06-INVTY-01", "REST API", "Internal HTTP client", "On checkout", "Orchestrator reserves stock per line over REST.");
   FL("FL-CHK-PAY", "Checkout → Payments REST (saga step 4)", "APP-03-CRTCK-02", "APP-07-PAYMT-01", "REST API", "Internal HTTP client", "On checkout", "Orchestrator authorises + captures payment over REST.");
   // cart reads + search
+  FL("FL-PNP-CART", "pnp REST API → Cart Service (line prices)", "APP-04-PRODT-01-02", "APP-03-CRTCK-01", "REST API", "Internal HTTP client", "On cart read", "Cart prices each line at read time from the store price (REST, never GQL→GQL).");
   FL("FL-CART-REST", "cart_items → cart REST API", "APP-03-CRTCK-01", "APP-03-CRTCK-01", "Internal", "Mongoose", "On request", "Document → REST DTO.");
   FL("FL-CART-GQL", "cart_items → cart subgraph (read)", "APP-03-CRTCK-01", "APP-03-CRTCK-01", "Internal", "Apollo resolvers", "On request", "Document → GraphQL type.");
   FL("FL-CART-ROUTER", "cart subgraph → FedGQL router", "APP-03-CRTCK-01", "APP-02-DGEXP-05", "GraphQL", "Federation 2 composition", "On request", "Router fetches cart reads from the cart subgraph.");
@@ -2585,6 +2598,8 @@ function exampleDB() {
     ["product.brand", "pdp.brandLabel", "Format", "toUpperCase()"],
     ["product.color", "pdp.colorSwatch", "Lookup", "colour name → design token hex"],
     ["product.status", "pdp.isPurchasable", "Derive", "status === 'ACTIVE'"],
+    ["product.storeContext.price.amount", "pdp.priceDisplay", "Format", "Intl.NumberFormat(locale, { style: 'currency', currency })"],
+    ["product.storeContext.price.currency", "pdp.priceDisplay", "Format", "currency of the formatter"],
   ]);
   M("FL-PRD-BFF", "REST-PRODUCT-GET", "BFF-PDP", [
     ["sku", "sku", "Direct"],
@@ -2639,6 +2654,9 @@ function exampleDB() {
     ["", "eventId", "Generate", "UUID v4 (outbox id)"], ["updated_at", "occurredAt", "Type cast", "TIMESTAMPTZ → epoch millis"],
     ["sku", "sku", "Direct"], ["store_id", "storeId", "Rename"], ["amount", "amount", "Direct"], ["currency", "currency", "Direct"],
   ]);
+  M("FL-PNP-ROUTER", "GQL-PNP", "ROUTER-PDP", [
+    ["productStoreContext.price.amount", "product.storeContext.price.amount", "Direct"], ["productStoreContext.price.currency", "product.storeContext.price.currency", "Direct"],
+  ]);
   // inventory lineage
   M("FL-INV-REST", "DB-INVENTORY", "REST-INVENTORY-GET", [
     ["sku", "sku", "Direct"], ["store_id", "storeId", "Rename"], ["on_hand", "onHand", "Rename"], ["reserved", "reserved", "Direct"], ["available_to_sell", "availableToSell", "Rename"],
@@ -2655,6 +2673,7 @@ function exampleDB() {
   M("FL-INV-OUTBOX", "DB-INVENTORY", "KFK-INVENTORY-RESERVED", [
     ["", "eventId", "Generate", "UUID v4"], ["", "reservationId", "Generate", "reservation id"], ["updated_at", "occurredAt", "Type cast", "→ epoch millis"],
     ["sku", "sku", "Direct"], ["store_id", "storeId", "Rename"], ["reserved", "quantity", "Derive", "reserved delta on this change"], ["available_to_sell", "availableToSell", "Rename"],
+    ["", "status", "Derive", "reserved ↑ → RESERVED; reserved ↓ with on_hand unchanged → RELEASED; reserved ↓ with on_hand ↓ → COMMITTED"],
   ]);
   // payments lineage
   M("FL-PAY-REST", "DB-PAYMENT", "REST-PAYMENT", [
@@ -2676,15 +2695,22 @@ function exampleDB() {
   M("FL-CART-REST", "DB-CART-ITEM", "REST-CART-GET", [
     ["cartId", "id", "Rename"], ["sku", "items[].sku", "Direct"], ["quantity", "items[].quantity", "Direct"],
   ]);
+  M("FL-PNP-CART", "REST-PNP-GET", "REST-CART-GET", [
+    ["price.amount", "items[].unitPrice", "Direct", "per line, for the cart's store"], ["price.amount", "totalAmount", "Aggregate", "sum(unitPrice × quantity)"],
+  ]);
+  M("FL-PNP-CART", "REST-PNP-GET", "GQL-CART", [
+    ["price.amount", "cart.items[].unitPrice", "Type cast", "decimal → Money, per line"], ["price.amount", "cart.totalAmount", "Aggregate", "sum(unitPrice × quantity) → Money"],
+  ]);
   M("FL-CART-GQL", "DB-CART-ITEM", "GQL-CART", [
     ["cartId", "cart.id", "Rename"], ["sku", "cart.items[].product.sku", "Direct"], ["quantity", "cart.items[].quantity", "Direct"],
   ]);
   // search lineage
   M("FL-SRCH-REST", "SEARCH-PRODUCT", "REST-SEARCH", [
-    ["objectID", "hits[].sku", "Direct"], ["name", "hits[].name", "Direct"],
+    ["objectID", "hits[].sku", "Direct"], ["name", "hits[].name", "Direct"], ["objectID", "totalCount", "Aggregate", "hits.total.value (documents matching the query)"],
   ], "Proposed");
   M("FL-SRCH-GQL", "SEARCH-PRODUCT", "GQL-SEARCH", [
-    ["objectID", "searchProducts.hits[].sku", "Direct"],
+    ["objectID", "searchProducts.hits[].sku", "Direct"], ["objectID", "searchProducts.totalCount", "Aggregate", "hits.total.value (documents matching the query)"],
+    ["brand", "searchProducts.facets[].field", "Derive", "one facet per terms aggregation: 'brand'"],
   ], "Proposed");
   M("FL-SRCH-OUTBOX", "SEARCH-PRODUCT", "KFK-SEARCH-INDEXED", [
     ["", "eventId", "Generate", "UUID v4"], ["indexedAt", "occurredAt", "Direct"],
@@ -2727,7 +2753,7 @@ function exampleDB() {
   BT("BT-STOCK", "Stock quantity", "Inventory", "A stock count at a store: on hand, reserved or available to sell.", "int", "APP-06-INVTY-01", "Fulfilment owner", "Internal");
   BT("BT-RESERVATION-ID", "Reservation ID", "Inventory", "Idempotency key of a stock reservation (usually the pending order id).", "uuid", "APP-06-INVTY-01", "Fulfilment owner", "Internal");
   BT("BT-RESERVATION-STATUS", "Reservation status", "Inventory", "Lifecycle of a stock reservation: RESERVED, RELEASED, COMMITTED.", "enum", "APP-06-INVTY-01", "Fulfilment owner", "Internal");
-  BT("BT-AMOUNT", "Monetary amount", "Payments", "A monetary amount (Money) with a currency.", "decimal", "APP-07-PAYMT-01", "Payments owner", "Confidential");
+  BT("BT-AMOUNT", "Monetary amount", "Payments", "A monetary amount (Money) with a currency.", "decimal", "APP-07-PAYMT-01", "Payments owner", "Internal");
   BT("BT-PAYMENT-ID", "Payment transaction ID", "Payments", "Identifier of a payment transaction.", "uuid", "APP-07-PAYMT-01", "Payments owner", "Internal");
   BT("BT-PAYMENT-STATUS", "Payment status", "Payments", "Outcome of a payment: SUCCESS, FAILED, DECLINED.", "enum", "APP-07-PAYMT-01", "Payments owner", "Internal");
   BT("BT-PAYMENT-METHOD", "Payment method ID", "Payments", "Tokenised payment method reference.", "string", "APP-07-PAYMT-01", "Payments owner", "Confidential");

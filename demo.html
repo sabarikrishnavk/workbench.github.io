@@ -450,7 +450,54 @@
   <div class="foot"><span>14</span><span class="sp"></span><a href="subgraph-codemigration.html">Open</a><a href="help.html#code-bff">Help</a></div>
 </section>
 
-<!-- 15 · Samples -->
+<!-- 15 · Data mapping -->
+<section class="slide" data-id="dm">
+  <div class="kicker">Data mapping · data-mapping.html</div>
+  <h2>Trace every attribute from core system to screen</h2>
+  <div class="flow">
+    <div class="node"><h3>Core &amp; third party</h3><p>MDM, PIM, ERP, supplier files, SaaS APIs.</p></div>
+    <div class="arrow">→</div>
+    <div class="node"><h3>Integration</h3><p>REST, Kafka or CSV into an integration service; canonical Kafka events out.</p></div>
+    <div class="arrow">→</div>
+    <div class="node hi"><h3>Services</h3><p>Each owns its table, REST API, subgraph and events.</p></div>
+    <div class="arrow">→</div>
+    <div class="node"><h3>Edge &amp; UI</h3><p>FedGQL router → web, BFF → app.</p></div>
+  </div>
+  <ul class="pts" style="margin-top:28px">
+    <li>One workbook, <code>DataMappingRegistry.xlsx</code>: domains, applications, datasets, attributes, <b>source → target mappings</b> with transformations, flows, Kafka events and a business glossary.</li>
+    <li><b>Mapping canvas</b>: drag a port onto an attribute to map it; focus on a flow, a term or an application; ✨ Auto-map suggests drafts.</li>
+    <li><b>Lineage</b> by business term (core → UI coverage), a <b>Kafka catalog</b>, and generated Avro / JSON Schema / SDL / DDL / TypeScript.</li>
+    <li><b>Issues</b> enforce the architecture: front ends only via the BFF or router, core data only via integration services, PII masked before it leaves.</li>
+  </ul>
+  <div class="foot"><span>15</span><span class="sp"></span><a href="data-mapping.html">Open</a><a href="help.html#data-mapping">Help</a></div>
+</section>
+
+<!-- 16 · Data mapping: FCC sample -->
+<section class="slide" data-id="dm-fcc">
+  <div class="kicker">Data mapping · samples/DataMappingRegistry-FCC-sample.xlsx</div>
+  <h2>Cart &amp; checkout on Flipkart Commerce Cloud</h2>
+  <div class="cols">
+    <ul class="pts">
+      <li><b>PDP → cart</b>: the SKU's FCC <code>listingId</code> rides from the Product Service to the add-to-cart form.</li>
+      <li>The <b>Commerce Orchestrator</b> owns the commerce subgraph and calls the FCC Transact REST API with the five FCC headers.</li>
+      <li><b>placeOrder</b> is a saga: Initiate Checkout (soft reservation) → Initiate Payment (order id) → Create Order (pending / approved).</li>
+      <li>The <b>FCC Order Bridge</b> turns FCC's payment webhook + Get Checkout into <code>order.created.v1</code> for the Order Service.</li>
+      <li>FCC bodies are modelled from the public docs and marked <i>Proposed</i>.</li>
+    </ul>
+    <div class="win"><div class="body seq">
+      <div class="lane"><span class="actor">Web</span><span class="actor">Router</span><span class="actor">Orchestrator</span><span class="actor">FCC</span><span class="actor">Bridge → OMS</span></div>
+      <div class="lane"><span></span><span class="msg" style="grid-column:2/4">① addToCart(input)</span></div>
+      <div class="lane"><span></span><span class="msg" style="grid-column:3/5;margin-left:20%">② POST /v1/cart · /v1/cart/{id}/items</span></div>
+      <div class="lane"><span></span><span class="msg" style="grid-column:2/4">③ placeOrder(input)</span></div>
+      <div class="lane"><span></span><span class="msg" style="grid-column:3/5;margin-left:20%">④ /v1/checkout → /payments → /order</span></div>
+      <div class="lane"><span></span><span class="msg" style="grid-column:4/6;margin-left:20%">⑤ webhook · GET /v1/checkout/{id}</span></div>
+      <div class="lane"><span></span><span class="msg" style="grid-column:4/6;margin-left:40%">⑥ order.created.v1</span></div>
+    </div></div>
+  </div>
+  <div class="foot"><span>16</span><span class="sp"></span><a href="data-mapping.html">Open</a><a href="help.html#dm-samples">Help</a></div>
+</section>
+
+<!-- 17 · Samples -->
 <section class="slide" data-id="samples">
   <div class="kicker">samples/</div>
   <h2>A complete retail example to practise on</h2>
@@ -467,11 +514,12 @@
   <ul class="pts" style="margin-top:24px">
     <li><code>subgraph/&lt;name&gt;/subgraph.gql</code> (target) and <code>openapi.yaml</code> (the service's current REST API) for each subgraph. All seven compose into a valid supergraph.</li>
     <li><code>mono-graph.gql</code>, <code>bff-openapi.yaml</code>, <code>GQLRegistry-sample.xlsx</code> (with pre-mapped BFF endpoints) and reference query/mutation + Mermaid files.</li>
+    <li><code>DataMappingRegistry-sample.xlsx</code> (the same retail flow, attribute by attribute) and <code>DataMappingRegistry-FCC-sample.xlsx</code> (cart &amp; checkout on Flipkart Commerce Cloud) for <a href="data-mapping.html">Data mapping</a>.</li>
   </ul>
-  <div class="foot"><span>15</span><span class="sp"></span><a href="help.html#try-samples">Help: try the samples</a></div>
+  <div class="foot"><span>17</span><span class="sp"></span><a href="help.html#try-samples">Help: try the samples</a></div>
 </section>
 
-<!-- 16 · Get started -->
+<!-- 18 · Get started -->
 <section class="slide" data-id="start">
   <div class="kicker">Get started</div>
   <h2>End to end in eight steps</h2>
@@ -485,7 +533,7 @@
     <li>Export, or <b>Save &amp; push</b> to SharePoint or Drive.</li>
     <li><b>Code migration</b>: generate the REST/BFF → FedGQL code.</li>
   </ol>
-  <div class="foot"><span>16</span><span class="sp"></span><a href="index.html">Home</a><a href="workbench.html">Open workbench</a><a href="help.html#quick-start">Step-by-step help</a></div>
+  <div class="foot"><span>18</span><span class="sp"></span><a href="index.html">Home</a><a href="workbench.html">Open workbench</a><a href="help.html#quick-start">Step-by-step help</a></div>
 </section>
 
 </div></div>
@@ -506,7 +554,7 @@
 const slides = [...document.querySelectorAll(".slide")];
 const stage = document.getElementById("stage");
 let cur = 0;
-// Deep links: #mig / #code (used by the tools' Demo buttons) or #<n>.
+// Deep links: #mig / #code / #dm (used by the tools' Demo buttons) or #<n>.
 function fromHash() {
   const h = decodeURIComponent(location.hash.slice(1));
   if (!h) return 0;

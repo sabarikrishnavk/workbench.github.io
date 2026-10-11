@@ -60,6 +60,7 @@
   <a class="btn" href="workbench.html">Registry workbench</a>
   <a class="btn" href="gql-migration.html">GQL migration</a>
   <a class="btn" href="subgraph-codemigration.html">Code migration</a>
+  <a class="btn" href="data-mapping.html">Data mapping</a>
   <a class="btn" href="demo.html">▶ Demo</a>
 </header>
 
@@ -97,6 +98,17 @@
   <a class="sub" href="#code-single">Single op</a>
   <a class="sub" href="#code-bff">BFF composite</a>
   <a class="sub" href="#code-export">Export BFF mappings</a>
+  <a class="grp" href="#data-mapping">Data mapping</a>
+  <a class="sub" href="#dm-load">Load / Export / Template</a>
+  <a class="sub" href="#dm-samples">Samples (retail · FCC)</a>
+  <a class="sub" href="#dm-guide">Onboarding guide</a>
+  <a class="sub" href="#dm-flows">Domains &amp; apps</a>
+  <a class="sub" href="#dm-canvas">Mapping canvas</a>
+  <a class="sub" href="#dm-registry">Registry</a>
+  <a class="sub" href="#dm-datasets">Dataset types &amp; HTTP APIs</a>
+  <a class="sub" href="#dm-lineage">Lineage</a>
+  <a class="sub" href="#dm-events">Kafka &amp; schemas</a>
+  <a class="sub" href="#dm-issues">Issues &amp; architecture rules</a>
   <a class="grp" href="#faq">FAQ &amp; troubleshooting</a>
 </nav>
 
@@ -119,6 +131,7 @@
         <tr><td><a href="#workbench">Registry workbench</a></td><td><code>workbench.html</code></td><td>Maintain the registry of entities, schema types, queries, mutations and auth scopes. Validate them against the schema standards, view the federated graph, and sync the workbook with SharePoint or Google Drive.</td></tr>
         <tr><td><a href="#migration">GQL migration</a></td><td><code>gql-migration.html</code></td><td>Turn a subgraph service's OpenAPI spec (and the MonoGraph schema) into registry rows for one entity, review them, and copy the approved ones into the registry.</td></tr>
         <tr><td><a href="#code-migration">Code migration</a></td><td><code>subgraph-codemigration.html</code></td><td>Map REST operations or composite BFF endpoints to FedGQL operations and generate client and server code.</td></tr>
+        <tr><td><a href="#data-mapping">Data mapping</a></td><td><code>data-mapping.html</code></td><td>Trace each business attribute from core systems and third parties through Kafka, service data and REST / GraphQL APIs to the UI, in its own workbook, <code>DataMappingRegistry.xlsx</code>.</td></tr>
       </tbody>
     </table>
     <p>Look for the <span class="help-ico" style="display:inline-flex">?</span> icon next to buttons and tabs in each tool. It opens the matching section of this page.</p>
@@ -146,6 +159,7 @@
       <li><b class="t">A subgraph</b>On <b>Load data</b>, load <code>samples/GQLRegistry-sample.xlsx</code> and pick <code>ENT-002 · ProductStoreContext</code>. Then <span class="ui">Import OpenAPI spec</span> → <code>samples/subgraph/pnp/openapi.yaml</code>. Compare the result with the target <code>samples/subgraph/pnp/subgraph.gql</code>.</li>
       <li><b class="t">Single-op code</b>In Code migration, load the sample registry and <code>samples/subgraph/cart/openapi.yaml</code>. <code>GET /carts/{id}</code> pairs with <code>query cart</code>; scroll to the <b>Sequence trace</b> to see the router reach the product subgraph for each line.</li>
       <li><b class="t">BFF code</b>Load <code>samples/bff-openapi.yaml</code> and switch Mode to <b>BFF composite</b>. The sample registry already maps four endpoints. <code>POST /bff/checkout</code> shows the <b>orchestrated checkout</b>: one <code>submitCheckout</code> mutation whose resolver calls cart → inventory → payments → cart. <code>GET /bff/cart/{cartId}</code> shows query federation.</li>
+      <li><b class="t">Data mapping</b>In <a href="data-mapping.html">Data mapping</a> click <span class="ui">Load example</span>, or <span class="ui">Load .xlsx</span> → <code>samples/DataMappingRegistry-sample.xlsx</code> for the same retail flow attribute by attribute. Load <code>samples/DataMappingRegistry-FCC-sample.xlsx</code> for an end-to-end cart &amp; checkout on Flipkart Commerce Cloud (<a href="#dm-samples">details</a>).</li>
     </ol>
   </section>
 
@@ -390,6 +404,48 @@
       </ul></div>
     <div class="feat" id="code-export"><h3>Export registry + BFF mappings (.xlsx)</h3>
       <p>Writes the loaded registry back with a <code>BffMappings</code> sheet holding each endpoint's operations, aliases, arguments, order and owning operation. Load that workbook again later to restore the mappings.</p></div>
+  </section>
+
+  <!-- ========================== Data mapping =========================== -->
+  <section id="data-mapping">
+    <h2>Data mapping <small class="hint">data-mapping.html</small></h2>
+    <p>A registry of how each business attribute travels across layers: core systems (MDM / PIM / ERP) and third parties → integration services → Kafka events → service databases → REST / GraphQL APIs → the BFF and FedGQL router → UI. Mappings use the source-to-target (STTM) shape: <i>source dataset + path → target dataset + path</i>, with a transformation and a rule. Everything lives in one workbook, <code>DataMappingRegistry.xlsx</code>, cached in the browser like the other tools. The <span class="ui">ⓘ Quick guide</span> button in the page header opens a short in-page summary of this section.</p>
+
+    <div class="feat" id="dm-load"><h3>Load .xlsx · Export .xlsx · Template <span class="where">header</span></h3>
+      <p><b>Load .xlsx</b> replaces the data in the browser with a workbook. It reads the eight registry sheets (Domains, Applications, Datasets, Attributes, Mappings, Flows, Events, BusinessTerms) and the type sheets (HTTP APIs, GQL Schema, Database, Kafka Avro, Databricks, Files), which update the datasets and attributes. Older kind names are converted on load.</p>
+      <p><b>Export .xlsx</b> writes the same sheets plus a Guide sheet, with in-cell dropdowns for status, kinds, transformations and IDs; a value outside a list only warns. <b>Template</b> downloads an empty workbook with the same sheets and dropdowns.</p></div>
+    <div class="feat" id="dm-example"><h3>Load example · Clear <span class="where">header</span></h3>
+      <p><b>Load example</b> replaces the data with the retail example, the same data as <code>samples/DataMappingRegistry-sample.xlsx</code>. <b>Clear</b> empties the registry. Both ask first, and Ctrl/⌘+Z undoes them.</p></div>
+
+    <div class="feat" id="dm-samples"><h3>Samples <span class="where">samples/</span></h3>
+      <p><b><code>DataMappingRegistry-sample.xlsx</code></b> (retail): 7 domains, 15 applications, 44 datasets. MDM (Kafka CDC), PIM (REST) and a supplier CSV feed the Product Integration Service, which publishes <code>product.ingested.v1</code>. The product, pnp, inventory, search, cart, payments and checkout services each own their table, REST API, subgraph and Kafka event. Retail Web reads through the FedGQL router, the Retail App through the BFF, and the checkout orchestrator calls the other services' REST APIs. It loads with no errors or warnings./p>
+      <p><b><code>DataMappingRegistry-FCC-sample.xlsx</code></b> (Flipkart Commerce Cloud): an end-to-end cart &amp; checkout on the <a href="https://docs.flipkartcommercecloud.com/docs/digital-commerce/cart-and-checkout/apis/api-overview" target="_blank" rel="noopener">FCC Transact API v1</a>, 32 datasets and 258 mappings:</p>
+      <ul>
+        <li><b>PDP</b>: the Product Service carries each SKU's FCC <code>listingId</code> to the web PDP and the add-to-cart form.</li>
+        <li><b>Cart</b>: the Commerce Orchestrator (commerce subgraph) calls FCC <code>POST /v1/cart</code>, <code>POST /v1/cart/{id}/items</code> and <code>GET /v1/cart/{id}</code>. The cart reaches the web over GraphQL and the app over the cart REST API → BFF.</li>
+        <li><b>placeOrder</b>: FCC <code>POST /v1/checkout</code> → <code>POST /v1/checkout/{checkoutId}/payments</code> (creates the order id) → <code>POST /v1/checkout/{checkoutId}/order</code>, with saga state in <code>checkout_attempt</code>.</li>
+        <li><b>Order capture</b>: FCC's payment-termination webhook reaches the FCC Order Bridge, which reads <code>GET /v1/checkout/{checkoutId}</code> and publishes <code>order.created.v1</code> (email hashed) to the Order Service.</li>
+        <li>Every FCC call maps the five FCC headers: <code>X-Request-Id</code>, <code>X-Tenant-Id</code>, <code>X-Channel</code>, <code>X-Timestamp</code> and <code>Authorisation</code>.</li>
+      </ul>
+      <p>The public FCC docs give the endpoints and headers but not the request / response bodies, so FCC body fields and the webhook payload are modelled and marked <code>Proposed</code>. Confirm them against FCC's <code>sampleTransactOpenAPI.yaml</code>. The <b>Issues</b> view shows 12 PII warnings for this sample: the shopper's email, phone, name and address go unmasked from the checkout form to FCC. They are flags for a privacy review, left in on purpose.</p></div>
+
+    <div class="feat" id="dm-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
+      <p>A seven-step wizard for one domain and one business application at a time: domain &amp; business terms → business application → datasets &amp; types → attributes &amp; terms → integration mapping → lineage → export &amp; save (Excel and Markdown). The lineage visualizer slides in on the right; pick the level (applications, datasets, attributes) and what to trace.</p></div>
+    <div class="feat" id="dm-flows"><h3>Domains &amp; apps <span class="where">tab</span></h3>
+      <p>Domain cards with each application's type and the datasets it owns, a flow diagram grouped by domain, and the flow inventory. IDs follow the convention <code>DOM-04-PRODT</code> (domain number + 5-letter code) and <code>APP-04-PRODT-01</code> (+ application type number: 01 domain service, 02 orchestrator service, 03 integration service, 04 BFF, 05 FedGQL router, 06 front end, 07 core system, 08 third party). <span class="ui">Apply ID convention</span> renames older IDs and updates every reference.</p></div>
+    <div class="feat" id="dm-canvas"><h3>Mapping canvas <span class="where">tab</span></h3>
+      <p>Each card is a dataset, coloured by layer; lines are attribute mappings, coloured by flow pattern and dashed until Approved. Drag an attribute's ● port onto another attribute to map it, click a line to edit its transformation, and use <b>Focus</b> to narrow to a flow, a source → target pair, a business term, a domain or an application. In pair mode <span class="ui">✨ Auto-map</span> suggests Draft mappings.</p></div>
+    <div class="feat" id="dm-registry"><h3>Registry <span class="where">tab</span></h3>
+      <p>Every sheet as an editable grid, plus <b>By application</b>: an application's datasets grouped by kind, each with its attributes and Kafka registration. Renaming an ID or a path updates every reference to it.</p></div>
+    <div class="feat" id="dm-datasets"><h3>Dataset types &amp; HTTP APIs <span class="where">dataset dialog · ⇪ Import from API spec</span></h3>
+      <p>Kinds are numbered (01-DB Table … 15-Other). A <b>REST endpoint</b> is one <code>HTTP API</code> dataset holding both its request and its response; each field's <b>In</b> (header, path, query, body or response) tells them apart. A <b>GraphQL call</b> is an <code>HTTP Request</code> (variables) and / or an <code>HTTP Response</code> (selection) dataset. For the ownership rules, both count as an HTTP API of the owning service or router. <span class="ui">⇪ Import from API spec</span> builds these datasets from an OpenAPI spec or a GraphQL schema. The <b>✎ Details</b> dialog edits each type in its own shape (OpenAPI, SDL, SQL DDL, Avro, Databricks, CSV / JSON).</p></div>
+    <div class="feat" id="dm-lineage"><h3>Lineage <span class="where">tab</span></h3>
+      <p>A business term × layer matrix with core → UI coverage, plus end-to-end traces per term that you can copy as CSV.</p></div>
+    <div class="feat" id="dm-events"><h3>Kafka &amp; schemas <span class="where">tab</span></h3>
+      <p>The event catalog: topic, schema-registry subject, compatibility, partition key, producer and consumers. Generates Avro, JSON Schema, GraphQL SDL, SQL DDL, TypeScript or a source-to-target spec (Markdown) from any dataset.</p></div>
+    <div class="feat" id="dm-issues"><h3>Issues &amp; architecture rules <span class="where">tab</span></h3>
+      <p>Errors: broken references, duplicate IDs or paths, mappings to attributes that don't exist. Warnings: unmapped API / UI / event fields, Direct mappings between incompatible types, PII or Confidential data flowing out without Mask / Hash / Encrypt, and Kafka events without a registration or a valid key. Each issue has a <span class="ui">Show</span> button.</p>
+      <p>Architecture rules, checked per application type: front ends integrate only through the BFF (REST) or the FedGQL router (GraphQL); only domain and orchestrator services publish subgraphs to the router; core and third-party systems reach an integration service via REST API, Kafka event, File (CSV) or CDC; and each type owns only the dataset kinds that fit it (for example a BFF owns HTTP APIs, a front end owns UI components and forms).</p></div>
   </section>
 
   <section id="faq">

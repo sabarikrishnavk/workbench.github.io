@@ -459,12 +459,18 @@ const LS_KEY = "dm.registry.v2", LS_POS = "dm.canvas.pos.v1", LS_FILE = "dm.file
 const STATUS = ["Draft", "Proposed", "Approved", "Deprecated"];
 // Application types. Domain / orchestrator / integration services own their REST + GraphQL API, database and produced events.
 // Numbered so dropdowns, Excel and application IDs share one sequence (APP-04-PRODT-01 = a 01-Domain service in domain 04).
-const APP_TYPES = ["01-Domain service", "02-Orchestrator service", "03-Integration service", "04-BFF", "05-FedGQL router", "06-Frontend", "07-Core system", "08-Third party"];
+// 09 / 10: a data hub distributes curated data to other applications over Kafka; a data platform is the analytics
+// lakehouse / warehouse. Both run on Databricks, Snowflake or ClickHouse and integrate through Kafka.
+const APP_TYPES = ["01-Domain service", "02-Orchestrator service", "03-Integration service", "04-BFF", "05-FedGQL router", "06-Frontend", "07-Core system", "08-Third party", "09-Data hub", "10-Data platform"];
+const DATA_APPS = new Set(["Data hub", "Data platform"]);
+// Technology suggestions for the Applications sheet (any value is allowed).
+const TECH_HINTS = ["Databricks (Delta Lake, Unity Catalog) + Kafka Structured Streaming", "Snowflake + Snowflake Kafka Connector (Snowpipe Streaming)", "ClickHouse (MergeTree) + Kafka table engine + materialized views",
+  "Confluent Kafka + Schema Registry", "Spring Boot 3 + PostgreSQL 16", "NestJS + MongoDB 7", "Apollo Router (Federation 2 supergraph)", "Next.js + Apollo Client", "React Native"];
 const KN = v => String(v == null ? "" : v).replace(/^\d+\s*-\s*/, "");   // "05-Kafka Event" → "Kafka Event"
 const seqOf = (list, v) => { const i = list.findIndex(x => KN(x) === KN(v)); return i < 0 ? 999 : i; };
 const withSeq = (list, v) => { const t = String(v == null ? "" : v).trim(); if (!t || list.includes(t)) return t; const name = { "File / Feed": "CSV Schema" }[KN(t)] || KN(t); return list.find(x => KN(x) === name) || t; };
 const pad2 = n => String(parseInt(n, 10) || 0).padStart(2, "0");
-const APP_COLOR = { "Domain service": "#2563eb", "Orchestrator service": "#0d9488", "Integration service": "#c2410c", BFF: "#0891b2", "FedGQL router": "#7048e8", Frontend: "#059669", "Core system": "#b45309", "Third party": "#78716c" };
+const APP_COLOR = { "Domain service": "#2563eb", "Orchestrator service": "#0d9488", "Integration service": "#c2410c", BFF: "#0891b2", "FedGQL router": "#7048e8", Frontend: "#059669", "Core system": "#b45309", "Third party": "#78716c", "Data hub": "#a21caf", "Data platform": "#4338ca" };
 // An HTTP API dataset is one integration per endpoint: it holds both the request and the response,
 // told apart by each field's Direction (In = response marks a response field). Its style (REST or
 // GraphQL) is on the dataset (Spec.Style). Legacy GraphQL calls still use the HTTP Request / HTTP
@@ -479,6 +485,8 @@ const APP_KINDS = {
   Frontend: ["UI Component", "UI Form"],
   "Core system": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP API", "Kafka Event"],
   "Third party": ["MDM Entity", "PIM Entity", "ERP Object", "CSV Schema", "JSON Schema", "HTTP API", "Kafka Event"],
+  "Data hub": ["Kafka Event", "Databricks Table", "DB Table", "HTTP API", "CSV Schema", "JSON Schema", "Other"],
+  "Data platform": ["Databricks Table", "DB Table", "Kafka Event", "CSV Schema", "JSON Schema", "HTTP API", "Other"],
 };
 // Kind used by the ownership rule: a GraphQL HTTP Request / Response is one direction of an HTTP API call.
 const ruleKind = d => /^HTTP (Request|Response)$/.test(KN(d.Kind)) ? "HTTP API" : KN(d.Kind);
@@ -505,7 +513,7 @@ const DM = {
   Domains: { id: "DomainID", prefix: "DOM-", desc: "Business domains. Each has a two-digit number and a unique 5-letter code; the DomainID (DOM-04-PRODT) and the IDs of all its applications (APP-04-PRODT-01) are built from them.",
     cols: [{ key: "DomainID", w: 150, help: "DOM-<DomainNo>-<Code>, e.g. DOM-04-PRODT (set automatically from DomainNo + Code)" }, { key: "DomainNo", w: 70, help: "Two-digit domain number, e.g. 04" }, { key: "Code", w: 80, help: "Unique 5-letter domain code used in every application ID of the domain, e.g. PRODT" }, { key: "Name", w: 200 }, { key: "Description", area: 1 }, { key: "Owner", w: 160 }, { key: "Links", area: 1, help: "LeanIX / Confluence links, one per line" }] },
   Applications: { id: "AppID", prefix: "APP-", desc: "Step 1: register every application under its domain. A domain / orchestrator / integration service owns its REST and GraphQL API, database and the Kafka events it produces. Front ends integrate via the BFF (REST) or the FedGQL router. Core and third-party systems feed integration services via API, Kafka event or CSV file.",
-    cols: [{ key: "AppID", w: 170, help: "APP-<DomainNo>-<Code>-<AppType no>, e.g. APP-04-PRODT-01; a second app of the same type gets a -02 suffix" }, { key: "Name", w: 200 }, { key: "DomainID", fk: "Domains" }, { key: "AppType", opts: APP_TYPES, help: "Decides which datasets the app may own and how it may integrate" }, { key: "Technology", w: 200 }, { key: "Owner" }, { key: "Description", area: 1 }, { key: "Links", area: 1, help: "LeanIX / Confluence / repo links, one per line" }, { key: "Status", opts: STATUS }] },
+    cols: [{ key: "AppID", w: 170, help: "APP-<DomainNo>-<Code>-<AppType no>, e.g. APP-04-PRODT-01; a second app of the same type gets a -02 suffix" }, { key: "Name", w: 200 }, { key: "DomainID", fk: "Domains" }, { key: "AppType", opts: APP_TYPES, help: "Decides which datasets the app may own and how it may integrate" }, { key: "Technology", w: 200, opts: TECH_HINTS, soft: 1, help: "Stack, e.g. Databricks / Snowflake / ClickHouse + Kafka for a data hub or data platform" }, { key: "Owner" }, { key: "Description", area: 1 }, { key: "Links", area: 1, help: "LeanIX / Confluence / repo links, one per line" }, { key: "Status", opts: STATUS }] },
   Datasets: { id: "DatasetID", prefix: "DS-", desc: "A data structure owned by an application: an MDM entity, a PIM family, a Kafka event schema, a DB table, a REST request/response, a GraphQL query/mutation, or a UI component/form.",
     cols: [{ key: "DatasetID", w: 170, help: "Unique id, e.g. GQL-PRODUCT" }, { key: "AppID", fk: "Applications", help: "Owning application (a Kafka event belongs to its producer)" }, { key: "Name", w: 230 }, { key: "Kind", opts: DS_KINDS }, { key: "Location", w: 240, help: "Endpoint, GraphQL field, table, topic or UI route" }, { key: "Format", opts: FORMATS, soft: 1 }, { key: "Version", w: 70 }, { key: "Description", area: 1 }, { key: "Status", opts: STATUS }] },
   Attributes: { id: null, desc: "The fields of each dataset. Path is the dotted location inside the dataset (images[].url = url of each item in the images array). Tag each attribute with a business term to trace it across layers.",
@@ -645,8 +653,8 @@ function typeFamily(t) {
   const s = String(t || "").replace(/[\[\]!]/g, "").trim().toLowerCase();
   if (!s) return "";
   if (/^(id|uuid|string|str|text|varchar|char|nvarchar|clob|enum|objectid)/.test(s)) return /^uuid/.test(s) ? "uuid" : /^enum/.test(s) ? "enum" : "string";
-  if (/^(int|integer|smallint|short)$/.test(s)) return "int";
-  if (/^(long|bigint|int64)$/.test(s)) return "long";
+  if (/^(int|integer|smallint|short|tinyint|u?int(8|16|32))$/.test(s)) return "int";
+  if (/^(long|bigint|u?int64)$/.test(s)) return "long";
   if (/^(decimal|numeric|number|float|double|real|money|bigdecimal)/.test(s)) return "decimal";
   if (/^(bool|boolean|bit)$/.test(s)) return "boolean";
   if (/^(timestamp|timestamptz|datetime|date-time|instant)/.test(s)) return "timestamp";
@@ -754,7 +762,9 @@ function issues() {
     if (tt === "FedGQL router" && !["Domain service", "Orchestrator service", "Frontend"].includes(st)) add("warning", "Flows", f, `${lbl}: only domain / orchestrator services publish subgraphs to the FedGQL router`);
     if (CORE.has(st) && tt === "Integration service" && !["REST API", "Kafka event", "File (CSV)", "CDC"].includes(P)) add("warning", "Flows", f, `${lbl}: core / third-party data reaches an integration service via REST API, Kafka event or File (CSV)`);
     if (CORE.has(st) && ["Domain service", "Orchestrator service"].includes(tt)) add("info", "Flows", f, `${lbl}: core / third-party data usually reaches a ${tt.toLowerCase()} through an integration service`);
+    if ((DATA_APPS.has(st) || DATA_APPS.has(tt)) && !["Kafka event", "CDC", "File (CSV)", "REST API"].includes(P)) add("warning", "Flows", f, `${lbl}: data hubs and data platforms integrate via Kafka event (preferred for distribution), CDC, File (CSV) or REST API`);
   }
+  for (const a of DB.Applications.filter(a => DATA_APPS.has(KN(a.AppType)))) if (!DB.Flows.some(f => f.Pattern === "Kafka event" && f.SourceAppID !== f.TargetAppID && (f.SourceAppID === a.AppID || f.TargetAppID === a.AppID))) add("info", "Applications", a, `${a.Name || a.AppID} (${KN(a.AppType)}) has no Kafka event flow; data hubs and platforms take in and distribute data over Kafka`);
   for (const e of DB.Events) {
     const d = dsById(e.DatasetID), at = { ds: e.DatasetID };
     if (!d) { add("error", "Events", e, `${e.EventID}: unknown DatasetID "${e.DatasetID}"`); continue; }
@@ -1779,7 +1789,7 @@ function renderIssues() {
 const GUIDE = [
   ["Sheet", "Purpose"],
   ["Domains", "Business domains with a two-digit DomainNo and a unique 5-letter Code; DomainID = DOM-<no>-<code> (e.g. DOM-04-PRODT)."],
-  ["Applications", "Step 1: every application with its domain and numbered AppType (01-Domain service … 08-Third party). AppID = APP-<domain no>-<domain code>-<type no>, e.g. APP-04-PRODT-01; a second app of the same type in the domain gets -02. A service owns its REST + GraphQL API, database and produced events."],
+  ["Applications", "Step 1: every application with its domain and numbered AppType (01-Domain service … 10-Data platform). AppID = APP-<domain no>-<domain code>-<type no>, e.g. APP-04-PRODT-01; a second app of the same type in the domain gets -02. A service owns its REST + GraphQL API, database and produced events."],
   ["Kinds", "Dataset kinds are numbered: 01-DB Table, 02-DB Collection, 03-CSV Schema, 04-JSON Schema, 05-Kafka Event, 06-HTTP API, 07-GQL Type, 08-MDM Entity, 09-PIM Entity, 10-ERP Object, 11-Search Index, 12-UI Component, 13-UI Form, 14-Databricks Table, 15-Other. An HTTP API is one integration per REST endpoint: it holds the request and the response in the same dataset, told apart by each field's Direction (In=response marks a response field), in the HTTP APIs sheet. GraphQL calls keep per-direction HTTP Request / HTTP Response datasets; older REST Request / Response, HTTP Request / Response and GQL Query / Mutation kinds are converted on load."],
   ["Datasets", "A structure owned by an application: MDM entity, PIM family, Kafka event, DB table/collection, REST request/response, GQL query/mutation, UI component/form."],
   ["Attributes", "Fields of a dataset. Path is dotted; [] marks an array (images[].url). TermID links the attribute to the business glossary."],
@@ -1787,7 +1797,7 @@ const GUIDE = [
   ["Flows", "Integration flows between two applications with their pattern: REST API, GraphQL, Kafka event, File (CSV), CDC, or Internal (inside one application)."],
   ["Events", "Kafka schema-registry entries: topic, subject, format, compatibility, version, partition key, consumers. The producer is the application owning the event dataset."],
   ["Type sheets", "Per-type detail of the datasets, editable here or in the dataset dialog: HTTP APIs (each request / response with its style: a REST operation (method, path, status) or a GraphQL operation (query / mutation, parameters, return type), one row per field), GQL Schema (GraphQL types as in GQLRegistry.xlsx), Database (tables and collections, ER columns with PK / FK), Kafka Avro (record fields), Databricks (Delta table columns), Files (CSV / JSON columns). On Load .xlsx they update the Datasets and Attributes sheets."],
-  ["Rules", "Front ends integrate only via the BFF (REST) or the FedGQL router (GraphQL). Core / third-party systems feed integration services via REST API, Kafka event or File (CSV). Domain services expose REST / GraphQL over their own database and publish Kafka events."],
+  ["Rules", "Front ends integrate only via the BFF (REST) or the FedGQL router (GraphQL). Core / third-party systems feed integration services via REST API, Kafka event or File (CSV). Domain services expose REST / GraphQL over their own database and publish Kafka events. Data hubs (09) and data platforms (10) run on Databricks, Snowflake or ClickHouse and integrate via Kafka event (preferred), CDC, File (CSV) or REST API."],
   ["BusinessTerms", "Business glossary / canonical data dictionary; SourceOfTruth is the application that masters the value."],
   ["", ""],
   ["Workflow", "Edit in data-mapping.html (canvas or grid) or here in Excel, then Load .xlsx back. Dropdowns are offered for status, kinds and IDs; out-of-list values only warn."],
@@ -1895,11 +1905,13 @@ function helpHTML() {
   <h3>Onboarding guide</h3>
   <ul><li>The <b>Onboarding guide</b> tab walks one domain and one business application at a time: domain &amp; business terms → business application → datasets and their types (DB table / collection, CSV, JSON, Kafka event, REST, GQL, MDM / PIM / ERP, UI) → attributes tagged with terms → integration mapping with applications in any domain → lineage → export schemas and save as Excel (.xlsx) and Markdown (.md).</li>
   <li><b>Dataset details by type:</b> adding a dataset in step 3 (or <b>✎ Details</b>) opens a dialog shaped by its type: an HTTP request / response as a REST operation (OpenAPI) or a GraphQL operation (SDL), a GraphQL type, ER columns (PK, FK, not null, default) for DB tables and collections, an Avro record plus the Databricks StructType for Kafka events, a Delta table for Databricks and columns for CSV / JSON files. Its <b>Source</b> tab edits the same thing as GraphQL SDL, OpenAPI YAML, SQL DDL, MongoDB $jsonSchema, Avro JSON, Databricks SQL or YAML: paste one and click <i>Apply to fields</i>.</li>
+  <li><b>Samples:</b> a new dataset's <b>Source</b> tab starts with a commented-out sample for its type (table, collection, Databricks table, Kafka event, API, UI form…). Click <i>Uncomment sample</i>, edit it and <i>Apply to fields</i>. The dialog links the standard reference for the type.</li>
   <li><b>HTTP APIs:</b> a REST endpoint is one <b>HTTP API</b> dataset holding both its request and response fields (Direction tells them apart); a GraphQL call is an <b>HTTP Request</b> and / or an <b>HTTP Response</b> dataset. <b>⇪ Import from API spec</b> (step 3) loads an OpenAPI spec or a GraphQL schema, lets you pick operations and builds one HTTP API dataset per REST endpoint (request + response) or request / response datasets per GraphQL operation.</li>
   <li><b>Type sheets:</b> Export .xlsx adds HTTP APIs, GQL Schema (as in GQLRegistry.xlsx), Database, Kafka Avro, Databricks and Files. They can be edited in Excel; Load .xlsx reads them back into the datasets and attributes.</li>
   <li>The <b>lineage visualizer</b> slides in on the right (drag its edge to resize, ◀ / ▶ to hide). Pick the level (applications, datasets, attributes) and what to trace (everything, a domain, an application, a business term, an integration flow or a dataset), or click a box to trace from it. Thick arrows cross domains.</li></ul>
   <h3>Step 1: register domains and applications</h3>
-  <ul><li>Every application belongs to one <b>domain</b> and has a numbered <b>AppType</b>: 01-Domain service, 02-Orchestrator service, 03-Integration service, 04-BFF, 05-FedGQL router, 06-Frontend, 07-Core system or 08-Third party.</li>
+  <ul><li>Every application belongs to one <b>domain</b> and has a numbered <b>AppType</b>: 01-Domain service, 02-Orchestrator service, 03-Integration service, 04-BFF, 05-FedGQL router, 06-Frontend, 07-Core system, 08-Third party, 09-Data hub or 10-Data platform.</li>
+  <li><b>Data hub</b> and <b>data platform</b> applications run on Databricks, Snowflake or ClickHouse. They take in data and distribute it over <b>Kafka events</b> (CDC, File (CSV) and REST API also allowed). A data hub serves curated, shared data products to other applications; a data platform is the analytics lakehouse / warehouse. Their tables are Databricks tables, or DB tables with the Snowflake / ClickHouse engine.</li>
   <li><b>IDs:</b> a domain has a two-digit number and a unique 5-letter code, giving <code>DOM-04-PRODT</code>. Its applications are <code>APP-04-PRODT-&lt;type no&gt;</code>, so <code>APP-04-PRODT-01</code> is the Product domain service and <code>APP-04-PRODT-03</code> its integration service; a second app of the same type gets <code>-02</code>. New apps get their ID automatically, IDs follow domain / type changes, and <b>Apply ID convention</b> renames older IDs (every reference is updated).</li>
   <li><b>Registry → By application</b> lists an application's datasets grouped by numbered Kind (01-DB Table … 17-Other), each with its attributes and Kafka event registration, all editable in place.</li>
   <li>A REST endpoint is one <b>HTTP API</b> dataset (request + response); a GraphQL call is an <b>HTTP Request</b> / <b>HTTP Response</b> dataset, which counts as an HTTP API of its owner in the ownership checks.</li>

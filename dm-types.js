@@ -56,7 +56,7 @@ function dtSpec(d, db) {
     sp.Method = m ? m[1].toUpperCase() : req ? "POST" : "GET"; sp.Path = m ? m[2] : (loc.startsWith("/") ? loc : "/"); sp.OperationId = lowerFirst(sp.Method.toLowerCase() + pascal(sp.Path.replace(/\{[^}]*\}/g, "").replace(/\/v\d+\//, "/")));
     sp.Summary = d.Description || ""; sp.StatusCode = req ? "" : "200"; sp.ContentType = "application/json"; }
   else if (f === "db") { const coll = /Collection/.test(KN(d.Kind)), parts = loc.split(".").filter(Boolean), tech = String(app.Technology || "");
-    sp.ObjectType = coll ? "Collection" : "Table"; sp.Engine = /postgres/i.test(tech) ? "PostgreSQL" : /mongo/i.test(tech) ? "MongoDB" : /mysql/i.test(tech) ? "MySQL" : /oracle/i.test(tech) ? "Oracle" : /sql ?server|mssql/i.test(tech) ? "SQL Server" : coll ? "MongoDB" : "PostgreSQL";
+    sp.ObjectType = coll ? "Collection" : "Table"; sp.Engine = /postgres/i.test(tech) ? "PostgreSQL" : /mongo/i.test(tech) ? "MongoDB" : /mysql/i.test(tech) ? "MySQL" : /oracle/i.test(tech) ? "Oracle" : /sql ?server|mssql/i.test(tech) ? "SQL Server" : /snowflake/i.test(tech) ? "Snowflake" : /clickhouse/i.test(tech) ? "ClickHouse" : coll ? "MongoDB" : "PostgreSQL";
     if (parts.length >= 3) { sp.Database = parts[0]; sp.Schema = parts[1]; sp.Name = parts.slice(2).join("."); } else if (parts.length === 2) { sp.Database = parts[0]; sp.Schema = ""; sp.Name = parts[1]; } else { sp.Database = ""; sp.Schema = ""; sp.Name = parts[0] || String(d.Name || "").replace(/\s*\(.*\)$/, ""); }
     sp.Indexes = ""; }
   else if (f === "kafka") { const ev = db.Events.find(e => e.DatasetID === d.DatasetID) || {}, dom = db.Domains.find(x => x.DomainID === app.DomainID);
@@ -92,14 +92,19 @@ function dtSummary(d) {
 }
 
 /* --------------------------- type mappings ----------------------------- */
-const DT_SQLISH = /^(VARCHAR|CHAR|TEXT|INTEGER|INT|BIGINT|SMALLINT|NUMERIC|DECIMAL|BOOLEAN|BOOL|TIMESTAMP|TIMESTAMPTZ|DATE|UUID|JSONB?|REAL|DOUBLE|FLOAT|BYTEA|SERIAL|BIGSERIAL|NVARCHAR|CLOB|BLOB|TIME)\b/i;
+const DT_SQLISH = /^(VARCHAR|CHAR|TEXT|INTEGER|INT|BIGINT|SMALLINT|NUMERIC|DECIMAL|BOOLEAN|BOOL|TIMESTAMP_[NLT]TZ|TIMESTAMP|TIMESTAMPTZ|DATE|UUID|JSONB?|REAL|DOUBLE|FLOAT|BYTEA|SERIAL|BIGSERIAL|NVARCHAR|CLOB|BLOB|TIME|NUMBER|VARIANT|OBJECT|STRING|U?Int(8|16|32|64|128|256)|Float(32|64)|Date(Time|Time64|32)|LowCardinality|Nullable|FixedString|Enum(8|16)|Array|Map|Tuple)\b/i;
+const DT_ENGINE_TYPES = {   // neutral data type family → column type, per engine (PostgreSQL-style by default)
+  Snowflake: { string: "VARCHAR", int: "NUMBER(10,0)", long: "NUMBER(19,0)", decimal: "NUMBER(18,2)", boolean: "BOOLEAN", timestamp: "TIMESTAMP_NTZ", date: "DATE", uuid: "VARCHAR(36)", enum: "VARCHAR(40)", other: "VARIANT" },
+  ClickHouse: { string: "String", int: "Int32", long: "Int64", decimal: "Decimal(18, 2)", boolean: "Bool", timestamp: "DateTime64(3)", date: "Date", uuid: "UUID", enum: "LowCardinality(String)", other: "String" },
+};
 const DT_SPARKISH = /^(STRING|INT|INTEGER|BIGINT|LONG|SMALLINT|TINYINT|DOUBLE|FLOAT|DECIMAL|BOOLEAN|TIMESTAMP|TIMESTAMP_NTZ|DATE|BINARY|ARRAY|STRUCT|MAP)\b/;
 function dtGqlType(a) {
   const t = S(a.DataType);
   if (/^[\[A-Z]/.test(t) && !DT_SQLISH.test(t) && !DT_SPARKISH.test(t)) return t;
   return ({ string: "String", int: "Int", long: "Int", decimal: "Float", boolean: "Boolean", timestamp: "DateTime", date: "Date", uuid: "ID", enum: "String" }[typeFamily(t)] || "String") + (a.Required === "Y" ? "!" : "");
 }
-function dtSqlType(a) { const t = S(a.DataType); if (DT_SQLISH.test(t)) return t.toUpperCase(); return { string: "VARCHAR(255)", int: "INTEGER", long: "BIGINT", decimal: "NUMERIC(18,2)", boolean: "BOOLEAN", timestamp: "TIMESTAMPTZ", date: "DATE", uuid: "UUID", enum: "VARCHAR(40)" }[typeFamily(t)] || "TEXT"; }
+function dtSqlType(a, engine) { const t = S(a.DataType); if (DT_SQLISH.test(t)) return engine === "ClickHouse" ? t : t.toUpperCase();   // ClickHouse types are case-sensitive
+  const et = DT_ENGINE_TYPES[engine]; if (et) return et[typeFamily(t)] || et.other; return { string: "VARCHAR(255)", int: "INTEGER", long: "BIGINT", decimal: "NUMERIC(18,2)", boolean: "BOOLEAN", timestamp: "TIMESTAMPTZ", date: "DATE", uuid: "UUID", enum: "VARCHAR(40)" }[typeFamily(t)] || "TEXT"; }
 function dtSparkType(a) { const t = S(a.DataType); if (DT_SPARKISH.test(t)) return t; const m = t.match(/^(?:NUMERIC|DECIMAL)\s*\((\d+)\s*,\s*(\d+)\)/i); if (m) return `DECIMAL(${m[1]},${m[2]})`; return { string: "STRING", int: "INT", long: "BIGINT", decimal: "DECIMAL(18,2)", boolean: "BOOLEAN", timestamp: "TIMESTAMP", date: "DATE", uuid: "STRING", enum: "STRING" }[typeFamily(t)] || "STRING"; }
 function dtAvroType(a) {
   const s = a.Spec || {}, fam = typeFamily(a.DataType);
@@ -115,7 +120,7 @@ function dtOas(a) { const fam = typeFamily(a.DataType), s = a.Spec || {};
   if (s.Format) o.format = s.Format;
   if (fam === "enum") { const sym = String(a.Example || "").split("|").map(x => x.trim()).filter(Boolean); if (sym.length > 1) o.enum = sym; } else if (S(a.Example)) o.example = a.Example;
   if (S(a.Description)) o.description = a.Description; return o; }
-const dtBson = a => ({ string: "string", int: "int", long: "long", decimal: "decimal", boolean: "bool", timestamp: "date", date: "date", uuid: "string", enum: "string" }[typeFamily(a.DataType)] || (/objectid/i.test(a.DataType) ? "objectId" : "string"));
+const dtBson = a => /objectid/i.test(a.DataType) ? "objectId" : ({ string: "string", int: "int", long: "long", decimal: "decimal", boolean: "bool", timestamp: "date", date: "date", uuid: "string", enum: "string" }[typeFamily(a.DataType)] || "string");
 const DT_PYSPARK = t => { t = String(t).toUpperCase(); const m = t.match(/^DECIMAL\s*\((\d+)\s*,\s*(\d+)\)/); if (m) return `DecimalType(${m[1]}, ${m[2]})`; return { STRING: "StringType()", INT: "IntegerType()", INTEGER: "IntegerType()", BIGINT: "LongType()", LONG: "LongType()", SMALLINT: "ShortType()", TINYINT: "ByteType()", DOUBLE: "DoubleType()", FLOAT: "FloatType()", BOOLEAN: "BooleanType()", TIMESTAMP: "TimestampType()", TIMESTAMP_NTZ: "TimestampNTZType()", DATE: "DateType()", BINARY: "BinaryType()" }[t] || "StringType()"; };
 // Map an imported type name back to the registry's neutral data types.
 const dtFromOas = (t, f) => t === "integer" ? (f === "int64" ? "long" : "int") : t === "number" ? "decimal" : t === "boolean" ? "boolean" : f === "date-time" ? "timestamp" : f === "date" ? "date" : f === "uuid" ? "uuid" : "string";
@@ -167,21 +172,31 @@ function dtOasSchema(fields) {
   return build(pathTree(fields));
 }
 function dtOpenApi(d, sp, fields) {
-  const params = fields.filter(f => ["path", "query", "header"].includes((f.Spec || {}).In)), body = fields.filter(f => !["path", "query", "header"].includes((f.Spec || {}).In));
+  const params = fields.filter(f => ["path", "query", "header"].includes((f.Spec || {}).In)), merged = !sp.Direction;
+  const isResp = f => (f.Spec || {}).In === "response", body = fields.filter(f => !["path", "query", "header"].includes((f.Spec || {}).In) && !(merged && isResp(f)));
   const op = { operationId: sp.OperationId || undefined, summary: sp.Summary || undefined };
   if (params.length) op.parameters = params.map(f => Object.assign({ name: f.Path, in: f.Spec.In, required: f.Spec.In === "path" || f.Required === "Y" }, f.Description ? { description: f.Description } : {}, { schema: (o => { delete o.description; return o; })(dtOas(f)) }));
   const ct = sp.ContentType || "application/json", schema = body.length ? dtOasSchema(body) : null;
-  if (sp.Direction === "Request") { if (schema) op.requestBody = { required: true, content: { [ct]: { schema } } }; op.responses = { "200": { description: "OK" } }; }
+  if (merged) { const res = fields.filter(isResp);   // one HTTP API dataset: request body + response
+    if (schema) op.requestBody = { required: true, content: { [ct]: { schema } } };
+    op.responses = { [sp.StatusCode || "200"]: Object.assign({ description: "OK" }, res.length ? { content: { [ct]: { schema: dtOasSchema(res) } } } : {}) }; }
+  else if (sp.Direction === "Request") { if (schema) op.requestBody = { required: true, content: { [ct]: { schema } } }; op.responses = { "200": { description: "OK" } }; }
   else op.responses = { [sp.StatusCode || "200"]: Object.assign({ description: sp.Summary || "OK" }, schema ? { content: { [ct]: { schema } } } : {}) };
   const doc = { openapi: "3.0.3", info: { title: d.Name || d.DatasetID, version: String(d.Version || "1") }, paths: { [sp.Path || "/"]: { [String(sp.Method || "get").toLowerCase()]: JSON.parse(JSON.stringify(op)) } } };
   return window.jsyaml ? jsyaml.dump(doc, { lineWidth: 140, noRefs: true }) : JSON.stringify(doc, null, 2);
 }
 function dtDdl(sp, fields) {
-  const name = [sp.Schema, sp.Name].filter(Boolean).join(".") || "table_name", pk = fields.filter(f => (f.Spec || {}).PK === "Y").map(f => f.Path);
-  const lines = fields.map(f => { const s = f.Spec || {}; return { sql: `  ${f.Path} ${dtSqlType(f)}${f.Required === "Y" || s.PK === "Y" ? " NOT NULL" : ""}${s.Default ? " DEFAULT " + s.Default : ""}${s.Unique === "Y" && s.PK !== "Y" ? " UNIQUE" : ""}`, c: f.Description }; });
+  const ch = sp.Engine === "ClickHouse", opts = ch || sp.Engine === "Snowflake", pk = fields.filter(f => (f.Spec || {}).PK === "Y").map(f => f.Path);
+  // ClickHouse names are database.table; Snowflake takes database.schema.table
+  const name = (ch ? [sp.Database, sp.Name] : sp.Engine === "Snowflake" ? [sp.Database, sp.Schema, sp.Name] : [sp.Schema, sp.Name]).filter(Boolean).join(".") || "table_name";   // these two keep table options (ENGINE / ORDER BY, CLUSTER BY) in Indexes
+  const lines = fields.map(f => { const s = f.Spec || {}; let t = dtSqlType(f, sp.Engine);
+    if (ch) { if (f.Required !== "Y" && s.PK !== "Y" && !/^Nullable\(/i.test(t)) t = `Nullable(${t})`; return { sql: `  ${f.Path} ${t}${s.Default ? " DEFAULT " + s.Default : ""}`, c: f.Description }; }
+    return { sql: `  ${f.Path} ${t}${s.Default ? " DEFAULT " + s.Default : ""}${f.Required === "Y" || s.PK === "Y" ? " NOT NULL" : ""}${s.Unique === "Y" && s.PK !== "Y" ? " UNIQUE" : ""}`, c: f.Description }; });
   if (pk.length) lines.push({ sql: `  PRIMARY KEY (${pk.join(", ")})` });
-  fields.forEach(f => { const fk = S((f.Spec || {}).FK); if (!fk) return; const m = fk.match(/^([\w.]+?)[.(](\w+)\)?$/); lines.push({ sql: `  CONSTRAINT fk_${String(sp.Name || "t").replace(/\W/g, "_")}_${f.Path} FOREIGN KEY (${f.Path}) REFERENCES ${m ? `${m[1]} (${m[2]})` : fk}` }); });
-  return `-- ${sp.Engine || "SQL"} · ${[sp.Database, sp.Schema, sp.Name].filter(Boolean).join(".")}\nCREATE TABLE ${name} (\n${lines.map((l, i) => l.sql + (i < lines.length - 1 ? "," : "") + (l.c ? " -- " + String(l.c).replace(/\n/g, " ") : "")).join("\n")}\n);${sp.Indexes ? "\n" + String(sp.Indexes).trim() : ""}\n`;
+  if (!ch) fields.forEach(f => { const fk = S((f.Spec || {}).FK); if (!fk) return; const m = fk.match(/^([\w.]+?)[.(](\w+)\)?$/); lines.push({ sql: `  CONSTRAINT fk_${String(sp.Name || "t").replace(/\W/g, "_")}_${f.Path} FOREIGN KEY (${f.Path}) REFERENCES ${m ? `${m[1]} (${m[2]})` : fk}` }); });
+  const cols = lines.map((l, i) => l.sql + (i < lines.length - 1 ? "," : "") + (l.c ? " -- " + String(l.c).replace(/\n/g, " ") : "")).join("\n"), idx = String(sp.Indexes || "").trim().replace(/;$/, "");
+  const tail = opts ? `)${idx ? "\n" + idx : ch ? `\nENGINE = MergeTree\nORDER BY (${pk.join(", ") || (fields[0] || {}).Path || "tuple()"})` : ""};` : `);${idx ? "\n" + String(sp.Indexes).trim() : ""}`;
+  return `-- ${sp.Engine || "SQL"} · ${[sp.Database, sp.Schema, sp.Name].filter(Boolean).join(".")}\nCREATE TABLE ${name} (\n${cols}\n${tail}\n`;
 }
 function dtMongo(sp, fields) {
   const build = node => { const props = {}, req = [];
@@ -271,6 +286,13 @@ function dtParseOpenApi(text, sp) {
   const op = item[method], spec = { Method: method.toUpperCase(), Path: path, OperationId: op.operationId || "", Summary: op.summary || op.description || "" }, fields = [];
   [...(item.parameters || []), ...(op.parameters || [])].forEach(p => { if (p && p.name) fields.push(dtF(p.name, dtFromOas((p.schema || {}).type, (p.schema || {}).format), p.required, p.description, { In: p.in })); });
   let schema = null, ct = "application/json";
+  const flat = (sc, out) => { let s = sc; if (s.$ref) s = String(s.$ref).split("/").slice(1).reduce((o, k) => o && o[k], doc) || {}; if (s.type === "array" && s.items) { const a = dtFlattenJsonSchema(s.items, "[]", null, [], doc); a.forEach(x => { if (x.Path.startsWith("[].")) x.Path = x.Path.slice(3); }); out.push(...a); } else dtFlattenJsonSchema(s, "", null, out, doc); return out; };
+  if (!sp.Direction) {   // one HTTP API dataset: request body (In=body) + response (In=response)
+    const c = (op.requestBody || {}).content || {}, rct = Object.keys(c)[0]; if (rct && c[rct].schema) flat(c[rct].schema, fields);
+    const code = Object.keys(op.responses || {}).find(c => /^2/.test(c)) || Object.keys(op.responses || {})[0], r = (op.responses || {})[code] || {}, rc = r.content || {}, rt = Object.keys(rc)[0];
+    if (rt && rc[rt].schema) flat(rc[rt].schema, []).forEach(x => { x.Spec = Object.assign({}, x.Spec, { In: "response" }); fields.push(x); });
+    spec.StatusCode = code || "200"; spec.ContentType = rct || rt || ct; return { spec, fields };
+  }
   if (sp.Direction === "Request") { const c = (op.requestBody || {}).content || {}; ct = Object.keys(c)[0] || ct; schema = (c[ct] || {}).schema; }
   else { const code = Object.keys(op.responses || {}).find(c => /^2/.test(c)) || Object.keys(op.responses || {})[0]; const r = (op.responses || {})[code] || {}, c = r.content || {}; spec.StatusCode = code || "200"; ct = Object.keys(c)[0] || ct; schema = (c[ct] || {}).schema; }
   spec.ContentType = ct;
@@ -279,7 +301,8 @@ function dtParseOpenApi(text, sp) {
 }
 function dtParseDdl(text, sp) {
   const head = String(text).match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w."]+)\s*\(/i); if (!head) throw new Error("expected CREATE TABLE name ( … )");
-  const nm = head[1].replace(/"/g, "").split("."), spec = { Name: nm.pop(), Schema: nm.pop() || "", Database: nm.pop() || sp.Database || "" }, fields = [], pk = [], fks = {};
+  const nm = head[1].replace(/["`]/g, "").split("."), spec = { Name: nm.pop(), Schema: nm.pop() || "", Database: nm.pop() || sp.Database || "" }, fields = [], pk = [], fks = {};
+  if (sp.Engine === "ClickHouse" && spec.Schema) { spec.Database = spec.Schema; spec.Schema = ""; }   // ClickHouse: database.table
   const start = head.index + head[0].length; let depth = 1, i = start; for (; i < text.length && depth; i++) { if (text[i] === "(") depth++; else if (text[i] === ")") depth--; }
   const body = text.slice(start, i - 1), tail = text.slice(i);
   for (let line of body.split(/\n/)) {
@@ -289,12 +312,13 @@ function dtParseDdl(text, sp) {
     if ((m = line.match(/^(?:CONSTRAINT\s+\w+\s+)?PRIMARY\s+KEY\s*\(([^)]+)\)/i))) { pk.push(...m[1].split(",").map(x => x.trim().replace(/"/g, ""))); continue; }
     if ((m = line.match(/^(?:CONSTRAINT\s+\w+\s+)?FOREIGN\s+KEY\s*\((\w+)\)\s*REFERENCES\s+([\w.]+)\s*\((\w+)\)/i))) { fks[m[1]] = `${m[2]}.${m[3]}`; continue; }
     if (/^(?:CONSTRAINT\s+\w+\s+)?(UNIQUE|CHECK|INDEX|KEY)\b/i.test(line)) continue;
-    m = line.match(/^"?([\w.]+)"?\s+([A-Za-z_]+(?:\s*\([^)]*\))?(?:\s+(?:WITH|WITHOUT)\s+TIME\s+ZONE)?(?:\s+VARYING(?:\s*\(\d+\))?)?(?:\[\])?)(.*)$/i); if (!m) continue;
+    m = line.match(/^[`"]?([\w.]+)[`"]?\s+([A-Za-z_][A-Za-z0-9_]*(?:\s*\((?:[^()]|\([^()]*\))*\))?(?:\s+(?:WITH|WITHOUT)\s+TIME\s+ZONE)?(?:\s+VARYING(?:\s*\(\d+\))?)?(?:\[\])?)(.*)$/i); if (!m) continue;
     const rest = m[3], ref = rest.match(/REFERENCES\s+([\w.]+)\s*\((\w+)\)/i), def = rest.match(/DEFAULT\s+('(?:[^']|'')*'|[^\s,]+(?:\([^)]*\))?)/i);
-    fields.push(dtF(m[1], m[2].toUpperCase(), /NOT\s+NULL|PRIMARY\s+KEY/i.test(rest), c, { PK: /PRIMARY\s+KEY/i.test(rest) ? "Y" : "", FK: ref ? `${ref[1]}.${ref[2]}` : "", Default: def ? def[1] : "", Unique: /\bUNIQUE\b/i.test(rest) ? "Y" : "" }));
+    const ch = sp.Engine === "ClickHouse", ty = ch ? m[2] : m[2].toUpperCase();
+    fields.push(dtF(m[1], ty, ch ? !/^Nullable\(/i.test(ty) : /NOT\s+NULL|PRIMARY\s+KEY/i.test(rest), c, { PK: /PRIMARY\s+KEY/i.test(rest) ? "Y" : "", FK: ref ? `${ref[1]}.${ref[2]}` : "", Default: def ? def[1] : "", Unique: /\bUNIQUE\b/i.test(rest) ? "Y" : "" }));
   }
   fields.forEach(x => { if (pk.includes(x.Path)) { x.Spec.PK = "Y"; x.Required = "Y"; } if (fks[x.Path]) x.Spec.FK = fks[x.Path]; });
-  spec.Indexes = (tail.match(/CREATE\s+(?:UNIQUE\s+)?INDEX[^;]*;/gi) || []).join("\n");
+  spec.Indexes = /^(ClickHouse|Snowflake)$/.test(sp.Engine) ? tail.split(";")[0].trim() : (tail.match(/CREATE\s+(?:UNIQUE\s+)?INDEX[^;]*;/gi) || []).join("\n");
   return { spec, fields };
 }
 function dtParseMongo(text) {
@@ -346,6 +370,140 @@ function dtParse(text, f, sp) {
   return dtParseYaml(text, f);
 }
 
+/* ------------------------------- samples ------------------------------- */
+// A starter entry per dataset type, shown commented out in the Source tab while a dataset has no fields.
+// It is built from sample fields through the same generators, so once uncommented it reads back with Apply to fields.
+// Field rows: [Path, DataType, Required, Description, Spec, Example].
+const DT_SAMPLE_ORDER = { Description: "Customer orders, one row per order" };
+const DT_SAMPLES = {
+  table: { spec: { Schema: "sales", Name: "customer_order", Indexes: "CREATE INDEX ix_customer_order_customer ON sales.customer_order (customer_id);" }, fields: [
+    ["order_id", "UUID", 1, "Order id", { PK: "Y" }], ["customer_id", "VARCHAR(40)", 1, "Customer who placed the order", { FK: "crm.customer.customer_id" }],
+    ["status", "VARCHAR(20)", 1, "PLACED / SHIPPED / CANCELLED", { Default: "'PLACED'" }], ["total_amount", "NUMERIC(18,2)", 1, "Order total"],
+    ["currency", "CHAR(3)", 1, "ISO 4217 currency code", { Default: "'USD'" }], ["contact_email", "VARCHAR(255)", 0, "Contact email - PII", { Unique: "Y" }],
+    ["placed_at", "TIMESTAMPTZ", 1, "When the order was placed", { Default: "now()" }]] },
+  tableSnowflake: { spec: { Database: "ANALYTICS", Schema: "SALES", Name: "FCT_ORDER", Indexes: "CLUSTER BY (PLACED_AT)" }, fields: [
+    ["ORDER_ID", "VARCHAR(36)", 1, "Order id", { PK: "Y" }], ["CUSTOMER_ID", "VARCHAR(40)", 1, "Customer who placed the order"], ["STATUS", "VARCHAR(20)", 1, "PLACED / SHIPPED / CANCELLED"],
+    ["TOTAL_AMOUNT", "NUMBER(18,2)", 1, "Order total"], ["CURRENCY", "VARCHAR(3)", 1, "ISO 4217 currency code", { Default: "'USD'" }], ["ITEMS", "VARIANT", 0, "Order lines as a JSON array"],
+    ["PLACED_AT", "TIMESTAMP_NTZ", 1, "When the order was placed"], ["RECORD_METADATA", "VARIANT", 0, "Kafka topic / partition / offset, set by the Snowflake Kafka connector"],
+    ["LOADED_AT", "TIMESTAMP_NTZ", 1, "When the row was loaded", { Default: "CURRENT_TIMESTAMP()" }]] },
+  tableClickHouse: { spec: { Database: "analytics", Name: "orders", Indexes: "ENGINE = ReplacingMergeTree(loaded_at)\nPARTITION BY toYYYYMM(placed_at)\nORDER BY (customer_id, order_id)" }, fields: [
+    ["order_id", "String", 1, "Order id"], ["customer_id", "String", 1, "Customer who placed the order"], ["status", "LowCardinality(String)", 1, "PLACED / SHIPPED / CANCELLED"],
+    ["total_amount", "Decimal(18, 2)", 1, "Order total"], ["currency", "LowCardinality(String)", 1, "ISO 4217 currency code", { Default: "'USD'" }], ["coupon_code", "Nullable(String)", 0, "Applied coupon, if any"],
+    ["placed_at", "DateTime64(3)", 1, "When the order was placed"], ["kafka_offset", "UInt64", 1, "Offset from the Kafka engine table"], ["loaded_at", "DateTime", 1, "When the row was loaded", { Default: "now()" }]] },
+  collection: { spec: { Database: "sales", Name: "orders", Indexes: "{ customerId: 1, placedAt: -1 }" }, fields: [
+    ["_id", "ObjectId", 1, "Order id"], ["customerId", "string", 1, "Customer who placed the order"], ["status", "string", 1, "PLACED / SHIPPED / CANCELLED"],
+    ["items[].sku", "string", 1, "Product SKU"], ["items[].quantity", "int", 1, "Units ordered"], ["items[].unitPrice", "decimal", 1, "Price per unit"],
+    ["shippingAddress.city", "string", 0, "Ship-to city"], ["shippingAddress.postalCode", "string", 0, "Ship-to postal code"], ["placedAt", "timestamp", 1, "When the order was placed"]] },
+  dbx: { spec: { Catalog: "main", Schema: "sales", Table: "orders", TableFormat: "DELTA" }, fields: [
+    ["order_id", "STRING", 1, "Order id"], ["customer_id", "STRING", 1, "Customer who placed the order"], ["status", "STRING", 0, "PLACED / SHIPPED / CANCELLED"],
+    ["total_amount", "DECIMAL(18,2)", 1, "Order total"], ["items[].sku", "STRING", 1], ["items[].quantity", "INT", 1], ["items[].unit_price", "DECIMAL(18,2)", 1],
+    ["shipping_address.city", "STRING", 0], ["shipping_address.postal_code", "STRING", 0], ["placed_at", "TIMESTAMP", 1, "When the order was placed"],
+    ["order_date", "DATE", 1, "Partition column", { Partition: "Y" }]] },
+  kafka: { spec: { Namespace: "com.example.sales.events", Record: "OrderPlaced" }, fields: [
+    ["eventId", "uuid", 1, "Unique event id, for idempotent consumers"], ["orderId", "string", 1, "Order id (message key)"], ["status", "enum", 1, "Order status", {}, "PLACED|SHIPPED|CANCELLED"],
+    ["totalAmount", "decimal", 1, "Order total", { LogicalType: "decimal" }], ["items[].sku", "string", 1], ["items[].quantity", "int", 1],
+    ["couponCode", "string", 0, "Applied coupon, if any"], ["occurredAt", "timestamp", 1, "When the order was placed"]] },
+  restReq: { spec: { Method: "POST", Path: "/v1/orders", OperationId: "createOrder", Summary: "Create an order", ContentType: "application/json" }, fields: [
+    ["Idempotency-Key", "string", 1, "Client-generated key for safe retries", { In: "header" }], ["customerId", "string", 1, "Customer placing the order", { In: "body" }],
+    ["items[].sku", "string", 1, "Product SKU", { In: "body" }], ["items[].quantity", "int", 1, "Units ordered", { In: "body" }],
+    ["shippingAddress.postalCode", "string", 1, "Ship-to postal code", { In: "body" }], ["couponCode", "string", 0, "Coupon code", { In: "body" }]] },
+  restRes: { spec: { Method: "GET", Path: "/v1/orders/{orderId}", OperationId: "getOrder", Summary: "Get an order", StatusCode: "200", ContentType: "application/json" }, fields: [
+    ["orderId", "string", 1, "Order id", { In: "path" }], ["id", "string", 1, "Order id", { In: "body" }], ["status", "enum", 1, "Order status", { In: "body" }, "PLACED|SHIPPED|CANCELLED"],
+    ["total.amount", "decimal", 1, "Order total", { In: "body" }], ["total.currency", "string", 1, "ISO 4217", { In: "body" }],
+    ["items[].sku", "string", 1, "", { In: "body" }], ["items[].quantity", "int", 1, "", { In: "body" }], ["placedAt", "timestamp", 1, "", { In: "body" }]] },
+  restApi: { spec: { Method: "POST", Path: "/v1/orders", OperationId: "createOrder", Summary: "Create an order", StatusCode: "201", ContentType: "application/json" }, fields: [
+    ["Idempotency-Key", "string", 1, "Client-generated key for safe retries", { In: "header" }], ["customerId", "string", 1, "Customer placing the order", { In: "body" }],
+    ["items[].sku", "string", 1, "Product SKU", { In: "body" }], ["items[].quantity", "int", 1, "Units ordered", { In: "body" }],
+    ["order.id", "string", 1, "Order id", { In: "response" }], ["order.status", "enum", 1, "Order status", { In: "response" }, "PLACED|SHIPPED|CANCELLED"],
+    ["order.total.amount", "decimal", 1, "Order total", { In: "response" }], ["order.total.currency", "string", 1, "ISO 4217", { In: "response" }]] },
+  gqlq: { spec: { OpType: "query", Name: "order", Parameters: "id: ID!", ReturnType: "Order", AuthScopes: "orders:read" }, fields: [
+    ["order.id", "ID!", 1, "@key"], ["order.status", "OrderStatus!", 1, "PLACED, SHIPPED or CANCELLED"], ["order.total.amount", "Float!", 1], ["order.total.currency", "String!", 1],
+    ["order.items[].sku", "ID!", 1], ["order.items[].quantity", "Int!", 1], ["order.placedAt", "DateTime!", 1]] },
+  gqlm: { spec: { OpType: "mutation", Name: "placeOrder", Parameters: "input: PlaceOrderInput!", ReturnType: "Order!", AuthScopes: "orders:write" }, fields: [
+    ["input.cartId", "ID!", 1, "Cart to check out"], ["input.email", "String!", 1, "Contact email"], ["input.shippingAddress.postalCode", "String!", 1],
+    ["input.items[].sku", "ID!", 1], ["input.items[].quantity", "Int!", 1], ["input.couponCode", "String", 0]] },
+  gqlt: { spec: { TypeName: "Order", Kind: "Key" }, fields: [
+    ["id", "ID!", 1, "@key"], ["status", "OrderStatus!", 1, "PLACED, SHIPPED or CANCELLED"], ["customer.id", "ID!", 1, "Reference to the Customer entity"],
+    ["items[].sku", "ID!", 1], ["items[].quantity", "Int!", 1], ["total", "Money!", 1], ["placedAt", "DateTime!", 1]] },
+  csv: { spec: { FileType: "CSV", FileNamePattern: "orders_YYYYMMDD.csv", Delimiter: ",", Header: "Y", Encoding: "UTF-8" }, fields: [
+    ["ORDER_ID", "string", 1, "Order id", { Pattern: "^[0-9]{10}$" }, "4310998877"], ["ORDER_DATE", "date", 1, "Order date", { Pattern: "yyyy-MM-dd" }, "2026-10-13"],
+    ["SKU", "string", 1, "Product SKU", {}, "10023456"], ["QUANTITY", "int", 1, "Units", {}, "2"], ["AMOUNT", "decimal", 1, "Line amount", { Pattern: "0.00" }, "189.99"],
+    ["CURRENCY", "string", 1, "ISO 4217", { Pattern: "^[A-Z]{3}$" }, "USD"]] },
+  json: { spec: { FileType: "JSON", FileNamePattern: "orders_YYYYMMDD.json", Encoding: "UTF-8" }, fields: [
+    ["orderId", "string", 1, "Order id", {}, "4310998877"], ["orderDate", "date", 1, "Order date", { Pattern: "yyyy-MM-dd" }, "2026-10-13"],
+    ["items[].sku", "string", 1, "Product SKU", {}, "10023456"], ["items[].quantity", "int", 1, "Units", {}, "2"], ["total.amount", "decimal", 1, "Order total", {}, "189.99"], ["total.currency", "string", 1, "ISO 4217", { Pattern: "^[A-Z]{3}$" }, "USD"]] },
+  "UI Form": { fields: [
+    ["contact.email", "string", 1, "Contact email - input type=email, PII", {}, "asha@example.com"], ["contact.phone", "string", 0, "Phone - input type=tel, PII", {}, "+1 415 555 0100"],
+    ["shipping.postalCode", "string", 1, "Postal code - input pattern", {}, "94107"], ["paymentMethod", "enum", 1, "Radio group", {}, "CARD|UPI|COD"],
+    ["items[].quantity", "int", 1, "Quantity stepper - min 1", {}, "1"], ["acceptTerms", "boolean", 1, "Checkbox", {}, "true"]] },
+  "UI Component": { fields: [
+    ["product.sku", "string", 1, "Product SKU", {}, "10023456"], ["product.title", "string", 1, "Heading", {}, "Pegasus 41 Running Shoe"], ["priceLabel", "string", 1, "Formatted price", {}, "$189.99"],
+    ["heroImage.src", "string", 0, "Image URL", {}, "https://cdn.example.com/p/10023456.jpg"], ["heroImage.alt", "string", 0, "Alt text"], ["badges[]", "string", 0, "e.g. NEW, SALE", {}, "NEW"],
+    ["isPurchasable", "boolean", 1, "Enables Add to cart", {}, "true"]] },
+  "MDM Entity": { fields: [
+    ["MATERIAL_NBR", "VARCHAR(18)", 1, "Material number", {}, "000000000010023456"], ["GTIN", "VARCHAR(14)", 0, "GS1 global trade item number", {}, "09312345678907"],
+    ["BRAND_CD", "VARCHAR(10)", 1, "Brand code", {}, "NIKE"], ["PROD_STATUS_CD", "CHAR(1)", 1, "A active, I inactive, D discontinued", {}, "A|I|D"], ["LAST_UPDATE_DATE", "TIMESTAMP", 1, "Last change"]] },
+  "PIM Entity": { fields: [
+    ["identifier", "string", 1, "Product identifier = SKU", {}, "10023456"], ["family", "string", 1, "Product family", {}, "footwear"], ["values.name.en_US", "string", 1, "Name per locale"],
+    ["values.description.en_US", "string", 0, "Description per locale"], ["enabled", "boolean", 1, "Published to channels", {}, "true"], ["updated", "timestamp", 1, "Last change"]] },
+  "ERP Object": { fields: [
+    ["MATNR", "string", 1, "Material number", {}, "10023456"], ["WERKS", "string", 1, "Plant / store", {}, "S001"], ["LABST", "decimal", 1, "Unrestricted stock", {}, "42"],
+    ["MEINS", "string", 1, "Base unit of measure", {}, "EA"], ["AEDAT", "date", 1, "Changed on"]] },
+  "Search Index": { fields: [
+    ["objectID", "string", 1, "Document id = SKU", {}, "10023456"], ["name", "string", 1, "Full-text field"], ["brand", "string", 0, "Keyword facet", {}, "Nike"],
+    ["price", "decimal", 0, "Range facet", {}, "189.99"], ["inStock", "boolean", 1, "Filter", {}, "true"], ["indexedAt", "timestamp", 1, "When the document was indexed"]] },
+  other: { fields: [["id", "string", 1, "Identifier"], ["name", "string", 1, "Display name"], ["updatedAt", "timestamp", 1, "Last change"]] },
+};
+function dtSampleKey(f, sp, kind) {
+  const k = KN(kind);
+  if (f === "db") return sp.ObjectType === "Collection" ? "collection" : DT_SAMPLES["table" + sp.Engine] ? "table" + sp.Engine : "table";
+  if (f === "rest") return !sp.Direction ? "restApi" : sp.Direction === "Request" ? "restReq" : "restRes";
+  if (f === "file") return /JSON/.test(k) || /JSON/.test(sp.FileType || "") ? "json" : "csv";
+  if (f === "yaml") return DT_SAMPLES[k] ? k : "other";
+  return f;
+}
+// Comment marker of the Source tab's language.
+const dtMarker = (f, sp) => f === "dbx" || (f === "db" && sp.ObjectType !== "Collection") ? "--" : f === "kafka" || (f === "db" && sp.ObjectType === "Collection") ? "//" : "#";
+function dtSample(d, f, sp) {
+  const m = DT_SAMPLES[dtSampleKey(f, sp, d.Kind)] || DT_SAMPLES.other, mk = dtMarker(f, sp);
+  const fields = m.fields.map(([p, t, r, desc, spec, ex]) => dtF(p, t, r, desc, spec, ex));
+  const spec = Object.assign({}, sp, m.spec || {});
+  const text = dtSource(Object.assign({}, d, { Description: S(d.Description) || DT_SAMPLE_ORDER.Description }), f, spec, fields);
+  return text.replace(/\n+$/, "").split("\n").map(l => l ? `${mk} ${l}` : mk).join("\n") + "\n";
+}
+// Removes one comment marker from the start of every line (Uncomment sample).
+const dtUncomment = (text, mk) => String(text).split("\n").map(l => l.replace(new RegExp(`^(\\s*)${mk.replace(/\//g, "\\/")} ?`), "$1")).join("\n");
+// Drops whole-line comments before parsing (SDL "# auth scopes:" lines are data, so they stay).
+const dtStripComments = (text, mk) => String(text).split("\n").filter(l => { const t = l.trim(); return !t.startsWith(mk) || /^#\s*auth scopes:/i.test(t); }).join("\n");
+
+// Standard references for each dataset type, shown in the dataset dialog.
+const DT_REFS = {
+  PostgreSQL: ["PostgreSQL CREATE TABLE", "https://www.postgresql.org/docs/current/sql-createtable.html"],
+  MySQL: ["MySQL CREATE TABLE", "https://dev.mysql.com/doc/refman/8.4/en/create-table.html"],
+  Oracle: ["Oracle CREATE TABLE", "https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/CREATE-TABLE.html"],
+  "SQL Server": ["SQL Server CREATE TABLE", "https://learn.microsoft.com/en-us/sql/t-sql/statements/create-table-transact-sql"],
+  Snowflake: [["Snowflake CREATE TABLE", "https://docs.snowflake.com/en/sql-reference/sql/create-table"], ["Snowflake data types", "https://docs.snowflake.com/en/sql-reference/intro-summary-data-types"], ["Snowflake Kafka connector", "https://docs.snowflake.com/en/user-guide/kafka-connector"]],
+  ClickHouse: [["ClickHouse CREATE TABLE", "https://clickhouse.com/docs/en/sql-reference/statements/create/table"], ["ClickHouse data types", "https://clickhouse.com/docs/en/sql-reference/data-types"], ["ClickHouse Kafka engine", "https://clickhouse.com/docs/en/engines/table-engines/integrations/kafka"]],
+  collection: [["MongoDB schema validation", "https://www.mongodb.com/docs/manual/core/schema-validation/specify-json-schema/"], ["$jsonSchema keywords & bsonTypes", "https://www.mongodb.com/docs/manual/reference/operator/query/jsonSchema/"]],
+  dbx: [["Databricks CREATE TABLE", "https://docs.databricks.com/en/sql/language-manual/sql-ref-syntax-ddl-create-table-using.html"], ["Databricks data types", "https://docs.databricks.com/en/sql/language-manual/sql-ref-datatypes.html"], ["Databricks + Kafka streaming", "https://docs.databricks.com/en/connect/streaming/kafka.html"]],
+  kafka: [["Avro specification", "https://avro.apache.org/docs/1.11.1/specification/"], ["Schema Registry compatibility", "https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html"]],
+  rest: [["OpenAPI 3.0.3", "https://spec.openapis.org/oas/v3.0.3"]],
+  gql: [["GraphQL type system", "https://spec.graphql.org/October2021/"]],
+  gqlt: [["GraphQL type system", "https://spec.graphql.org/October2021/"], ["Federation entities (@key)", "https://www.apollographql.com/docs/federation/entities/"]],
+  csv: [["CSV (RFC 4180)", "https://www.rfc-editor.org/rfc/rfc4180"]],
+  json: [["JSON Schema", "https://json-schema.org/understanding-json-schema/"]],
+  "UI Form": [["HTML input types", "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input"]],
+  "UI Component": [["React component props", "https://react.dev/learn/passing-props-to-a-component"]],
+  "Search Index": [["Elasticsearch mappings", "https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html"]],
+  "PIM Entity": [["Akeneo product API", "https://api.akeneo.com/api-reference.html"]],
+};
+function dtRefsHTML(f, sp, kind) {
+  const key = dtSampleKey(f, sp, kind);
+  const eng = DT_REFS[sp.Engine] || DT_REFS.PostgreSQL;
+  const refs = /^table/.test(key) ? (Array.isArray(eng[0]) ? eng : [eng]) : key === "collection" ? DT_REFS.collection : /^rest/.test(key) ? DT_REFS.rest : f === "gqlq" || f === "gqlm" ? DT_REFS.gql : DT_REFS[key] || [];
+  return [...refs, ["Help: dataset types", "help.html#dm-datasets"]].map(([l, u]) => `<a href="${ea(u)}" target="_blank" rel="noopener">${esc(l)}</a>`).join(" · ");
+}
+
 /* ------------------------------- dialog -------------------------------- */
 const DT_COLS = {
   gql: [["Path", "Field path"], ["DataType", "GraphQL type"], ["Description", "Description"]],
@@ -363,7 +521,7 @@ const DT_SPEC_FORM = {
   gqlm: [DT_STYLE, ["OpType", "Operation", ["query", "mutation", "subscription"]], ["Name", "Operation name"], ["ReturnType", "Return type"], ["AuthScopes", "Auth scopes"], ["Parameters", "Parameters (one  name: Type  per line)", "area"]],
   gqlt: [["TypeName", "Type name"], ["Kind", "Kind", ["Type", "Key", "Input", "Interface", "Enum"]]],
   rest: [DT_STYLE, ["Method", "Method", ["GET", "POST", "PUT", "PATCH", "DELETE"]], ["Path", "Path"], ["OperationId", "operationId"], ["StatusCode", "Status code"], ["ContentType", "Content type"], ["Summary", "Summary", "area"]],
-  db: [["ObjectType", "Object", ["Table", "Collection"]], ["Engine", "Engine", ["PostgreSQL", "MySQL", "Oracle", "SQL Server", "MongoDB", "Cosmos DB", "DynamoDB"]], ["Database", "Database"], ["Schema", "Schema"], ["Name", "Table / collection"], ["Indexes", "Indexes (one per line)", "area"]],
+  db: [["ObjectType", "Object", ["Table", "Collection"]], ["Engine", "Engine", ["PostgreSQL", "MySQL", "Oracle", "SQL Server", "Snowflake", "ClickHouse", "MongoDB", "Cosmos DB", "DynamoDB"]], ["Database", "Database"], ["Schema", "Schema"], ["Name", "Table / collection"], ["Indexes", "Indexes (one per line) · Snowflake / ClickHouse: table options (CLUSTER BY, ENGINE, ORDER BY, PARTITION BY)", "area"]],
   kafka: [["Topic", "Topic"], ["Namespace", "Namespace"], ["Record", "Record name"], ["KeyField", "Key field"], ["Compatibility", "Compatibility", COMPAT]],
   dbx: [["Catalog", "Catalog"], ["Schema", "Schema"], ["Table", "Table"], ["TableFormat", "Format", ["DELTA", "PARQUET", "ICEBERG", "CSV", "JSON"]]],
   file: [["FileType", "File type", ["CSV", "JSON", "JSONL", "PARQUET", "XML"]], ["FileNamePattern", "File name pattern"], ["Delimiter", "Delimiter"], ["Header", "Header row", ["Y", "N"]], ["Encoding", "Encoding"]],
@@ -373,7 +531,7 @@ let DTD = null;   // the dialog's draft
 function dtOpen(id, opts) {
   const d = dsById(id); if (!d) return;
   const sp = dtSpec(d);
-  DTD = { id, opts: opts || {}, tab: "fields", core: { Name: d.Name, Kind: d.Kind, Version: d.Version, Status: d.Status || "Draft", Description: d.Description, Location: d.Location },
+  DTD = { id, opts: opts || {}, tab: opts && opts.isNew && !attrsOf(id).length ? "source" : "fields", core: { Name: d.Name, Kind: d.Kind, Version: d.Version, Status: d.Status || "Draft", Description: d.Description, Location: d.Location },
     spec: JSON.parse(JSON.stringify(sp)), fields: attrsOf(id).map(a => ({ orig: a.Path, Path: a.Path, DataType: a.DataType, Required: a.Required, Description: a.Description, Example: a.Example, Spec: dtAttrSpec(d, a, sp) })), err: "" };
   dtRender();
 }
@@ -388,23 +546,28 @@ function dtRender() {
   const cell = (x, i, [k, , o]) => { const v = k.startsWith("s:") ? (x.Spec || {})[k.slice(2)] : x[k], at = `data-fi="${i}" data-fk="${k}"`;
     if (o) return `<td>${sel(o, v || "", at)}</td>`; if (k === "DataType" && f === "kafka") return `<td><input ${at} value="${ea(v || "")}" placeholder="string" /><div class="hint">${esc(dtAvroLabel(x))}</div></td>`;
     return `<td>${k === "Description" ? `<textarea ${at} rows="1">${esc(v || "")}</textarea>` : `<input ${at} value="${ea(v || "")}"${k === "DataType" ? ` list="dtdl-${f}"` : ""} />`}</td>`; };
-  const typeList = { gql: ["ID!", "String", "String!", "Int", "Int!", "Float", "Boolean", "DateTime", "Money", "[String!]!"], rest: ["string", "int", "long", "decimal", "boolean", "timestamp", "date", "uuid", "enum"], db: f === "db" && sp.ObjectType === "Collection" ? ["string", "int", "long", "decimal", "boolean", "timestamp", "ObjectId"] : ["VARCHAR(255)", "TEXT", "INTEGER", "BIGINT", "NUMERIC(18,2)", "BOOLEAN", "TIMESTAMPTZ", "DATE", "UUID", "JSONB"], kafka: ["string", "int", "long", "decimal", "boolean", "timestamp", "date", "uuid", "enum"], dbx: ["STRING", "INT", "BIGINT", "DOUBLE", "DECIMAL(18,2)", "BOOLEAN", "TIMESTAMP", "DATE", "BINARY"], file: ["string", "int", "decimal", "boolean", "date", "timestamp"], yaml: DTYPES }[/^gql/.test(f) ? "gql" : f] || DTYPES;
+  const typeList = { gql: ["ID!", "String", "String!", "Int", "Int!", "Float", "Boolean", "DateTime", "Money", "[String!]!"], rest: ["string", "int", "long", "decimal", "boolean", "timestamp", "date", "uuid", "enum"], db: f === "db" && sp.ObjectType === "Collection" ? ["string", "int", "long", "decimal", "boolean", "timestamp", "ObjectId"]
+    : sp.Engine === "Snowflake" ? ["VARCHAR", "NUMBER(10,0)", "NUMBER(19,0)", "NUMBER(18,2)", "BOOLEAN", "TIMESTAMP_NTZ", "TIMESTAMP_TZ", "DATE", "VARIANT", "ARRAY", "OBJECT"]
+    : sp.Engine === "ClickHouse" ? ["String", "LowCardinality(String)", "Int32", "Int64", "UInt32", "UInt64", "Decimal(18, 2)", "Float64", "Bool", "Date", "DateTime", "DateTime64(3)", "UUID", "Nullable(String)", "Array(String)"]
+    : ["VARCHAR(255)", "TEXT", "INTEGER", "BIGINT", "NUMERIC(18,2)", "BOOLEAN", "TIMESTAMPTZ", "DATE", "UUID", "JSONB"], kafka: ["string", "int", "long", "decimal", "boolean", "timestamp", "date", "uuid", "enum"], dbx: ["STRING", "INT", "BIGINT", "DOUBLE", "DECIMAL(18,2)", "BOOLEAN", "TIMESTAMP", "DATE", "BINARY"], file: ["string", "int", "decimal", "boolean", "date", "timestamp"], yaml: DTYPES }[/^gql/.test(f) ? "gql" : f] || DTYPES;
   const extra = f === "kafka" || f === "dbx" || (f === "db" && sp.ObjectType !== "Collection") ? "struct" : "";
   const srcLabel = f === "db" && sp.ObjectType === "Collection" ? "MongoDB $jsonSchema" : info.src;
   let body;
-  if (DTD.tab === "fields") body = `<div class="dt-fields"><table class="dg-tbl"><thead><tr><th>#</th>${cols.map(c => `<th>${esc(c[1])}</th>`).join("")}<th></th></tr></thead><tbody>${DTD.fields.map((x, i) => `<tr><td class="ro">${i + 1}</td>${cols.map(c => cell(x, i, c)).join("")}<td class="act"><button class="icon-btn" data-dt="up" data-v="${i}" title="Move up"${i ? "" : " disabled"}>↑</button><button class="rm-row" data-dt="rm" data-v="${i}" title="Remove">✕</button></td></tr>`).join("") || `<tr><td colspan="${cols.length + 2}" class="empty">No ${f === "db" || f === "dbx" || f === "file" ? "columns" : "fields"} yet: add them, or paste a ${esc(srcLabel)} in the Source tab.</td></tr>`}</tbody></table></div>
+  if (DTD.tab === "fields") body = `<div class="dt-fields"><table class="dg-tbl"><thead><tr><th>#</th>${cols.map(c => `<th>${esc(c[1])}</th>`).join("")}<th></th></tr></thead><tbody>${DTD.fields.map((x, i) => `<tr><td class="ro">${i + 1}</td>${cols.map(c => cell(x, i, c)).join("")}<td class="act"><button class="icon-btn" data-dt="up" data-v="${i}" title="Move up"${i ? "" : " disabled"}>↑</button><button class="rm-row" data-dt="rm" data-v="${i}" title="Remove">✕</button></td></tr>`).join("") || `<tr><td colspan="${cols.length + 2}" class="empty">No ${f === "db" || f === "dbx" || f === "file" ? "columns" : "fields"} yet: add them, or paste a ${esc(srcLabel)} in the Source tab, which starts with a commented-out sample.</td></tr>`}</tbody></table></div>
       <div class="dg-row"><button data-dt="add">＋ ${f === "db" || f === "dbx" || f === "file" ? "Column" : "Field"}</button>${/^gql/.test(f) ? '<span class="hint">Field paths start with the root (e.g. <span class="mono">product.title</span>, <span class="mono">input.sku</span>); a trailing <span class="mono">!</span> makes it required; "@key" in the description marks the key.</span>' : '<span class="hint">Dotted paths nest (<span class="mono">brand.name</span>); <span class="mono">[]</span> marks an array (<span class="mono">images[].url</span>).</span>'}</div>
       <datalist id="dtdl-${f}">${typeList.map(t => `<option value="${ea(t)}">`).join("")}</datalist>`;
-  else if (DTD.tab === "source") body = `<p class="hint">Edit or paste a ${esc(srcLabel)} and click <b>Apply to fields</b>; the fields and the type details are replaced from it (business terms and classifications are kept by path).</p>
-      <textarea id="dtSrc" class="dt-src" spellcheck="false">${esc(DTD.src != null ? DTD.src : dtSource(d, f, sp, dtFieldsView()))}</textarea>
-      <div class="dg-row"><button class="primary" data-dt="apply">Apply to fields</button><button data-dt="regen">Regenerate from fields</button><button data-dt="copy">Copy</button><button data-dt="dl">Download</button></div>`;
+  else if (DTD.tab === "source") { const fv = dtFieldsView(), mk = dtMarker(f, sp);
+    body = `<p class="hint">Edit or paste a ${esc(srcLabel)} and click <b>Apply to fields</b>; the fields and the type details are replaced from it (business terms and classifications are kept by path).${fv.length ? "" : ` It starts with a <b>sample</b>, commented out with <span class="mono">${esc(mk)}</span>: click <b>Uncomment sample</b> (or delete the markers), change it to your ${esc(srcLabel)}, then Apply.`}</p>
+      <textarea id="dtSrc" class="dt-src" spellcheck="false">${esc(DTD.src != null ? DTD.src : fv.length ? dtSource(d, f, sp, fv) : dtSample(d, f, sp))}</textarea>
+      <div class="dg-row"><button class="primary" data-dt="apply">Apply to fields</button><button data-dt="uncomment" title="Remove one ${ea(mk)} from the start of every line">Uncomment sample</button><button data-dt="sample" title="Replace the source with the commented-out sample for this type">Show sample</button><button data-dt="regen">Regenerate from fields</button><button data-dt="copy">Copy</button><button data-dt="dl">Download</button></div>
+      <p class="hint">Standard reference: ${dtRefsHTML(f, sp, d.Kind)}</p>`; }
   else body = `<p class="hint">The same fields as a Databricks / PySpark schema, e.g. for <span class="mono">from_avro</span> / Auto Loader or a Delta table.</p><pre class="code dt-src">${esc(dtStructType(dtFieldsView(), f === "dbx" ? [sp.Catalog, sp.Schema, sp.Table].filter(Boolean).join(".") : d.Name))}</pre>${f !== "dbx" ? `<pre class="code dt-src">${esc(dtSparkDdl(d, { Catalog: "main", Schema: "bronze", Table: String(sp.Name || sp.Record || d.DatasetID).toLowerCase().replace(/[^a-z0-9]+/g, "_"), TableFormat: "DELTA" }, dtFieldsView()))}</pre>` : ""}<div class="dg-row"><button data-dt="copy-struct">Copy StructType</button></div>`;
   openModal(`<h2>${esc(info.t)} details <span class="hint mono">${esc(DTD.id)}</span></h2>
     <div class="frm dt-core">${[["Name", "Name"], ["Version", "Version"]].map(([k, l]) => `<label>${l}${inp(k, DTD.core[k], `data-core="${k}"`)}</label>`).join("")}
       <label>Type${sel(DS_KINDS, DTD.core.Kind, 'data-core="Kind"')}</label><label>Status${sel(STATUS, DTD.core.Status, 'data-core="Status"')}</label>
       <label class="wide">Description<textarea data-core="Description" rows="1">${esc(DTD.core.Description || "")}</textarea></label></div>
     ${specForm ? `<div class="kv">${esc(info.t)}</div><div class="frm dt-spec">${specForm}</div>` : ""}
-    <div class="dt-tabs"><button data-dt-tab="fields" class="${DTD.tab === "fields" ? "active" : ""}">${f === "db" || f === "dbx" || f === "file" ? "Columns" : "Fields"} (${DTD.fields.length})</button><button data-dt-tab="source" class="${DTD.tab === "source" ? "active" : ""}">Source · ${esc(srcLabel)}</button>${extra ? `<button data-dt-tab="struct" class="${DTD.tab === "struct" ? "active" : ""}">Databricks StructType</button>` : ""}<span class="hint" style="margin-left:auto">Saved in the <b>${esc(info.sheet || "Attributes")}</b> sheet</span></div>
+    <div class="dt-tabs"><button data-dt-tab="fields" class="${DTD.tab === "fields" ? "active" : ""}">${f === "db" || f === "dbx" || f === "file" ? "Columns" : "Fields"} (${DTD.fields.length})</button><button data-dt-tab="source" class="${DTD.tab === "source" ? "active" : ""}">Source · ${esc(srcLabel)}</button>${extra ? `<button data-dt-tab="struct" class="${DTD.tab === "struct" ? "active" : ""}">Databricks StructType</button>` : ""}<span class="hint dt-refs" style="margin-left:auto">${dtRefsHTML(f, sp, d.Kind)} · saved in the <b>${esc(info.sheet || "Attributes")}</b> sheet</span></div>
     <div class="dt-body">${body}</div>
     <div class="dt-err" id="dtErr">${esc(DTD.err || "")}</div>
     <div class="modal-actions"><span class="hint">${DTD.opts.isNew ? "New dataset: Cancel removes it." : ""}</span><span style="flex:1"></span><button data-dt="cancel">Cancel</button><button class="primary" data-dt="save">Save</button></div>`);
@@ -429,6 +592,8 @@ function dtWire() {
     else if (a === "rm") { DTD.fields.splice(i, 1); dtRender(); }
     else if (a === "up") { DTD.fields.splice(i - 1, 0, DTD.fields.splice(i, 1)[0]); dtRender(); }
     else if (a === "regen") { DTD.src = null; DTD.err = ""; dtRender(); }
+    else if (a === "sample") { DTD.src = dtSample(dtDs(), dtFam0(), DTD.spec); DTD.err = ""; dtRender(); }
+    else if (a === "uncomment") { DTD.src = dtUncomment(document.getElementById("dtSrc").value, dtMarker(dtFam0(), DTD.spec)); DTD.err = ""; dtRender(); }
     else if (a === "apply") dtApplySource();
     else if (a === "copy") copyText(document.getElementById("dtSrc").value);
     else if (a === "copy-struct") copyText(dtStructType(dtFieldsView(), dtDs().Name));
@@ -445,8 +610,9 @@ function dtRederive() {
   if (style === "REST" && prev.Name && !prev.OperationId) DTD.spec.OperationId = prev.Name; DTD.fields.forEach(x => x.Spec = dtAttrSpec(d, x, DTD.spec));
 }
 function dtApplySource() {
-  const text = document.getElementById("dtSrc").value, f = dtFam0();
-  let r; try { r = dtParse(text, f, DTD.spec); } catch (err) { DTD.err = "Could not read the source: " + (err.message || err); DTD.src = text; return dtRender(); }
+  const text = document.getElementById("dtSrc").value, f = dtFam0(), code = dtStripComments(text, dtMarker(f, DTD.spec));
+  if (!code.trim()) { DTD.err = "The source is only comments: click Uncomment sample (or delete the comment markers), edit it, then Apply to fields."; DTD.src = text; return dtRender(); }
+  let r; try { r = dtParse(code, f, DTD.spec); } catch (err) { DTD.err = "Could not read the source: " + (err.message || err); DTD.src = text; return dtRender(); }
   const old = new Map(DTD.fields.map(x => [x.Path, x]));
   if (r.spec.Types && DTD.spec.Types) r.spec.Types = Object.assign({}, r.spec.Types);
   Object.assign(DTD.spec, r.spec);

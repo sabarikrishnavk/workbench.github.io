@@ -482,6 +482,7 @@
       <li>The <b>Commerce Orchestrator</b> owns the commerce subgraph and calls the FCC Transact REST API with the five FCC headers.</li>
       <li><b>placeOrder</b> is a saga: Initiate Checkout (soft reservation) → Initiate Payment (order id) → Create Order (pending / approved).</li>
       <li>The <b>FCC Order Bridge</b> turns FCC's payment webhook + Get Checkout into <code>order.created.v1</code> for the Order Service.</li>
+      <li>A Databricks <b>Catalog Hub</b> (data hub) merges MDM (Kafka) and PIM (file) and pushes the catalog to the Product Service, FCC Catalog, Algolia and Elasticsearch; a ClickHouse <b>Data Feed Observatory</b> collects every feed and ingestion log from Kafka.</li>
       <li>FCC bodies are modelled from the public docs and marked <i>Proposed</i>.</li>
     </ul>
     <div class="win"><div class="body seq">

@@ -174,6 +174,8 @@
   nav .chrome-toggle{ align-self: center; padding: 3px 9px; font-size: 12px; }
   #view-guide{ --obw: 44%; }
   #view-guide .wz-steps{ grid-template-columns: repeat(7, 1fr); }
+  .mt-chip{ display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+  .mt-chip.mt-api{ background: #e0f2fe; color: #0369a1; } .mt-chip.mt-sync{ background: #fae8ff; color: #a21caf; }
   .ob-drawer{ position: relative; flex: none; width: 34px; align-self: stretch; margin-left: 14px; transition: width .32s ease; display: flex; }
   .ob-drawer.open{ width: var(--obw); }
   .ob-drawer.resizing{ transition: none; }
@@ -237,6 +239,19 @@
   .dg-pill{ display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: #fff; white-space: nowrap; }
   .dg-cross{ background: #c2410c; } .dg-same{ background: #64748b; } .dg-int{ background: #94a3b8; }
   .dg-mx td, .dg-mx th{ text-align: center; } .dg-mx td.hot{ background: #fff7ed; font-weight: 700; color: #c2410c; } .dg-mx td.self{ background: #f1f5f9; }
+  /* step 5: API data mapping / domain data mapping chain */
+  .dg-chain{ display: flex; align-items: stretch; gap: 6px; overflow-x: auto; margin: 6px 0 10px; }
+  .dg-tier{ flex: 1 1 0; min-width: 150px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; font-size: 12px; }
+  .dg-tier.cur{ border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .dg-tier h5{ margin: 0 0 4px; font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .02em; }
+  .dg-tier .ch{ display: block; margin: 2px 0; padding: 2px 6px; border-radius: 6px; border-left: 3px solid #94a3b8; background: #f8fafc; cursor: pointer; }
+  .dg-tier .ch.me{ font-weight: 700; background: var(--accent-soft); }
+  .dg-tier .ch.next{ outline: 1px dashed var(--accent); }
+  .dg-tier .none{ color: var(--muted); }
+  .dg-tier select{ font-size: 12px; padding: 3px 4px; }
+  .addrow.sel{ border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .dg-arrow{ align-self: center; color: var(--muted); font-size: 16px; flex: none; }
+  .wz-card.mt-card p.chain{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: var(--ink); }
   .dg-note{ border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 12.5px; background: #fbfbfd; }
   .dg-note.warn{ border-color: #fcd34d; background: #fffbeb; color: #92400e; }
   .dg-note.ok{ border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
@@ -332,7 +347,9 @@
         <option value="term">Business term (lineage)</option>
         <option value="domain">Domain</option>
         <option value="app">Application</option>
+        <option value="mtype">Mapping type</option>
       </select></label>
+      <label id="cvMtL" title="API data mapping: front end → BFF / FedGQL router → service → database / third party · Domain data mapping: core → data hub → data platform">Type <select id="cvMt"><option>API data mapping</option><option>Domain data mapping</option></select> <span class="chk" title="Swimlanes: API = a row per UI form / component, a column per layer and service · Domain data = a row per kind of data, a column per stage"><input type="checkbox" id="cvLanes" checked /> Swimlanes</span></label>
       <label id="cvFlowL">Flow <select id="cvFlow"></select></label>
       <label id="cvPairL">Source <select id="cvPairA"></select> → Target <select id="cvPairB"></select></label>
       <label id="cvTermL">Term <select id="cvTerm"></select></label>
@@ -404,7 +421,8 @@
     </div>
     <div class="card">
       <h2>Integration flows</h2>
-      <p class="desc">Applications grouped by domain and joined by the flows that carry the mappings. Each edge label shows how the data crosses (REST API, GraphQL, Kafka event, File (CSV), CDC) and how many attribute mappings the flow carries.</p>
+      <p class="desc">Applications grouped by domain and joined by the flows that carry the mappings. Each edge label shows how the data crosses (REST API, GraphQL, Kafka event, File (CSV), CDC) and how many attribute mappings the flow carries. Show the two kinds of flow apart: <b>API data mapping</b> (front end → BFF / FedGQL router → domain / integration service → database or third party) and <b>domain data mapping</b> (data sync: core → data hub → data platform).</p>
+      <div class="toolbar-inline"><span class="hint">Show</span><span class="seg" id="flTypeSeg"><button data-mt="" class="active">All flows</button><button data-mt="API data mapping">API data mapping</button><button data-mt="Domain data mapping">Domain data mapping</button></span></div>
       <div class="mmd" id="flOut" data-fullscreen="Domain flow diagram"></div>
       <div class="code-head"><h3>Flows</h3><span class="spacer"></span><button id="flCopy" class="copy-btn">Copy Mermaid source</button></div>
       <div id="flTable"></div>
@@ -463,6 +481,28 @@ const STATUS = ["Draft", "Proposed", "Approved", "Deprecated"];
 // lakehouse / warehouse. Both run on Databricks, Snowflake or ClickHouse and integrate through Kafka.
 const APP_TYPES = ["01-Domain service", "02-Orchestrator service", "03-Integration service", "04-BFF", "05-FedGQL router", "06-Frontend", "07-Core system", "08-Third party", "09-Data hub", "10-Data platform"];
 const DATA_APPS = new Set(["Data hub", "Data platform"]);
+// Two kinds of integration flow, recorded on each flow (Flows.MappingType):
+//   API data mapping    — a call from the front end to the back end: front end → BFF / FedGQL router →
+//                         domain / orchestrator / integration service → database or third party (and its response back);
+//   Domain data mapping — a data sync: core / third-party source → (integration service) → data hub → data platform,
+//                         and the services and channels the hub distributes to.
+const MAP_TYPES = ["API data mapping", "Domain data mapping"];
+const [MT_API, MT_SYNC] = MAP_TYPES;
+// Layers of each chain, front to back / source to platform: [label, application types].
+const MT_CHAIN = {
+  [MT_API]: [["Front end", ["Frontend"]], ["BFF / FedGQL router", ["BFF", "FedGQL router"]], ["Domain / orchestrator / integration service", ["Domain service", "Orchestrator service", "Integration service"]], ["Database / third party", ["Third party", "Core system"]]],
+  [MT_SYNC]: [["Core / source system", ["Core system", "Third party"]], ["Integration service", ["Integration service"]], ["Data hub", ["Data hub"]], ["Data platform", ["Data platform"]], ["Subscribers (services, channels)", ["Domain service", "Orchestrator service"]]],
+};
+const mtTier = (mt, appType) => MT_CHAIN[mt].findIndex(([, types]) => types.includes(KN(appType)));
+const SYNC_KINDS = /^(Kafka Event|Databricks Table|CSV Schema|JSON Schema)$/;
+// The flow's mapping type: as recorded, else derived from its applications, pattern and mapped datasets.
+function deriveMapType(f, db) {
+  db = db || DB; const app = id => db.Applications.find(a => a.AppID === id), types = [app(f.SourceAppID), app(f.TargetAppID)].map(a => KN(a && a.AppType));
+  if (types.some(t => DATA_APPS.has(t) || t === "Core system") || ["Kafka event", "CDC", "File (CSV)"].includes(f.Pattern)) return MT_SYNC;
+  if (f.Pattern === "Internal" && db.Mappings.some(m => m.FlowID === f.FlowID && SYNC_KINDS.test(KN((db.Datasets.find(d => d.DatasetID === m.TargetDatasetID) || {}).Kind)))) return MT_SYNC;
+  return MT_API;
+}
+const mapTypeOf = f => f ? (MAP_TYPES.includes(f.MappingType) ? f.MappingType : deriveMapType(f)) : "";
 // Technology suggestions for the Applications sheet (any value is allowed).
 const TECH_HINTS = ["Databricks (Delta Lake, Unity Catalog) + Kafka Structured Streaming", "Snowflake + Snowflake Kafka Connector (Snowpipe Streaming)", "ClickHouse (MergeTree) + Kafka table engine + materialized views",
   "Confluent Kafka + Schema Registry", "Spring Boot 3 + PostgreSQL 16", "NestJS + MongoDB 7", "Apollo Router (Federation 2 supergraph)", "Next.js + Apollo Client", "React Native"];
@@ -520,8 +560,8 @@ const DM = {
     cols: [{ key: "DatasetID", fk: "Datasets" }, { key: "Path", w: 200, help: "Dotted path; [] marks an array" }, { key: "DataType", opts: DTYPES, soft: 1, w: 120 }, { key: "Required", opts: ["Y", "N"], w: 60 }, { key: "Classification", opts: CLASSES }, { key: "TermID", fk: "BusinessTerms" }, { key: "Example", w: 160 }, { key: "Description", area: 1 }, { key: "Status", opts: STATUS }] },
   Mappings: { id: "MappingID", prefix: "MAP-", desc: "Source-to-target attribute mappings. Leave the source path empty for Constant / Generate. Several rows with the same target and a Concat / Derive transformation express a multi-source mapping.",
     cols: [{ key: "MappingID", w: 90 }, { key: "FlowID", fk: "Flows" }, { key: "SourceDatasetID", fk: "Datasets" }, { key: "SourcePath", path: "SourceDatasetID", w: 190 }, { key: "TargetDatasetID", fk: "Datasets" }, { key: "TargetPath", path: "TargetDatasetID", w: 190 }, { key: "Transformation", opts: TRANSFORMS }, { key: "Rule", area: 1, help: "Expression / lookup table / enum map" }, { key: "Status", opts: STATUS }, { key: "Notes", area: 1 }] },
-  Flows: { id: "FlowID", prefix: "FL-", desc: "Integration flows between two applications (or Internal inside one): core → integration service via REST API / Kafka event / File (CSV); integration → domain service via Kafka event; service API → BFF or FedGQL router; BFF / router → front end.",
-    cols: [{ key: "FlowID", w: 150 }, { key: "Name", w: 230 }, { key: "SourceAppID", fk: "Applications" }, { key: "TargetAppID", fk: "Applications" }, { key: "Pattern", opts: PATTERNS, help: "How the data crosses: REST API, GraphQL, Kafka event, File (CSV), CDC, or Internal (inside one application)" }, { key: "Middleware", w: 180 }, { key: "Frequency" }, { key: "Description", area: 1 }, { key: "Status", opts: STATUS }] },
+  Flows: { id: "FlowID", prefix: "FL-", desc: "Integration flows between two applications (or Internal inside one): core → integration service via REST API / Kafka event / File (CSV); integration → domain service via Kafka event; service API → BFF or FedGQL router; BFF / router → front end. MappingType tells an API data mapping (front end → BFF / FedGQL router → service → database / third party) from a domain data mapping (data sync: core → data hub → data platform).",
+    cols: [{ key: "FlowID", w: 150 }, { key: "Name", w: 230 }, { key: "SourceAppID", fk: "Applications" }, { key: "TargetAppID", fk: "Applications" }, { key: "Pattern", opts: PATTERNS, help: "How the data crosses: REST API, GraphQL, Kafka event, File (CSV), CDC, or Internal (inside one application)" }, { key: "MappingType", opts: MAP_TYPES, w: 170, help: "API data mapping: a call from the front end to the back end (front end → BFF / FedGQL router → service → database or third party). Domain data mapping: a data sync (core → data hub → data platform). Filled in automatically when empty." }, { key: "Middleware", w: 180 }, { key: "Frequency" }, { key: "Description", area: 1 }, { key: "Status", opts: STATUS }] },
   Events: { id: "EventID", prefix: "EV-", desc: "Kafka events and their schema-registry registration. The event's payload attributes live on its Kafka Event dataset, which belongs to the producing application (a core system, integration service or domain service).",
     cols: [{ key: "EventID", w: 150 }, { key: "DatasetID", fk: "Datasets" }, { key: "EventName", w: 190 }, { key: "Topic", w: 190 }, { key: "Subject", w: 210, help: "Schema-registry subject (TopicNameStrategy: <topic>-value)" }, { key: "SchemaFormat", opts: SCHEMA_FORMATS }, { key: "Compatibility", opts: COMPAT }, { key: "SchemaVersion", w: 70 }, { key: "PartitionKey", path: "DatasetID", help: "Attribute path used as the message key" }, { key: "Consumers", help: "Consuming AppIDs, comma-separated. The producer is the application that owns the dataset." }, { key: "Trigger", area: 1 }, { key: "Status", opts: STATUS }] },
   BusinessTerms: { id: "TermID", prefix: "BT-", desc: "The business glossary / canonical data dictionary. Every layer's attribute points at a term, which makes the registry traceable end to end.",
@@ -568,6 +608,7 @@ function ensureIds(db) {
   db.Attributes.forEach(a => { if (respIds.has(a.DatasetID) && !(a.Spec && a.Spec.In)) a.Spec = Object.assign({}, a.Spec, { In: "response" }); });
   db.Applications.forEach(a => a.AppType = withSeq(APP_TYPES, a.AppType));
   db.Domains.forEach(d => { if (/^\d+$/.test(String(d.DomainNo || "").trim())) d.DomainNo = pad2(d.DomainNo); d.Code = String(d.Code || "").trim().toUpperCase(); });
+  db.Flows.forEach(f => { if (!MAP_TYPES.includes(f.MappingType)) f.MappingType = deriveMapType(f, db); });   // older workbooks: API or domain data mapping
   return db;
 }
 function save() { ISSUES = null; try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch (e) {} setStatus(); }
@@ -762,6 +803,16 @@ function issues() {
     if (tt === "FedGQL router" && !["Domain service", "Orchestrator service", "Frontend"].includes(st)) add("warning", "Flows", f, `${lbl}: only domain / orchestrator services publish subgraphs to the FedGQL router`);
     if (CORE.has(st) && tt === "Integration service" && !["REST API", "Kafka event", "File (CSV)", "CDC"].includes(P)) add("warning", "Flows", f, `${lbl}: core / third-party data reaches an integration service via REST API, Kafka event or File (CSV)`);
     if (CORE.has(st) && ["Domain service", "Orchestrator service"].includes(tt)) add("info", "Flows", f, `${lbl}: core / third-party data usually reaches a ${tt.toLowerCase()} through an integration service`);
+    const mt = mapTypeOf(f), ti = [st, tt].map(t => mtTier(mt, t));
+    if (mt === MT_API) {
+      if (["Kafka event", "CDC", "File (CSV)"].includes(P)) add("warning", "Flows", f, `${lbl}: an API data mapping is a call (REST API, GraphQL); a ${P} flow is a data sync, so make it a Domain data mapping`);
+      else if ([st, tt].some(t => t === "Core system" || DATA_APPS.has(t))) add("warning", "Flows", f, `${lbl}: core systems, data hubs and data platforms sync data; make it a Domain data mapping`);
+      else if (ti.every(t => t >= 0) && Math.abs(ti[0] - ti[1]) > 1 && st !== "Frontend" && tt !== "Frontend") add("warning", "Flows", f, `${lbl}: an API data mapping goes front end → BFF / FedGQL router → service → database / third party; this flow skips a layer`);
+    } else {
+      if ([st, tt].some(t => EDGE.has(t) || t === "Frontend")) add("warning", "Flows", f, `${lbl}: front ends, the BFF and the FedGQL router serve API calls; make it an API data mapping`);
+      else if (P === "GraphQL") add("warning", "Flows", f, `${lbl}: GraphQL is an API call; a domain data mapping syncs via Kafka event, CDC, File (CSV) or REST API`);
+      else if (ti.every(t => t >= 0) && st === "Data platform" && ti[1] < ti[0]) add("info", "Flows", f, `${lbl}: runs against the sync direction; domain data mappings go core → data hub → data platform`);
+    }
     if ((DATA_APPS.has(st) || DATA_APPS.has(tt)) && !["Kafka event", "CDC", "File (CSV)", "REST API"].includes(P)) add("warning", "Flows", f, `${lbl}: data hubs and data platforms integrate via Kafka event (preferred for distribution), CDC, File (CSV) or REST API`);
   }
   for (const a of DB.Applications.filter(a => DATA_APPS.has(KN(a.AppType)))) if (!DB.Flows.some(f => f.Pattern === "Kafka event" && f.SourceAppID !== f.TargetAppID && (f.SourceAppID === a.AppID || f.TargetAppID === a.AppID))) add("info", "Applications", a, `${a.Name || a.AppID} (${KN(a.AppType)}) has no Kafka event flow; data hubs and platforms take in and distribute data over Kafka`);
@@ -784,7 +835,7 @@ function issueCounts() { const c = { error: 0, warning: 0, info: 0 }; issues().f
 /* ===================================================================== */
 /*                            MAPPING CANVAS                              */
 /* ===================================================================== */
-const CV = { focus: "all", flow: "", pairA: "", pairB: "", term: "", app: "", dom: "", mapped: false, find: "", sel: null, view: null, fitPending: true, L: null, drag: null, legend: false };
+const CV = { focus: "all", mtype: MT_API, lanes: true, flow: "", pairA: "", pairB: "", term: "", app: "", dom: "", mapped: false, find: "", sel: null, view: null, fitPending: true, L: null, drag: null, legend: false };
 const CG = { head: 46, row: 24, pad: 10, gapX: 130, gapY: 30, minW: 230, maxW: 420 };
 const CV_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 const CV_CSS = `
@@ -818,6 +869,9 @@ const CV_CSS = `
 .cv .w-error{ fill: #d33; } .cv .w-warning{ fill: #e0a800; } .cv .w-info{ fill: #3b82c4; }
 .cv .w-t{ fill: #fff; font-size: 8px; font-weight: 700; }
 .cv .lane{ font-size: 11px; font-weight: 700; letter-spacing: .05em; fill: #9aa3ae; }
+.cv .lanes .lane{ font-size: 14px; fill: #64748b; }
+.cv .lane-r{ font-size: 15px; font-weight: 700; fill: #334155; }
+.cv .lane-s{ font-size: 12px; fill: #6b7280; }
 `;
 let measureCtx = null;
 function tw(s, px, bold) { if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d"); measureCtx.font = (bold ? "700 " : "") + px + "px " + CV_FONT; return measureCtx.measureText(String(s)).width; }
@@ -827,7 +881,8 @@ function txAbbr(t) { return { "Type cast": "cast", "Enum map": "enum", "Unit con
 function cvScope() {
   let ds, maps;
   const all = DB.Mappings;
-  if (CV.focus === "flow" && CV.flow) { maps = all.filter(m => m.FlowID === CV.flow); ds = new Set(maps.flatMap(m => [S(m.SourcePath) ? m.SourceDatasetID : null, m.TargetDatasetID]).filter(Boolean)); }
+  if (CV.focus === "mtype") { maps = all.filter(m => mapTypeOf(flowById(m.FlowID)) === CV.mtype); ds = new Set(maps.flatMap(m => [S(m.SourcePath) ? m.SourceDatasetID : null, m.TargetDatasetID]).filter(Boolean)); }
+  else if (CV.focus === "flow" && CV.flow) { maps = all.filter(m => m.FlowID === CV.flow); ds = new Set(maps.flatMap(m => [S(m.SourcePath) ? m.SourceDatasetID : null, m.TargetDatasetID]).filter(Boolean)); }
   else if (CV.focus === "pair" && (CV.pairA || CV.pairB)) { ds = new Set([CV.pairA, CV.pairB].filter(Boolean)); maps = all.filter(m => ds.has(m.SourceDatasetID) && ds.has(m.TargetDatasetID)); }
   else if (CV.focus === "term" && CV.term) { const keys = new Set(DB.Attributes.filter(a => a.TermID === CV.term).map(a => akey(a.DatasetID, a.Path))); ds = new Set(DB.Attributes.filter(a => a.TermID === CV.term).map(a => a.DatasetID)); maps = all.filter(m => keys.has(akey(m.TargetDatasetID, m.TargetPath)) && (!S(m.SourcePath) || keys.has(akey(m.SourceDatasetID, m.SourcePath)))); }
   else if ((CV.focus === "app" && CV.app) || (CV.focus === "domain" && CV.dom)) { const apps = new Set(CV.focus === "app" ? [CV.app] : DB.Applications.filter(a => a.DomainID === CV.dom).map(a => a.AppID)); const own = new Set(DB.Datasets.filter(d => apps.has(d.AppID)).map(d => d.DatasetID)); maps = all.filter(m => own.has(m.SourceDatasetID) || own.has(m.TargetDatasetID)); ds = new Set([...own, ...maps.flatMap(m => [S(m.SourcePath) ? m.SourceDatasetID : null, m.TargetDatasetID]).filter(Boolean)]); }
@@ -844,6 +899,79 @@ function cvScope() {
     return !CV.mapped || mappedKeys.has(k);
   });
   return { ds, maps, rowsOf };
+}
+/* ---- Swimlanes (Focus → Mapping type) ----
+   API data mapping: one row per UI form (request) / UI component (response) with the datasets its call reaches;
+   columns = front end → BFF / FedGQL router → each orchestrator / integration / domain service → database → third party.
+   Domain data mapping: one row per kind of domain data (the business-term domain its attributes carry);
+   columns = source systems → files → Kafka events → integration service / data hub → domain services → data platform → channels. */
+const LANE = { gutter: 220, head: 52, padX: 26, padY: 18 };
+const SVC_ORDER = ["Orchestrator service", "Integration service", "Domain service"];
+function laneCol(mt, d, maps) {
+  const app = appOfDs(d) || {}, t = KN(app.AppType), k = KN(d.Kind);
+  if (mt === MT_API) {
+    if (t === "Frontend") return ["ui", 0, "Front end · UI forms & components"];
+    if (t === "BFF" || t === "FedGQL router") return ["edge", 1, "BFF / FedGQL router"];
+    if (SVC_ORDER.includes(t)) return /^(DB |Search Index|Databricks)/.test(k) ? ["db", 3, "Database"] : ["svc:" + app.AppID, 2 + (SVC_ORDER.indexOf(t) + 1) / 10, `${app.Name} · ${t.toLowerCase()}`];
+    return ["ext", 4, "Third party / core"];
+  }
+  if (/^(CSV|JSON) Schema$/.test(k)) return ["files", 1, "Files"];
+  if (k === "Kafka Event") return ["kafka", 2, "Kafka events"];
+  if (t === "Core system") return ["src", 0, "Core / source systems"];
+  if (t === "Third party") return maps.some(m => m.TargetDatasetID === d.DatasetID) ? ["chan", 6, "Channels (commerce, search)"] : ["src", 0, "Core / source systems"];
+  if (t === "Data hub" || t === "Integration service") return ["hub", 3, "Integration service / data hub"];
+  if (t === "Data platform") return ["plat", 5, "Data platform"];
+  return ["svc", 4, "Domain services"];
+}
+function laneRows(mt, ds, maps, col) {
+  const row = {}, rows = [], adj = {}; ds.forEach(id => adj[id] = new Set());
+  maps.forEach(m => { if (S(m.SourcePath) && adj[m.SourceDatasetID] && adj[m.TargetDatasetID] && m.SourceDatasetID !== m.TargetDatasetID) { adj[m.SourceDatasetID].add(m.TargetDatasetID); adj[m.TargetDatasetID].add(m.SourceDatasetID); } });
+  const claim = (seed, key, leaf) => { const q = [seed]; row[seed] = key; while (q.length) { const id = q.shift(); if (id !== seed && leaf(id)) continue; adj[id].forEach(o => { if (row[o] == null && !(mt === MT_API && col[o][0] === "ui")) { row[o] = key; q.push(o); } }); } };
+  if (mt === MT_API) {
+    // each UI dataset claims the call chain it reaches; tables and third parties end a chain
+    const uis = ds.filter(id => col[id][0] === "ui").sort((a, b) => String(appName(dsById(a).AppID)).localeCompare(appName(dsById(b).AppID)) || String(dsById(a).Name).localeCompare(dsById(b).Name));
+    uis.forEach(id => { const d = dsById(id), form = /Form/.test(KN(d.Kind)); rows.push({ key: id, label: d.Name || id, sub: `${appName(d.AppID)} · ${form ? "request (form → API)" : "response (API → screen)"}` }); claim(id, id, o => ["db", "ext"].includes(col[o][0])); });
+    if (ds.some(id => row[id] == null)) { rows.push({ key: "~", label: "Service to service", sub: "calls not started from a UI dataset" }); ds.filter(id => row[id] == null).forEach(id => row[id] = "~"); }
+  } else {
+    // connected groups of datasets, named after the business-term domain most of their attributes carry
+    const label = {};
+    ds.forEach(seed => { if (row[seed] != null) return; const key = "g" + rows.length; claim(seed, key, () => false);
+      const cnt = {}; ds.filter(id => row[id] === key).forEach(id => attrsOf(id).forEach(a => { const t = termById(a.TermID), dn = t && S(t.Domain); if (dn && dn !== "Platform") cnt[dn] = (cnt[dn] || 0) + 1; }));
+      const top = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0], name = top ? `${top[0]} data` : (domById((appOfDs(dsById(seed)) || {}).DomainID) || {}).Name || "Other data";
+      if (label[name]) ds.filter(id => row[id] === key).forEach(id => row[id] = label[name]);   // same kind of data → one swimlane
+      else { label[name] = key; rows.push({ key, label: name, sub: "" }); } });
+    rows.forEach(r => { const n = ds.filter(id => row[id] === r.key).length; r.sub = `${n} dataset${n === 1 ? "" : "s"}`; r.n = n; });
+    rows.sort((a, b) => b.n - a.n);
+  }
+  return { row, rows };
+}
+function laneLayout(cards, ds, maps) {
+  const mt = CV.mtype, col = {}; ds.forEach(id => col[id] = laneCol(mt, cards[id].d, maps));
+  const cols = [...new Map(ds.map(id => [col[id][0], col[id]])).values()].sort((a, b) => a[1] - b[1] || a[2].localeCompare(b[2]));
+  const { row, rows } = laneRows(mt, ds, maps, col);
+  const req = d => /Request|Form/.test(KN(d.Kind)) ? 0 : 1;   // in a cell, request datasets above response ones
+  let x = LANE.gutter;
+  const colX = cols.map(c => { const w = Math.max(...ds.filter(id => col[id][0] === c[0]).map(id => cards[id].w), tw(c[2], 11, true) + 20); const o = { key: c[0], label: c[2], x, w: w + 2 * LANE.padX }; x += o.w; return o; });
+  let y = LANE.head;
+  const rowY = rows.map(r => {
+    let h = 0;
+    colX.forEach(c => { const cell = ds.filter(id => row[id] === r.key && col[id][0] === c.key).sort((a, b) => req(cards[a].d) - req(cards[b].d) || String(cards[a].d.Name).localeCompare(cards[b].d.Name));
+      let cy = y + LANE.padY; cell.forEach(id => { cards[id].x = c.x + LANE.padX; cards[id].y = cy; cy += cards[id].h + CG.gapY; }); h = Math.max(h, cy - y - CG.gapY + LANE.padY); });
+    const o = { key: r.key, label: r.label, sub: r.sub, y, h: Math.max(h, 70) }; y += o.h; return o; });
+  return { mt, cols: colX, rows: rowY, w: x, h: y };
+}
+function laneSvg(Ln) {
+  const out = [`<g class="lanes">`];
+  Ln.rows.forEach((r, i) => out.push(`<rect x="0" y="${r.y}" width="${Ln.w}" height="${r.h}" fill="${i % 2 ? "#f1f3f7" : "#fafbfc"}"/>`,
+    `<line x1="0" x2="${Ln.w}" y1="${r.y}" y2="${r.y}" stroke="#dfe3e8"/>`,
+    `<text class="lane-r" x="12" y="${r.y + 24}">${esc(r.label.length > 24 ? r.label.slice(0, 23) + "…" : r.label)}<title>${esc(r.label + (r.sub ? "\n" + r.sub : ""))}</title></text>`,
+    `<text class="lane-s" x="12" y="${r.y + 42}">${esc(r.sub.length > 34 ? r.sub.slice(0, 33) + "…" : r.sub)}</text>`));
+  out.push(`<line x1="${LANE.gutter}" x2="${LANE.gutter}" y1="0" y2="${Ln.h}" stroke="#cfd5dc"/>`);
+  Ln.cols.forEach(c => out.push(`<line x1="${c.x + c.w}" x2="${c.x + c.w}" y1="0" y2="${Ln.h}" stroke="#e3e7ec" stroke-dasharray="4 4"/>`,
+    `<rect x="${c.x}" y="0" width="${c.w}" height="${LANE.head - 6}" fill="#fff" stroke="#e3e7ec"/>`,
+    `<text class="lane" x="${c.x + c.w / 2}" y="${LANE.head / 2 + 2}" text-anchor="middle">${esc(c.label.toUpperCase())}</text>`));
+  out.push(`<text class="lane" x="12" y="${LANE.head / 2 + 2}">${Ln.mt === MT_API ? "UI DATASET · CALL" : "DOMAIN DATA"}</text></g>`);
+  return out.join("");
 }
 function cvLayout() {
   const { ds, maps, rowsOf } = cvScope(), cards = {}, iss = issues();
@@ -877,6 +1005,7 @@ function cvLayout() {
     for (const id of col) { const c = cards[id]; c.x = x; c.y = tgt[id] < 1e9 ? Math.max(y, tgt[id]) : y; y = c.y + c.h + CG.gapY; }
     x += Math.max(...col.map(id => cards[id].w)) + CG.gapX;
   });
+  if (CV.focus === "mtype" && CV.lanes) return { cards, maps, rowY, lanes: laneLayout(cards, ds, maps) };   // swimlanes ignore dragged positions
   for (const id of ds) if (POS[id]) { cards[id].x = POS[id].x; cards[id].y = POS[id].y; }
   return { cards, maps, rowY };
 }
@@ -907,6 +1036,7 @@ function warnIcon(x, y, list) {
 }
 function cvSvg(L) {
   const out = [`<defs><style>${CV_CSS}</style></defs><g id="cvView">`];
+  if (L.lanes) out.push(laneSvg(L.lanes));
   // edges first (under the cards)
   const edges = [], badges = [];
   for (const m of L.maps) {
@@ -950,7 +1080,8 @@ function cvSvg(L) {
   return out.join("");
 }
 function cvApply() { const v = CV.view, g = document.getElementById("cvView"); if (!g || !v) return; g.setAttribute("transform", `translate(${v.x},${v.y}) scale(${v.k})`); document.getElementById("cvPct").textContent = Math.round(v.k * 100) + "%"; }
-function cvBounds() { const cs = Object.values((CV.L || {}).cards || {}); if (!cs.length) return { x: 0, y: 0, w: 1, h: 1 }; const x0 = Math.min(...cs.map(c => c.x)) - 30, y0 = Math.min(...cs.map(c => c.y)) - 10; return { x: x0, y: y0, w: Math.max(...cs.map(c => c.x + c.w)) - x0 + 30, h: Math.max(...cs.map(c => c.y + c.h)) - y0 + 10 }; }
+function cvBounds() { const cs = Object.values((CV.L || {}).cards || {}); if (!cs.length) return { x: 0, y: 0, w: 1, h: 1 };
+  const Ln = CV.L.lanes; if (Ln) return { x: -10, y: -10, w: Ln.w + 20, h: Ln.h + 20 }; const x0 = Math.min(...cs.map(c => c.x)) - 30, y0 = Math.min(...cs.map(c => c.y)) - 10; return { x: x0, y: y0, w: Math.max(...cs.map(c => c.x + c.w)) - x0 + 30, h: Math.max(...cs.map(c => c.y + c.h)) - y0 + 10 }; }
 function cvFit() {
   const box = document.getElementById("cvCanvas"); if (!box) return;
   const b = cvBounds(), W = box.clientWidth - (CV.sel ? 380 : 0), H = box.clientHeight;
@@ -1005,6 +1136,7 @@ function renderCanvas(keepView) {
   const box = document.getElementById("cvCanvas"); if (!box) return;
   fillCanvasBar();
   CV.L = cvLayout();
+  const hint = document.getElementById("cvHint"); if (hint) hint.textContent = CV.L.lanes ? "Swimlanes: cards stay in their lane (drag to pan) · drag a ● port onto another attribute to map it · click a line to edit its transformation" : "Drag a ● port onto another attribute to map it · drag a card header to move it · click a line to edit its transformation";
   if (!Object.keys(CV.L.cards).length) { box.innerHTML = `<div class="empty" style="padding:40px">Nothing to show for this focus. Pick another flow / term, or click <b>Load example</b>.</div>`; renderSide(); return; }
   box.innerHTML = `<svg class="cv" xmlns="http://www.w3.org/2000/svg">${cvSvg(CV.L)}</svg>`;
   CV.view = CV.view || { k: 1, x: 20, y: 20 };
@@ -1020,7 +1152,8 @@ function fillCanvasBar() {
   document.getElementById("cvTerm").innerHTML = `<option value="">—</option>` + DB.BusinessTerms.map(t => opt(t.TermID, t.Name || t.TermID, CV.term)).join("");
   document.getElementById("cvApp").innerHTML = `<option value="">—</option>` + DB.Applications.map(a => opt(a.AppID, `${a.Name} (${KN(a.AppType) || "?"})`, CV.app)).join("");
   document.getElementById("cvDom").innerHTML = `<option value="">—</option>` + DB.Domains.map(d => opt(d.DomainID, d.Name || d.DomainID, CV.dom)).join("");
-  ["flow", "pair", "term", "app", "domain"].forEach(f => document.getElementById({ flow: "cvFlowL", pair: "cvPairL", term: "cvTermL", app: "cvAppL", domain: "cvDomL" }[f]).hidden = CV.focus !== f);
+  document.getElementById("cvMt").value = CV.mtype; document.getElementById("cvLanes").checked = CV.lanes;
+  ["flow", "pair", "term", "app", "domain", "mtype"].forEach(f => document.getElementById({ flow: "cvFlowL", pair: "cvPairL", term: "cvTermL", app: "cvAppL", domain: "cvDomL", mtype: "cvMtL" }[f]).hidden = CV.focus !== f);
   document.getElementById("cvMapped").checked = CV.mapped;
   document.getElementById("cvAuto").disabled = !(CV.focus === "pair" && CV.pairA && CV.pairB && CV.pairA !== CV.pairB);
 }
@@ -1034,7 +1167,7 @@ function wireCanvas() {
     const port = ev.target.closest("circle.port.out"), hdr = ev.target.closest("rect.hdr");
     const base = { sx: ev.clientX, sy: ev.clientY, moved: false, target: ev.target };
     if (port) { CV.drag = { ...base, mode: "link", from: port.dataset.k }; box.classList.add("linking"); }
-    else if (hdr) { const id = hdr.closest("g.node").dataset.ds, c = CV.L.cards[id]; CV.drag = { ...base, mode: "card", id, x0: c.x, y0: c.y }; }
+    else if (hdr && !CV.L.lanes) { const id = hdr.closest("g.node").dataset.ds, c = CV.L.cards[id]; CV.drag = { ...base, mode: "card", id, x0: c.x, y0: c.y }; }
     else { CV.drag = { ...base, mode: "pan", vx: CV.view.x, vy: CV.view.y }; }
     box.setPointerCapture(ev.pointerId);
   });
@@ -1093,6 +1226,8 @@ function wireCanvas() {
   document.getElementById("cvTerm").onchange = e => { CV.term = e.target.value; refit(); };
   document.getElementById("cvApp").onchange = e => { CV.app = e.target.value; refit(); };
   document.getElementById("cvDom").onchange = e => { CV.dom = e.target.value; refit(); };
+  document.getElementById("cvMt").onchange = e => { CV.mtype = e.target.value; refit(); };
+  document.getElementById("cvLanes").onchange = e => { CV.lanes = e.target.checked; refit(); };
   document.getElementById("cvMapped").onchange = e => { CV.mapped = e.target.checked; refit(); };
   document.getElementById("cvFind").oninput = e => { CV.find = e.target.value; cvPaint(); };
   document.getElementById("cvRelayout").onclick = () => { Object.keys(CV.L ? CV.L.cards : {}).forEach(id => delete POS[id]); savePos(); refit(); };
@@ -1597,6 +1732,7 @@ function appRowHTML(a) {
     <span class="meta">${esc(a.Technology || "")}${a.Owner ? " · " + esc(a.Owner) : ""} · ${fin} in / ${fout} out flows</span>
     <span class="owns">${Object.entries(byK).map(([k, n]) => `<span class="kchip">${esc(k)}${n > 1 ? " ×" + n : ""}</span>`).join("") || `<span class="hint">no datasets yet</span>`}</span></div>`;
 }
+let flType = "";   // Domains & apps → Integration flows: "" (all) or one mapping type
 function renderFlows() {
   // domain cards
   const byId = k => (x, y) => String(x[k]).localeCompare(String(y[k]));
@@ -1612,16 +1748,18 @@ function renderFlows() {
   g.querySelectorAll("[data-add-app]").forEach(el => el.onclick = () => addRowModal("Applications", { DomainID: el.dataset.addApp, AppType: APP_TYPES[0] }));
   // mermaid: one subgraph per domain
   const mid = id => "n_" + String(id).replace(/[^A-Za-z0-9]/g, "_"), q = x => String(x || "").replace(/"/g, "'");
-  const lines = ["flowchart LR"];
-  groups.forEach((grp, i) => { if (!grp.apps.length) return; lines.push(`  subgraph D${i}["${q(grp.d ? grp.d.Name : "(no domain)")}"]`); grp.apps.forEach(a => lines.push(`    ${mid(a.AppID)}["<b>${q(a.Name)}</b><br/><small>${q(KN(a.AppType))}</small>"]`)); lines.push("  end"); });
+  const lines = ["flowchart LR"], shownFlows = DB.Flows.filter(f => !flType || mapTypeOf(f) === flType);
+  const onFlow = flType ? new Set(shownFlows.flatMap(f => [f.SourceAppID, f.TargetAppID])) : null;   // a filtered diagram shows only the applications on those flows
+  document.querySelectorAll("#flTypeSeg button").forEach(b => b.classList.toggle("active", b.dataset.mt === flType));
+  groups.map(g => ({ d: g.d, apps: onFlow ? g.apps.filter(a => onFlow.has(a.AppID)) : g.apps })).forEach((grp, i) => { if (!grp.apps.length) return; lines.push(`  subgraph D${i}["${q(grp.d ? grp.d.Name : "(no domain)")}"]`); grp.apps.forEach(a => lines.push(`    ${mid(a.AppID)}["<b>${q(a.Name)}</b><br/><small>${q(KN(a.AppType))}</small>"]`)); lines.push("  end"); });
   const styles = [];
-  DB.Flows.forEach(f => {
+  shownFlows.forEach(f => {
     if (!appById(f.SourceAppID) || !appById(f.TargetAppID) || f.SourceAppID === f.TargetAppID) return;
     const n = DB.Mappings.filter(m => m.FlowID === f.FlowID).length;
     lines.push(`  ${mid(f.SourceAppID)} -->|"${q(f.Pattern || "flow")} · ${n}"| ${mid(f.TargetAppID)}`);
     styles.push(`  linkStyle ${styles.length} stroke:${PATTERN_COLOR[f.Pattern] || "#64748b"},stroke-width:2px${f.Status === "Approved" ? "" : ",stroke-dasharray:5 4"}`);
   });
-  DB.Applications.forEach(a => { const c = APP_COLOR[KN(a.AppType)]; if (c) lines.push(`  style ${mid(a.AppID)} fill:#fff,stroke:${c},stroke-width:2px`); });
+  DB.Applications.filter(a => !onFlow || onFlow.has(a.AppID)).forEach(a => { const c = APP_COLOR[KN(a.AppType)]; if (c) lines.push(`  style ${mid(a.AppID)} fill:#fff,stroke:${c},stroke-width:2px`); });
   mmdSrc = lines.concat(styles).join("\n");
   const out = document.getElementById("flOut");
   if (!DB.Applications.length) out.innerHTML = `<div class="empty">No applications yet.</div>`;
@@ -1631,7 +1769,8 @@ function renderFlows() {
   const tg = DB.Attributes.filter(a => TARGET_KINDS.has(KN((dsById(a.DatasetID) || {}).Kind))), cov = tg.length ? Math.round(100 * tg.filter(a => inbound(a.DatasetID, a.Path).length).length / tg.length) : 0;
   document.getElementById("flKpis").innerHTML = kpi(DB.Domains.length, "domains") + kpi(DB.Applications.length, "applications") + kpi(DB.Flows.length, "flows") + kpi(DB.Datasets.length, "datasets") + kpi(DB.Mappings.length, "mappings") + kpi(DB.Events.length, "Kafka events") + kpi(cov + "%", "API / UI / event attributes mapped") + kpi(c.error + " / " + c.warning, "errors / warnings");
   const flIss = f => issues().filter(i => i.row === f && i.sev !== "info");
-  document.getElementById("flTable").innerHTML = `<table class="sum-table"><thead><tr><th>Flow</th><th>Source → target</th><th>Pattern</th><th>Middleware</th><th>Frequency</th><th class="num">Mappings</th><th>Status</th><th></th></tr></thead><tbody>${DB.Flows.map(f => { const li = flIss(f); return `<tr><td><b>${esc(f.Name)}</b><div class="hint">${esc(f.FlowID)}</div>${li.map(i => `<div class="iss sev-${i.sev}"><span class="sev-dot"></span>${esc(i.msg.replace(/^[^:]*: /, ""))}</div>`).join("")}</td><td>${esc(appName(f.SourceAppID))} → ${esc(appName(f.TargetAppID))}</td><td><span style="color:${PATTERN_COLOR[f.Pattern] || "inherit"}">●</span> ${esc(f.Pattern)}</td><td>${esc(f.Middleware)}</td><td>${esc(f.Frequency)}</td><td class="num">${DB.Mappings.filter(m => m.FlowID === f.FlowID).length}</td><td><span class="st-chip st-${String(f.Status || "draft").toLowerCase()}">${esc(f.Status || "Draft")}</span></td><td style="white-space:nowrap"><button class="icon-btn go" data-edit-flow="${esc(f.FlowID)}" title="Edit flow">✎</button><button class="copy-btn" data-flow="${esc(f.FlowID)}">Open on canvas</button></td></tr>`; }).join("")}</tbody></table>`;
+  document.getElementById("flTable").innerHTML = `<table class="sum-table"><thead><tr><th>Flow</th><th>Source → target</th><th>Type</th><th>Pattern</th><th>Middleware</th><th>Frequency</th><th class="num">Mappings</th><th>Status</th><th></th></tr></thead><tbody>${shownFlows.map(f => { const li = flIss(f); return `<tr><td><b>${esc(f.Name)}</b><div class="hint">${esc(f.FlowID)}</div>${li.map(i => `<div class="iss sev-${i.sev}"><span class="sev-dot"></span>${esc(i.msg.replace(/^[^:]*: /, ""))}</div>`).join("")}</td><td>${esc(appName(f.SourceAppID))} → ${esc(appName(f.TargetAppID))}</td><td><span class="mt-chip mt-${mapTypeOf(f) === MT_API ? "api" : "sync"}">${mapTypeOf(f) === MT_API ? "API" : "Domain data"}</span></td><td><span style="color:${PATTERN_COLOR[f.Pattern] || "inherit"}">●</span> ${esc(f.Pattern)}</td><td>${esc(f.Middleware)}</td><td>${esc(f.Frequency)}</td><td class="num">${DB.Mappings.filter(m => m.FlowID === f.FlowID).length}</td><td><span class="st-chip st-${String(f.Status || "draft").toLowerCase()}">${esc(f.Status || "Draft")}</span></td><td style="white-space:nowrap"><button class="icon-btn go" data-edit-flow="${esc(f.FlowID)}" title="Edit flow">✎</button><button class="copy-btn" data-flow="${esc(f.FlowID)}">Open on canvas</button></td></tr>`; }).join("")}</tbody></table>`;
+  document.querySelectorAll("#flTypeSeg button").forEach(b => b.onclick = () => { flType = b.dataset.mt; renderFlows(); });
   document.querySelectorAll("#flTable [data-flow]").forEach(b => b.onclick = () => { CV.focus = "flow"; CV.flow = b.dataset.flow; CV.sel = null; CV.fitPending = true; showView("canvas"); });
   document.querySelectorAll("#flTable [data-edit-flow]").forEach(b => b.onclick = () => editRowModal("Flows", flowById(b.dataset.editFlow)));
 }
@@ -1794,7 +1933,7 @@ const GUIDE = [
   ["Datasets", "A structure owned by an application: MDM entity, PIM family, Kafka event, DB table/collection, REST request/response, GQL query/mutation, UI component/form."],
   ["Attributes", "Fields of a dataset. Path is dotted; [] marks an array (images[].url). TermID links the attribute to the business glossary."],
   ["Mappings", "Source-to-target mapping (STTM): SourceDatasetID + SourcePath → TargetDatasetID + TargetPath, with Transformation and Rule. Empty source = Constant / Generate."],
-  ["Flows", "Integration flows between two applications with their pattern: REST API, GraphQL, Kafka event, File (CSV), CDC, or Internal (inside one application)."],
+  ["Flows", "Integration flows between two applications with their pattern: REST API, GraphQL, Kafka event, File (CSV), CDC, or Internal (inside one application). MappingType: API data mapping = a call from the front end to the back end (front end → BFF / FedGQL router → domain / integration service → database or third party); Domain data mapping = a data sync (core → data hub → data platform, and the hub's subscribers). Left empty, it is filled in from the applications and pattern."],
   ["Events", "Kafka schema-registry entries: topic, subject, format, compatibility, version, partition key, consumers. The producer is the application owning the event dataset."],
   ["Type sheets", "Per-type detail of the datasets, editable here or in the dataset dialog: HTTP APIs (each request / response with its style: a REST operation (method, path, status) or a GraphQL operation (query / mutation, parameters, return type), one row per field), GQL Schema (GraphQL types as in GQLRegistry.xlsx), Database (tables and collections, ER columns with PK / FK), Kafka Avro (record fields), Databricks (Delta table columns), Files (CSV / JSON columns). On Load .xlsx they update the Datasets and Attributes sheets."],
   ["Rules", "Front ends integrate only via the BFF (REST) or the FedGQL router (GraphQL). Core / third-party systems feed integration services via REST API, Kafka event or File (CSV). Domain services expose REST / GraphQL over their own database and publish Kafka events. Data hubs (09) and data platforms (10) run on Databricks, Snowflake or ClickHouse and integrate via Kafka event (preferred), CDC, File (CSV) or REST API."],
@@ -1905,6 +2044,7 @@ function helpHTML() {
   <h3>Onboarding guide</h3>
   <ul><li>The <b>Onboarding guide</b> tab walks one domain and one business application at a time: domain &amp; business terms → business application → datasets and their types (DB table / collection, CSV, JSON, Kafka event, REST, GQL, MDM / PIM / ERP, UI) → attributes tagged with terms → integration mapping with applications in any domain → lineage → export schemas and save as Excel (.xlsx) and Markdown (.md).</li>
   <li><b>Dataset details by type:</b> adding a dataset in step 3 (or <b>✎ Details</b>) opens a dialog shaped by its type: an HTTP request / response as a REST operation (OpenAPI) or a GraphQL operation (SDL), a GraphQL type, ER columns (PK, FK, not null, default) for DB tables and collections, an Avro record plus the Databricks StructType for Kafka events, a Delta table for Databricks and columns for CSV / JSON files. Its <b>Source</b> tab edits the same thing as GraphQL SDL, OpenAPI YAML, SQL DDL, MongoDB $jsonSchema, Avro JSON, Databricks SQL or YAML: paste one and click <i>Apply to fields</i>.</li>
+  <li><b>Two kinds of integration:</b> step 5 asks what you are mapping. An <b>API data mapping</b> follows a call from the front end to the back end: front end → BFF / FedGQL router → domain / orchestrator / integration service → database or third party. A <b>domain data mapping</b> follows a data sync: core / source system → (integration service) → data hub → data platform, and the services and channels the hub feeds. Each flow records its type (Flows → MappingType); <b>Domains &amp; apps</b> and the canvas's <i>Focus → Mapping type</i> show the two apart.</li>
   <li><b>Samples:</b> a new dataset's <b>Source</b> tab starts with a commented-out sample for its type (table, collection, Databricks table, Kafka event, API, UI form…). Click <i>Uncomment sample</i>, edit it and <i>Apply to fields</i>. The dialog links the standard reference for the type.</li>
   <li><b>HTTP APIs:</b> a REST endpoint is one <b>HTTP API</b> dataset holding both its request and response fields (Direction tells them apart); a GraphQL call is an <b>HTTP Request</b> and / or an <b>HTTP Response</b> dataset. <b>⇪ Import from API spec</b> (step 3) loads an OpenAPI spec or a GraphQL schema, lets you pick operations and builds one HTTP API dataset per REST endpoint (request + response) or request / response datasets per GraphQL operation.</li>
   <li><b>Type sheets:</b> Export .xlsx adds HTTP APIs, GQL Schema (as in GQLRegistry.xlsx), Database, Kafka Avro, Databricks and Files. They can be edited in Excel; Load .xlsx reads them back into the datasets and attributes.</li>

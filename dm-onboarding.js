@@ -38,7 +38,7 @@ const ea = s => esc(s).replace(/"/g, "&quot;");          // esc() for attribute 
 
 /* ------------------------------ state ---------------------------------- */
 function dg() {
-  const d = { step: 0, dom: "", app: "", ds: "", flow: "", srcDs: "", tgtDs: "", nf: { dir: "out", dom: "", app: "", pattern: "REST API", mw: "", freq: "" },
+  const d = { step: 0, mtype: "", dom: "", app: "", ds: "", flow: "", srcDs: "", tgtDs: "", nf: { dir: "out", dom: "", app: "", pattern: "REST API", mw: "", freq: "" },
     lin: { level: "app", scope: "app", id: "" }, lineageOk: false, savedAt: "", exp: { scope: "app", fmt: "auto", name: "" } };
   if (!DG) { try { DG = JSON.parse(localStorage.getItem(DG_LS)) || {}; } catch (_) { DG = {}; } }
   for (const k in d) if (!(k in DG)) DG[k] = d[k];
@@ -214,30 +214,133 @@ function dgStepAttrs() {
 }
 
 /* ------------------------------ step 5 --------------------------------- */
+// Step 5 records one of two kinds of flow; data apps and core systems start on the data sync.
+const DG_MT = {
+  [MT_API]: { icon: "⇄", what: "A call from the front end to the back end, and its response back.", chain: "front end → BFF / FedGQL router → domain / integration service → database or third party", patterns: ["REST API", "GraphQL", "Internal"] },
+  [MT_SYNC]: { icon: "⟿", what: "Data synchronised and distributed between systems of record.", chain: "core / source → (integration service) → data hub → data platform → subscribers", patterns: ["Kafka event", "CDC", "File (CSV)", "REST API", "Internal"] },
+};
+const dgMtype = a => dg().mtype || (a && ["Core system", "Data hub", "Data platform"].includes(KN(a.AppType)) ? MT_SYNC : MT_API);
+// The chain the application sits in: applications reachable over this mapping type's flows, placed by layer.
+function dgChainHTML(a, mt) {
+  const flows = DB.Flows.filter(f => f.SourceAppID !== f.TargetAppID && mapTypeOf(f) === mt), seen = new Set([a.AppID]), todo = [a.AppID];
+  while (todo.length) { const id = todo.shift(); flows.forEach(f => { const o = f.SourceAppID === id ? f.TargetAppID : f.TargetAppID === id ? f.SourceAppID : null; if (o && !seen.has(o)) { seen.add(o); todo.push(o); } }); }
+  const hubTargets = new Set(flows.filter(f => KN((appById(f.SourceAppID) || {}).AppType) === "Data hub").map(f => f.TargetAppID));
+  const tierOf = x => { const t = KN(x.AppType); if (mt === MT_SYNC && t === "Third party" && hubTargets.has(x.AppID)) return 4; return mtTier(mt, t); };
+  const myTier = tierOf(a), next = new Set(DB.Applications.filter(x => x.AppID !== a.AppID && Math.abs(tierOf(x) - myTier) === 1).map(x => x.AppID));
+  const tiers = MT_CHAIN[mt].map(([label]) => ({ label, apps: [] }));
+  [...seen].map(appById).filter(Boolean).forEach(x => { const t = tierOf(x); if (t >= 0) tiers[t].apps.push(x); });
+  const stores = mt === MT_API ? [...seen].flatMap(id => dsOfApp(id).filter(d => /^DB (Table|Collection)$|^Search Index$/.test(KN(d.Kind)))).length : 0;
+  return `<div class="dg-chain">${tiers.map((t, i) => `${i ? '<span class="dg-arrow">→</span>' : ""}<div class="dg-tier${i === myTier ? " cur" : ""}"><h5>${esc(t.label)}</h5>${t.apps.map(x => `<span class="ch${x.AppID === a.AppID ? " me" : ""}" style="border-left-color:${APP_COLOR[KN(x.AppType)] || "#94a3b8"}" title="${ea(x.AppID)} · ${ea(KN(x.AppType))}">${esc(x.Name)}</span>`).join("")}${i === 3 && mt === MT_API && stores ? `<span class="hint">${stores} table(s) / index(es) of these services</span>` : ""}${t.apps.length || (i === 3 && stores) ? "" : `<span class="none">${i === myTier ? "" : "—"}</span>`}</div>`).join("")}</div>
+    <p class="hint">${mt === MT_API ? "Requests run left → right, responses right → left: record each hop as a flow in the direction its mapped data moves (request fields front → back, response fields back → front). A service's API ↔ its own tables is an Internal flow." : "Data moves left → right: core systems publish (Kafka, CDC, files, APIs), integration services or the data hub take it in, the hub curates and distributes it, and the data platform keeps it for analytics."} ${next.size ? `Dashed in the form below: applications one layer away from ${esc(a.Name)}.` : ""}</p>`;
+}
+/* ---- step 5: the path builder — one call (API) or one sync, layer by layer ---- */
+// Optional layers: a domain data sync need not pass an integration service or reach subscribers.
+const DG_OPT = { [MT_API]: [], [MT_SYNC]: [1, 4] };
+const DG_OWN_DB = "db";   // API layer 4 = the service's own tables (an Internal flow inside the service)
+const dgTierApps = (mt, i) => DB.Applications.filter(x => MT_CHAIN[mt][i][1].includes(KN(x.AppType)));
+const dgFlowsBetween = (s, t, mt) => DB.Flows.filter(f => f.SourceAppID === s && f.TargetAppID === t).sort((x, y) => (mapTypeOf(y) === mt) - (mapTypeOf(x) === mt));
+// The application per layer. Stored choices (w.path[type][layer]): "" = automatic, "-" = skipped, an AppID, or "db"
+// (own tables). Automatic layers follow existing flows outward from the onboarding application.
+function dgPath(a, mt) {
+  const w = dg(), n = MT_CHAIN[mt].length, me = mtTier(mt, a.AppType), want = ((w.path || {})[mt] || []).slice(0, n), cur = Array(n).fill("");
+  const linked = (id, i) => dgTierApps(mt, i).find(x => DB.Flows.some(f => mapTypeOf(f) === mt && ((f.SourceAppID === id && f.TargetAppID === x.AppID) || (f.TargetAppID === id && f.SourceAppID === x.AppID))));
+  const hasDb = id => dsOfApp(id || "").some(d => /^DB /.test(KN(d.Kind)));
+  if (me < 0) return cur;
+  cur[me] = a.AppID;
+  for (const dir of [-1, 1]) { let prev = a.AppID;
+    for (let i = me + dir; i >= 0 && i < n; i += dir) {
+      const v = want[i];
+      if (mt === MT_SYNC && i === 4 && dir > 0 && cur[2]) prev = cur[2];   // subscribers are fed by the data hub
+      if (v === "-") continue;
+      if (v) cur[i] = v;
+      else if (mt === MT_API && i === 3) cur[i] = (prev && linked(prev, i) || {}).AppID || (hasDb(prev) ? DG_OWN_DB : "");
+      else cur[i] = prev && prev !== DG_OWN_DB ? ((linked(prev, i) || {}).AppID || "") : "";
+      if (cur[i]) prev = cur[i];
+    } }
+  return cur;
+}
+// Pattern a new flow between two layers gets.
+function dgHopPattern(mt, s, t) {
+  if (mt === MT_SYNC) return "Kafka event";
+  if (t === DG_OWN_DB) return "Internal";
+  const ty = [s, t].map(id => KN((appById(id) || {}).AppType));
+  return ty.includes("FedGQL router") ? "GraphQL" : "REST API";
+}
+// The hops of the path: consecutive chosen layers (optional empty layers are skipped).
+function dgHops(mt, path) {
+  const idx = path.map((v, i) => v ? i : -1).filter(i => i >= 0), hops = [];
+  for (let k = 1; k < idx.length; k++) { let from = idx[k - 1];
+    if (mt === MT_SYNC && idx[k] === 4 && path[2]) from = 2;   // the hub feeds subscribers, in parallel with the data platform
+    hops.push([path[from], path[idx[k]], from, idx[k]]); }
+  return hops;
+}
+function dgPathHTML(a, mt) {
+  const path = dgPath(a, mt), me = mtTier(mt, a.AppType), opt = DG_OPT[mt];
+  if (me < 0) return `<p class="hint">${esc(a.Name)} (${esc(KN(a.AppType))}) is not a layer of an ${esc(mt.toLowerCase())}; choose the other kind above.</p>`;
+  const slot = (label, i) => {
+    const apps = dgTierApps(mt, i), v = path[i], own = mt === MT_API && i === 3, sv = !v && opt.includes(i) ? "-" : v;
+    const opts = (opt.includes(i) ? [["-", "— skip —"]] : []).concat(!v ? [["", "— choose —"]] : []).concat(own ? [[DG_OWN_DB, `Own database (${appName(path[2]) || "the service"}'s tables)`]] : []).concat(apps.map(x => [x.AppID, `${x.Name} · ${KN(x.AppType)}`]));
+    return `<div class="dg-tier${i === me ? " cur" : ""}"><h5>${esc(label)}${opt.includes(i) ? " (optional)" : ""}</h5>${i === me ? `<span class="ch me" style="border-left-color:${APP_COLOR[KN(a.AppType)] || "#94a3b8"}">${esc(a.Name)}</span>`
+      : `<select data-act="path" data-i="${i}" style="width:100%">${opts.map(([k, l]) => `<option value="${ea(k)}"${k === sv ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`}
+      ${v && v !== DG_OWN_DB ? `<div class="hint">${dsOfApp(v).length} datasets</div>` : v === DG_OWN_DB ? `<div class="hint">${dsOfApp(path[2]).filter(d => /^DB /.test(KN(d.Kind))).length} table(s) / collection(s)</div>` : ""}</div>`;
+  };
+  let h = `<div class="dg-chain">${MT_CHAIN[mt].map(([label], i) => (i ? '<span class="dg-arrow">→</span>' : "") + slot(label, i)).join("")}</div>`;
+  const hops = dgHops(mt, path), w = dg();
+  const cell = (s, t, dir) => {
+    const own = t === DG_OWN_DB, src = own ? path[2] : s, tgt = own ? path[2] : t;
+    const touchesDb = f => DB.Mappings.some(m => m.FlowID === f.FlowID && [m.SourceDatasetID, m.TargetDatasetID].some(id => /^DB /.test(KN((dsById(id) || {}).Kind))));
+    const fl = own ? DB.Flows.filter(f => f.SourceAppID === src && f.TargetAppID === src && f.Pattern === "Internal").sort((x, y) => touchesDb(y) - touchesDb(x)) : dgFlowsBetween(src, tgt, mt);
+    const f = fl[0];
+    if (f) return `<button class="addrow${f.FlowID === w.flow ? " sel" : ""}" data-act="pick-flow" data-v="${ea(f.FlowID)}" title="${ea(f.Name || "")}">${esc(f.FlowID)} · ${mapsOfFlow(f.FlowID).length} mappings →</button>${mapTypeOf(f) !== mt ? ` <span class="hint">(recorded as ${esc(mapTypeOf(f).toLowerCase())})</span>` : ""}`;
+    return `<button class="addrow" data-act="hop-new" data-v="${ea([src, tgt, own ? "Internal" : dgHopPattern(mt, s, t), dir].join("|"))}">＋ ${own ? "Internal flow" : dgHopPattern(mt, s, t)} flow</button>`;
+  };
+  if (!hops.length) return h + `<p class="hint">Choose the applications on the path to see its hops.</p>`;
+  if (mt === MT_API) {
+    h += `<div class="dg-scroll"><table class="dg-tbl"><thead><tr><th>Hop</th><th>Request · data front → back</th><th>Response · data back → front</th></tr></thead><tbody>${hops.map(([s, t]) => {
+      const own = t === DG_OWN_DB, label = own ? `${esc(appName(s))} API ⇄ its tables` : `${esc(appName(s))} ⇄ ${esc(appName(t))}`;
+      return `<tr><td><b>${label}</b><div class="hint">${own ? "Internal" : esc(dgHopPattern(mt, s, t))}</div></td>${own ? `<td colspan="2">${cell(s, t, "both")} <span class="hint">one flow, mapped both ways (API input → columns, columns → API output)</span></td>` : `<td>${cell(s, t, "req")}</td><td>${cell(t, s, "res")}</td>`}</tr>`; }).join("")}</tbody></table></div>
+      <p class="hint">Request mappings carry what the front end sends (form fields → API input → table columns or third-party request); response mappings carry what comes back (table columns or third-party response → API output → screen). A service's own tables are one Internal flow used both ways.</p>`;
+  } else {
+    h += `<div class="dg-scroll"><table class="dg-tbl"><thead><tr><th>Hop</th><th>Sync flow · data source → platform</th></tr></thead><tbody>${hops.map(([s, t]) => `<tr><td><b>${esc(appName(s))} → ${esc(appName(t))}</b></td><td>${cell(s, t, "sync")}</td></tr>`).join("")}</tbody></table></div>`;
+  }
+  return h;
+}
+function dgHopNew(v) {
+  const [s, t, pattern, dir] = v.split("|"), src = appById(s), tgt = appById(t), w = dg(); if (!src || !tgt) return;
+  const mt = dgMtype(dgApp()), tag = dir === "req" ? "request" : dir === "res" ? "response" : dir === "both" ? "request + response" : "sync";
+  pushUndo(); const row = dgNewRow("Flows", { Name: s === t ? `${src.Name} API ⇄ tables (${tag})` : `${src.Name} → ${tgt.Name} (${pattern}${mt === MT_API ? ", " + tag : ""})`, SourceAppID: s, TargetAppID: t, Pattern: pattern, MappingType: mt, Status: "Draft" });
+  DB.Flows.push(row); save(); w.flow = row.FlowID; w.srcDs = ""; w.tgtDs = ""; DG_CHANGED.add(s); DG_CHANGED.add(t); toast(`Added ${row.FlowID}: map its attributes below`); dgRender();
+}
 function dgStepInteg() {
   const w = dg(), a = dgApp(); if (!a) return dgH(5, "Integration mapping", "Pick an application first.");
-  const flows = flowsOfApp(a.AppID).sort((x, y) => (x.SourceAppID === x.TargetAppID) - (y.SourceAppID === y.TargetAppID));
-  let h = dgH(5, `Integration mapping for ${esc(a.Name)}`, "Record how data moves between <b>${esc(a.Name)}</b> and other applications, <b>in its own domain or across domains</b>: each integration flow has a pattern (REST API, GraphQL, Kafka event, File (CSV), CDC) and carries attribute mappings from a source dataset to a target dataset, with a transformation.".replace("${esc(a.Name)}", esc(a.Name)));
-  h += `<div class="kv">Integrations (${flows.length})</div><div class="dg-scroll"><table class="dg-tbl"><thead><tr><th>Flow</th><th>Direction</th><th>Other application · domain</th><th>Pattern</th><th>Middleware</th><th>Frequency</th><th>Status</th><th>Mappings</th><th></th></tr></thead><tbody>${flows.map(f => {
+  const mt = dgMtype(a), M = DG_MT[mt];
+  const all = flowsOfApp(a.AppID), flows = all.filter(f => mapTypeOf(f) === mt).sort((x, y) => (x.SourceAppID === x.TargetAppID) - (y.SourceAppID === y.TargetAppID));
+  let h = dgH(5, `Integration mapping for ${esc(a.Name)}`, "Record how data moves between <b>${esc(a.Name)}</b> and other applications, <b>in its own domain or across domains</b>. First choose what you are mapping: an <b>API data mapping</b> (a call from the front end to the back end) or a <b>domain data mapping</b> (a data sync from core systems to the data hub and data platform). Each integration flow has a pattern and carries attribute mappings from a source dataset to a target dataset, with a transformation.".replace("${esc(a.Name)}", esc(a.Name)));
+  h += `<div class="wz-cards">${MAP_TYPES.map(t => { const n = all.filter(f => mapTypeOf(f) === t).length; return `<div class="wz-card mt-card${t === mt ? " sel" : ""}" data-act="mtype" data-v="${ea(t)}"><h4>${DG_MT[t].icon} ${esc(t)} <span class="hint">${n} flow${n === 1 ? "" : "s"}</span></h4><p>${esc(DG_MT[t].what)}</p><p class="chain">${esc(DG_MT[t].chain)}</p></div>`; }).join("")}</div>`;
+  h += `<div class="kv">${mt === MT_API ? "API call path: UI app → BFF / FedGQL router → service → database / third party" : "Data sync path: core → (integration service) → data hub → data platform → (subscribers)"}</div>` + dgPathHTML(a, mt)
+    + `<details class="dg-note"><summary><b>Everything ${esc(a.Name)} reaches</b> over ${esc(mt.toLowerCase())} flows</summary>${dgChainHTML(a, mt)}</details>`;
+  h += `<div class="kv">${esc(mt)} integrations (${flows.length})</div><div class="dg-scroll"><table class="dg-tbl"><thead><tr><th>Flow</th><th>Direction</th><th>Other application · domain</th><th>Pattern</th><th>Middleware</th><th>Frequency</th><th>Status</th><th>Mappings</th><th></th></tr></thead><tbody>${flows.map(f => {
     const out = f.SourceAppID === a.AppID, other = appById(out ? f.TargetAppID : f.SourceAppID), self = f.SourceAppID === f.TargetAppID;
     return `<tr class="${f.FlowID === w.flow ? "cur" : ""}"><td>${dgCell("Flows", f, "Name")}<div class="hint mono">${esc(f.FlowID)}</div></td><td>${self ? "internal" : out ? "outbound →" : "← inbound"}</td>
       <td>${self ? '<span class="hint">within the application</span>' : `${esc(other ? other.Name : "?")} ${dgAppBadge(other)}<div class="hint">${esc(domName(other && other.DomainID))}</div>`} ${dgCrossPill(f)}</td>
       <td>${dgCell("Flows", f, "Pattern")}</td><td>${dgCell("Flows", f, "Middleware")}</td><td>${dgCell("Flows", f, "Frequency")}</td><td>${dgCell("Flows", f, "Status")}</td>
       <td><button class="addrow" data-act="pick-flow" data-v="${ea(f.FlowID)}">${mapsOfFlow(f.FlowID).length} mappings →</button></td>
-      <td class="act"><button class="icon-btn" data-act="edit" data-sheet="Flows" data-v="${ea(f._id)}" title="All fields">✎</button><button class="rm-row" data-act="del-flow" data-v="${ea(f.FlowID)}" title="Delete flow">✕</button></td></tr>`; }).join("") || `<tr><td colspan="9" class="empty">No integrations yet: add one below.</td></tr>`}</tbody></table></div>`;
+      <td class="act"><button class="icon-btn" data-act="edit" data-sheet="Flows" data-v="${ea(f._id)}" title="All fields">✎</button><button class="rm-row" data-act="del-flow" data-v="${ea(f.FlowID)}" title="Delete flow">✕</button></td></tr>`; }).join("") || `<tr><td colspan="9" class="empty">No ${esc(mt.toLowerCase())} integrations yet: add one below.</td></tr>`}</tbody></table></div>`;
   // new integration: any application in any domain
   const nf = w.nf, nfDom = nf.dom || DB.Domains.filter(x => x.DomainID !== a.DomainID).concat(DB.Domains)[0]?.DomainID || "";
-  const nfApps = appsOfDom(nfDom), nfApp = nfApps.some(x => x.AppID === nf.app) ? nf.app : (nfApps.find(x => x.AppID !== a.AppID) || nfApps[0] || {}).AppID || "";
-  h += `<div class="dg-note"><b>＋ Add an integration</b><div class="dg-row">${esc(a.Name)}
+  const myT = mtTier(mt, a.AppType), isNext = x => x.AppID !== a.AppID && myT >= 0 && Math.abs(mtTier(mt, x.AppType) - myT) === 1;
+  const nfApps = appsOfDom(nfDom), nfApp = nfApps.some(x => x.AppID === nf.app) ? nf.app : (nfApps.find(isNext) || nfApps.find(x => x.AppID !== a.AppID) || nfApps[0] || {}).AppID || "";
+  if (!M.patterns.includes(nf.pattern)) nf.pattern = M.patterns[0];
+  h += `<div class="dg-note"><b>＋ Add ${mt === MT_API ? "an API data mapping" : "a domain data mapping"} integration</b> <span class="hint">· ${esc(M.chain)}</span><div class="dg-row">${esc(a.Name)}
       <select data-act="nf" data-f="dir"><option value="out"${nf.dir === "out" ? " selected" : ""}>sends to →</option><option value="in"${nf.dir === "in" ? " selected" : ""}>← receives from</option></select>
       <select data-act="nf" data-f="dom" title="Domain of the other application">${DB.Domains.map(x => `<option value="${ea(x.DomainID)}"${x.DomainID === nfDom ? " selected" : ""}>${esc(x.Name)}${x.DomainID === a.DomainID ? " (same domain)" : ""}</option>`).join("")}</select>
-      <select data-act="nf" data-f="app">${nfApps.map(x => `<option value="${ea(x.AppID)}"${x.AppID === nfApp ? " selected" : ""}>${esc(x.Name)} · ${esc(KN(x.AppType))}</option>`).join("") || "<option value=\"\">(no applications)</option>"}</select>
-      via <select data-act="nf" data-f="pattern">${PATTERNS.map(p => `<option${p === nf.pattern ? " selected" : ""}>${esc(p)}</option>`).join("")}</select>
+      <select data-act="nf" data-f="app">${nfApps.map(x => `<option value="${ea(x.AppID)}"${x.AppID === nfApp ? " selected" : ""}>${esc(x.Name)} · ${esc(KN(x.AppType))}${isNext(x) ? " · next layer" : ""}</option>`).join("") || "<option value=\"\">(no applications)</option>"}</select>
+      via <select data-act="nf" data-f="pattern">${M.patterns.map(p => `<option${p === nf.pattern ? " selected" : ""}>${esc(p)}</option>`).join("")}</select>
       <input id="dgNfMw" placeholder="middleware, e.g. Kafka Connect" value="${ea(nf.mw)}" /><input id="dgNfFreq" placeholder="frequency, e.g. Real-time" value="${ea(nf.freq)}" style="width:150px" />
       <button class="primary" data-act="add-flow" data-v="${ea(nfApp)}">Add integration</button></div></div>`;
   h += dgDomainMatrix(a.DomainID);
   // attribute mappings of the selected flow
-  const f = flowById(w.flow); if (!f || !flowsOfApp(a.AppID).includes(f)) return h + `<p class="hint">Pick an integration's <b>mappings →</b> to map its attributes.</p>`;
+  const f = flowById(w.flow); if (!f) return h + `<p class="hint">Pick a hop's flow (or an integration's <b>mappings →</b>) to map its attributes.</p>`;
   const sD = dsOfApp(f.SourceAppID), tD = dsOfApp(f.TargetAppID);
   if (!sD.some(x => x.DatasetID === w.srcDs)) w.srcDs = (sD.find(x => mapsOfFlow(f.FlowID).some(m => m.SourceDatasetID === x.DatasetID)) || sD[0] || {}).DatasetID || "";
   if (!tD.some(x => x.DatasetID === w.tgtDs)) w.tgtDs = (tD.find(x => mapsOfFlow(f.FlowID).some(m => m.TargetDatasetID === x.DatasetID)) || tD.find(x => x.DatasetID !== w.srcDs) || tD[0] || {}).DatasetID || "";
@@ -363,7 +466,7 @@ function dgSuggestTerms() {
 function dgAddFlow(otherId) {
   const a = dgApp(), o = appById(otherId), w = dg(); if (!a || !o) return toast("Pick the other application");
   const out = w.nf.dir !== "in", src = out ? a : o, tgt = out ? o : a, mw = val("dgNfMw").trim(), freq = val("dgNfFreq").trim();
-  pushUndo(); const row = dgNewRow("Flows", { Name: `${src.Name} → ${tgt.Name} (${w.nf.pattern})`, SourceAppID: src.AppID, TargetAppID: tgt.AppID, Pattern: w.nf.pattern, Middleware: mw, Frequency: freq });
+  pushUndo(); const row = dgNewRow("Flows", { Name: `${src.Name} → ${tgt.Name} (${w.nf.pattern})`, SourceAppID: src.AppID, TargetAppID: tgt.AppID, Pattern: w.nf.pattern, MappingType: dgMtype(a), Middleware: mw, Frequency: freq });
   DB.Flows.push(row); save(); Object.assign(w.nf, { mw: "", freq: "" }); w.flow = row.FlowID; w.srcDs = ""; w.tgtDs = ""; DG_CHANGED.add(src.AppID); DG_CHANGED.add(tgt.AppID);
   toast(`Added ${row.FlowID}${domOfApp(src.AppID) !== domOfApp(tgt.AppID) ? " (cross-domain)" : ""}`); dgRender();
 }
@@ -705,6 +808,8 @@ function dgInit() {
     else if (a === "del-attr") { const x = dgRow("Attributes", v); if (x) { deleteAttribute(x.DatasetID, x.Path); DG_CHANGED.add(x.DatasetID); dgRender(); } }
     else if (a === "suggest-terms") dgSuggestTerms();
     else if (a === "pick-flow") { w.flow = v; w.srcDs = ""; w.tgtDs = ""; dgRender(); }
+    else if (a === "hop-new") dgHopNew(v);
+    else if (a === "mtype") { w.mtype = v; if (w.flow && mapTypeOf(flowById(w.flow)) !== v) w.flow = ""; dgRender(); }
     else if (a === "add-flow") { w.nf.mw = val("dgNfMw"); w.nf.freq = val("dgNfFreq"); dgAddFlow(v); }
     else if (a === "del-flow") dgDelFlow(v);
     else if (a === "add-map") dgAddMapping();
@@ -735,6 +840,9 @@ function dgInit() {
       return structural ? dgRender() : dgSoft();
     }
     if (el.dataset.act === "nf") { w.nf[el.dataset.f] = el.value; if (el.dataset.f === "dom") w.nf.app = ""; w.nf.mw = val("dgNfMw"); w.nf.freq = val("dgNfFreq"); return dgRender(); }
+    if (el.dataset.act === "path") {   // pick a layer; the layers beyond it (away from the onboarding app) go back to automatic
+      const mt = dgMtype(dgApp()), i = +el.dataset.i, me = mtTier(mt, dgApp().AppType); w.path = w.path || {}; const p = (w.path[mt] = (w.path[mt] || []).slice());
+      p[i] = el.value; for (let j = 0; j < MT_CHAIN[mt].length; j++) if ((i > me && j > i) || (i < me && j < i)) p[j] = ""; w.flow = ""; return dgRender(); }
     if (el.dataset.act === "map-src") { w.srcDs = el.value; return dgRender(); }
     if (el.dataset.act === "map-tgt") { w.tgtDs = el.value; return dgRender(); }
     if (el.dataset.act === "exp-scope") { w.exp.scope = el.value; w.exp.name = ""; return dgRender(); }

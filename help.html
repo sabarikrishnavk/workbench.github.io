@@ -105,6 +105,7 @@
   <a class="grp" href="#data-mapping">Data mapping</a>
   <a class="sub" href="#dm-load">Load / Export / Template</a>
   <a class="sub" href="#dm-samples">Samples (retail · FCC)</a>
+  <a class="sub" href="#dm-mapping-types">API vs domain data mapping</a>
   <a class="sub" href="#dm-guide">Onboarding guide</a>
   <a class="sub" href="#dm-flows">Domains &amp; apps</a>
   <a class="sub" href="#dm-canvas">Mapping canvas</a>
@@ -449,13 +450,31 @@
       </ul>
       <p>The public FCC docs give the endpoints and headers but not the request / response bodies, so FCC body fields, the FCC Catalog endpoint and the webhook payloads are modelled and marked <code>Proposed</code>. Confirm them against FCC's <code>sampleTransactOpenAPI.yaml</code>. The <b>Issues</b> view shows 12 PII warnings for this sample: the shopper's email, phone, name and address go unmasked from the checkout form to FCC. They are flags for a privacy review, left in on purpose.</p></div>
 
+    <div class="feat" id="dm-mapping-types"><h3>API data mapping and domain data mapping <span class="where">step 5 · Domains &amp; apps · canvas</span></h3>
+      <p>Every integration flow is one of two kinds, kept in the Flows sheet's <b>MappingType</b> column (filled in automatically when empty):</p>
+      <ul>
+        <li><b>API data mapping</b>: a call from the front end to the back end, and its response back: <b>front end → BFF / FedGQL router → domain / orchestrator / integration service → database or third party</b>. Patterns: REST API, GraphQL, Internal (a service's API ↔ its own tables). Record each hop in the direction its mapped data moves: request fields front → back, response fields back → front.</li>
+        <li><b>Domain data mapping</b>: a data sync: <b>core / source system → (integration service) → data hub → data platform</b>, plus the services and channels the hub distributes to. Patterns: Kafka event, CDC, File (CSV), REST API, Internal.</li>
+      </ul>
+      <p>Step 5 of the guide asks which one you are recording and then builds the <b>path</b> layer by layer, starting from the application you are onboarding:</p>
+      <ul>
+        <li><b>API call path</b>: UI app → BFF or FedGQL router → domain / orchestrator / integration service → the service's <i>own database</i> or a third party. Each layer is a dropdown, pre-filled from the flows that already exist (pick another service or third party to follow a different call). For every hop the table shows the <b>request</b> flow (data front → back) and the <b>response</b> flow (data back → front); a missing one has a <span class="ui">＋ GraphQL / REST API flow</span> button that creates it as a Draft API data mapping and opens its attribute mappings. A service and its own tables share one Internal flow, mapped both ways.</li>
+        <li><b>Data sync path</b>: core / source system → integration service (optional) → data hub → data platform, with the hub also feeding subscribers (optional: services and channels). Each hop shows its sync flow, or a <span class="ui">＋ Kafka event flow</span> button.</li>
+      </ul>
+      <p>Below the path, <i>Everything … reaches</i> shows every application connected over that kind of flow, the list holds only that kind's integrations, and <i>Add an integration</i> offers the matching patterns with the next-layer applications marked. <b>Domains &amp; apps</b> filters the flow diagram and table by kind, and the canvas has <i>Focus → Mapping type</i>. The Issues view checks each kind: an API data mapping that is a Kafka / CDC / file sync, touches a core system, data hub or data platform, or skips a layer; and a domain data mapping that involves a front end, the BFF or the router.</p></div>
     <div class="feat" id="dm-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
       <p>A seven-step wizard for one domain and one business application at a time: domain &amp; business terms → business application → datasets &amp; types → attributes &amp; terms → integration mapping → lineage → export &amp; save (Excel and Markdown). The lineage visualizer slides in on the right; pick the level (applications, datasets, attributes) and what to trace.</p></div>
     <div class="feat" id="dm-flows"><h3>Domains &amp; apps <span class="where">tab</span></h3>
       <p>Domain cards with each application's type and the datasets it owns, a flow diagram grouped by domain, and the flow inventory. IDs follow the convention <code>DOM-04-PRODT</code> (domain number + 5-letter code) and <code>APP-04-PRODT-01</code> (+ application type number: 01 domain service, 02 orchestrator service, 03 integration service, 04 BFF, 05 FedGQL router, 06 front end, 07 core system, 08 third party, 09 data hub, 10 data platform). <span class="ui">Apply ID convention</span> renames older IDs and updates every reference.</p>
       <p><b>09-Data hub</b> and <b>10-Data platform</b> applications run on <b>Databricks</b>, <b>Snowflake</b> or <b>ClickHouse</b> and take in and distribute data over <b>Kafka</b>. A data hub serves curated, shared data products to other applications (for example a Snowflake hub fed by domain events, republishing canonical topics). A data platform is the analytics lakehouse or warehouse. They own Kafka events, Databricks tables, DB tables (engine Snowflake or ClickHouse), file schemas and data APIs. The Technology column suggests stacks such as <i>Snowflake + Snowflake Kafka Connector</i>, <i>ClickHouse + Kafka table engine</i> and <i>Databricks + Kafka Structured Streaming</i>; tables then default to that engine.</p></div>
     <div class="feat" id="dm-canvas"><h3>Mapping canvas <span class="where">tab</span></h3>
-      <p>Each card is a dataset, coloured by layer; lines are attribute mappings, coloured by flow pattern and dashed until Approved. Drag an attribute's ● port onto another attribute to map it, click a line to edit its transformation, and use <b>Focus</b> to narrow to a flow, a source → target pair, a business term, a domain or an application. In pair mode <span class="ui">✨ Auto-map</span> suggests Draft mappings.</p></div>
+      <p>Each card is a dataset, coloured by layer; lines are attribute mappings, coloured by flow pattern and dashed until Approved. Drag an attribute's ● port onto another attribute to map it, click a line to edit its transformation, and use <b>Focus</b> to narrow to a flow, a source → target pair, a business term, a domain or an application. In pair mode <span class="ui">✨ Auto-map</span> suggests Draft mappings.</p>
+      <p><b>Swimlanes</b> (<i>Focus → Mapping type</i>, on by default; untick <span class="ui">Swimlanes</span> for the free layout):</p>
+      <ul>
+        <li><b>API data mapping</b>: one row per <b>UI form</b> (request: form → API) or <b>UI component</b> (response: API → screen), holding the call chain that starts there; columns are the layers left to right: front end · BFF / FedGQL router · one column per orchestrator, integration and domain service · database · third party / core. Datasets reached by no UI dataset share a <i>Service to service</i> row. In each cell, request datasets sit above response ones.</li>
+        <li><b>Domain data mapping</b>: one row per kind of domain data (e.g. <i>Product data</i>, <i>Order data</i>, named after the business-term domain its attributes carry); columns are the sync stages: core / source systems · files · Kafka events · integration service / data hub · domain services · data platform · channels (commerce, search).</li>
+      </ul>
+      <p>In swimlanes the cards keep their lane: dragging a card header pans the canvas instead of moving it. Mapping by dragging a port, editing lines and the side panel work as usual.</p></div>
     <div class="feat" id="dm-registry"><h3>Registry <span class="where">tab</span></h3>
       <p>Every sheet as an editable grid, plus <b>By application</b>: an application's datasets grouped by kind, each with its attributes and Kafka registration. Renaming an ID or a path updates every reference to it.</p></div>
     <div class="feat" id="dm-datasets"><h3>Dataset types &amp; HTTP APIs <span class="where">dataset dialog · ⇪ Import from API spec</span></h3>

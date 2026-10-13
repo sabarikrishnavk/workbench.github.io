@@ -214,8 +214,8 @@
       </div>
       <aside class="ob-drawer open" id="gDrawer" aria-label="Live lineage">
         <button class="ob-tab" id="gDrawerToggle" title="Show / hide the live lineage"><span class="ob-tab-open">▶</span><span class="ob-tab-closed">◀ Lineage</span></button>
-        <div class="ob-drawer-in">
-          <div class="ob-drawer-head"><b>Live lineage</b><span class="hint" id="gLinHint"></span><span class="spacer"></span>
+        <div class="ob-drawer-in" data-fullscreen="Live lineage">
+          <div class="ob-drawer-head" data-fs-slot><b>Live lineage</b><span class="hint" id="gLinHint"></span><span class="spacer"></span>
             <span class="seg" id="gLinMode"><button data-m="trace" class="active">Trace</button><button data-m="apps">Apps &amp; interfaces</button></span></div>
           <div class="svg-wrap" id="gLin"></div>
           <div class="lg" id="gLinLg"></div>
@@ -248,13 +248,13 @@
       <div class="toolbar-inline"><span class="hint">High-level requirement</span><select id="lnHlr"></select><span class="hint" id="lnStats"></span>
         <span class="spacer" style="flex:1"></span><button class="copy-btn" id="lnSvg">⤓ Trace SVG</button><button class="copy-btn" id="lnCsv">Copy trace as CSV</button></div>
       <p class="desc">Requirement → detail requirements → high-level design (applications and interfaces) → detail design (data-mapping interfaces, datasets, attributes, mappings, events). Click a box to highlight its path; click it again to clear.</p>
-      <div class="svg-wrap" id="lnTrace"></div>
+      <div class="svg-wrap" id="lnTrace" data-fullscreen="Requirement trace"></div>
       <div class="lg" id="lnLg"></div>
     </div>
     <div class="card">
       <h2>Applications &amp; interfaces impacted end to end</h2>
       <p class="desc">Each box is an application, placed by layer (core → integration → domain → router / BFF → front end); each line is an interface (data-mapping flow) the requirement touches, coloured by its change. Internal flows (database → API, outbox → topic) are counted inside the box.</p>
-      <div class="svg-wrap" id="lnApps"></div>
+      <div class="svg-wrap" id="lnApps" data-fullscreen="Applications &amp; interfaces"></div>
     </div>
     <div class="card">
       <h2>Attribute data lineage</h2>
@@ -884,7 +884,7 @@ function stepReview() {
     <div class="kpis"><div class="kpi"><b>${c.reqs}</b><span>requirements</span></div><div class="kpi"><b>${c.designed}/${c.reqs}</b><span>designed</span></div><div class="kpi"><b>${c.detailed}/${c.reqs}</b><span>detailed</span></div><div class="kpi"><b>${c.pct}%</b><span>coverage</span></div></div>
     <table class="sum-table" style="max-width:640px"><thead><tr><th>Impacted</th><th>Total</th>${CHANGE.map(k => `<th>${cp(k)}</th>`).join("")}</tr></thead><tbody>${line("Applications", R.apps)}${line("Interfaces", R.flows)}${line("Datasets", R.ds)}${line("Attributes", R.attrs)}${line("Mappings", R.maps)}${line("Events", R.events)}</tbody></table>
     <div class="g-sec">Checks (${iss.length})</div>${iss.length ? iss.map(i => `<div class="iss sev-${i.sev}"><span class="sev-dot"></span><span>${E(i.msg)}</span></div>`).join("") : `<div class="note ok">No issues ✓</div>`}
-    <div class="g-sec">Trace</div><div class="svg-wrap" id="rvTrace">${traceSVG(h.HLRID)}</div>
+    <div class="g-sec">Trace</div><div class="svg-wrap" id="rvTrace" data-fullscreen="Requirement trace">${traceSVG(h.HLRID)}</div>
     <div class="dd-add"><button data-act="goView" data-v="lineage">Open full lineage →</button><button data-act="goView" data-v="summary">Change summary →</button><button data-act="export">Export .xlsx</button></div>`;
 }
 function guideAction(el, ev) {
@@ -1400,6 +1400,7 @@ function exampleRTM() {
 loadDM(); load(); if (!G.hlr && DB.HighLevelReqs.length) G.hlr = DB.HighLevelReqs[0].HLRID;
 wire(); setStatus(); renderDatalists(); showView("guide");
 </script>
+<script src="fullscreen.js"></script>
 <script src="versions.js" defer></script>
 </body>
 </html>

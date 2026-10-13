@@ -299,7 +299,7 @@
         <button class="copy-btn" id="dgOvToggle" title="Show / hide the animated overview">Hide overview</button></div>
       <ol class="wz-steps" id="dgSteps"></ol>
       <div class="wz-ctx" id="dgCtx"></div>
-      <div class="ob-ov" id="dgOvWrap"><div id="dgOverview"></div></div>
+      <div class="ob-ov" id="dgOvWrap" data-fullscreen="Data mapping overview"><div id="dgOverview"></div></div>
     </div>
     <div class="ob-hsplit" id="dgHSplit" title="Drag to resize the progress and work areas · double-click to reset"></div>
     <div class="ob-bottom">
@@ -310,8 +310,8 @@
       <aside class="ob-drawer open" id="dgDrawer" aria-label="Lineage visualizer">
         <button class="ob-tab" id="dgDrawerToggle" title="Show / hide the lineage visualizer"><span class="ob-tab-open">▶</span><span class="ob-tab-closed">◀ Lineage</span></button>
         <div class="ob-grip" id="dgGrip" title="Drag to resize"></div>
-        <div class="ob-drawer-in">
-          <div class="ob-drawer-head"><b>Lineage visualizer</b><span class="hint"><span class="ob-mine-key"></span> <span id="dgLinMine"></span></span><span class="spacer"></span>
+        <div class="ob-drawer-in" data-fullscreen="Lineage visualizer">
+          <div class="ob-drawer-head" data-fs-slot><b>Lineage visualizer</b><span class="hint"><span class="ob-mine-key"></span> <span id="dgLinMine"></span></span><span class="spacer"></span>
             <label class="chk" title="Scope the lineage to what the current step is about"><input type="checkbox" id="dgLinFollow" checked /> Follow guide</label>
             <button id="dgLinFitBtn" title="Fit to view">⤢</button><button id="dgLinSvgBtn" title="Download as SVG">⤓</button></div>
           <div class="dg-lin-bar" id="dgLinBar"></div>
@@ -323,8 +323,8 @@
   </section>
 
   <!-- ============ Mapping canvas ============ -->
-  <section class="view" id="view-canvas">
-    <div class="cv-bar">
+  <section class="view" id="view-canvas" data-fullscreen="Mapping canvas">
+    <div class="cv-bar" data-fs-slot>
       <label>Focus <select id="cvFocus">
         <option value="all">All datasets</option>
         <option value="flow">Integration flow</option>
@@ -405,7 +405,7 @@
     <div class="card">
       <h2>Integration flows</h2>
       <p class="desc">Applications grouped by domain and joined by the flows that carry the mappings. Each edge label shows how the data crosses (REST API, GraphQL, Kafka event, File (CSV), CDC) and how many attribute mappings the flow carries.</p>
-      <div class="mmd" id="flOut"></div>
+      <div class="mmd" id="flOut" data-fullscreen="Domain flow diagram"></div>
       <div class="code-head"><h3>Flows</h3><span class="spacer"></span><button id="flCopy" class="copy-btn">Copy Mermaid source</button></div>
       <div id="flTable"></div>
     </div>
@@ -2785,6 +2785,7 @@ renderAll();
 <script src="onboarding.js"></script>
 <script src="dm-types.js"></script>
 <script src="dm-onboarding.js"></script>
+<script src="fullscreen.js"></script>
 <script src="versions.js" defer></script>
 </body>
 </html>

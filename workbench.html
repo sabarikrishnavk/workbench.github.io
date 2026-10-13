@@ -400,7 +400,7 @@
         <button class="copy-btn" id="obOvToggle" title="Show / hide the animated overview">Hide overview</button></div>
       <ol class="wz-steps wz-steps-8" id="obSteps"></ol>
       <div class="wz-ctx" id="obCtx"></div>
-      <div class="ob-ov" id="obOvWrap"><div id="obOverview"></div></div>
+      <div class="ob-ov" id="obOvWrap" data-fullscreen="Migration overview"><div id="obOverview"></div></div>
     </div>
     <div class="ob-hsplit" id="obHSplit" title="Drag to resize the progress and work areas · double-click to reset"></div>
     <div class="ob-bottom">
@@ -411,8 +411,8 @@
     <aside class="ob-drawer open" id="obDrawer" aria-label="Schema visualizer">
       <button class="ob-tab" id="obDrawerToggle" title="Show / hide the schema visualizer"><span class="ob-tab-open">▶</span><span class="ob-tab-closed">◀ Visualizer</span></button>
       <div class="ob-grip" id="obGrip" title="Drag to resize"></div>
-      <div class="ob-drawer-in">
-        <div class="ob-drawer-head"><b>Schema visualizer</b><span class="hint">all applications · <span class="ob-mine-key"></span> <span id="obVizApp"></span></span><span class="spacer"></span>
+      <div class="ob-drawer-in" data-fullscreen="Schema visualizer">
+        <div class="ob-drawer-head" data-fs-slot><b>Schema visualizer</b><span class="hint">all applications · <span class="ob-mine-key"></span> <span id="obVizApp"></span></span><span class="spacer"></span>
           <label class="chk"><input type="checkbox" id="obVizOnly" /> Only this application</label>
           <label class="chk" title="Re-centre on the type an edit just changed"><input type="checkbox" id="obVizFollow" checked /> Follow changes</label>
           <button id="obVizFitBtn" title="Fit to view">⤢</button></div>
@@ -444,11 +444,11 @@
         </span>
         <button id="copyMermaid" class="copy-btn" data-help="wb-graph">Copy Mermaid source</button>
       </div>
-      <div id="graphOut"></div>
+      <div id="graphOut" data-fullscreen="Federated graph"></div>
       <div class="code-head"><h3>Mermaid source</h3></div>
       <pre class="code" id="mermaidSrc"></pre>
     </div>
-    <div class="card" id="vizPane" hidden>
+    <div class="card" id="vizPane" hidden data-fullscreen="Schema visualization">
       <h2>Schema visualization</h2>
         <p class="desc">The supergraph as Apollo GraphOS shows it: one card per type with its <b>FIELD</b> and <b>RETURN TYPE</b>, starting from the root you are <b>Viewing</b>. <span class="viz-e">E</span> marks an entity (green). Underlined return types link to their card. A coloured dot shows which subgraph contributes each field, and ⚠ marks fields with schema-standards / GraphOS lint issues. Click a card or field for details and to edit it. Drag or scroll to pan; pinch or Ctrl+scroll to zoom.</p>
         <div class="viz-bar">
@@ -478,7 +478,7 @@
         <label class="hint"><input type="checkbox" id="erValues" /> Include value &amp; input types</label>
         <button id="erCopy" class="copy-btn">Copy Mermaid source</button>
       </div>
-      <div id="erOut" class="er-out"></div>
+      <div id="erOut" class="er-out" data-fullscreen="Mermaid ER"></div>
       <div class="code-head"><h3>Mermaid source</h3></div>
       <pre class="code" id="erSrc"></pre>
     </div>
@@ -2715,6 +2715,7 @@ window.addEventListener("message", (e) => {
 </script>
 <script src="onboarding.js"></script>
 <script src="wb-onboarding.js"></script>
+<script src="fullscreen.js"></script>
 <script src="versions.js" defer></script>
 </body>
 </html>

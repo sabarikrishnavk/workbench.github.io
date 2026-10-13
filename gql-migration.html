@@ -203,7 +203,7 @@
         <button class="chrome-toggle" id="chromeToggle" title="Show / hide the toolbar: Export subgraph, Load example, Help, Demo">▾ Toolbar</button></div>
       <ol class="wz-steps" id="wzSteps"></ol>
       <div class="wz-ctx" id="wzCtx"></div>
-      <div class="ob-ov" id="wzOvWrap"><div id="wzOverview"></div></div>
+      <div class="ob-ov" id="wzOvWrap" data-fullscreen="Migration overview"><div id="wzOverview"></div></div>
     </div>
     <div class="ob-hsplit" id="wzHSplit" title="Drag to resize the progress and work areas · double-click to reset"></div>
     <div class="ob-bottom"><div class="ob-main" id="wzMain">
@@ -1728,6 +1728,7 @@ restore(); afterLoad(); tryAutoFetch();
 </script>
 <script src="onboarding.js"></script>
 <script src="gql-onboarding.js"></script>
+<script src="fullscreen.js"></script>
 <script src="versions.js" defer></script>
 </body>
 </html>

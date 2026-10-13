@@ -60,8 +60,10 @@
   <a class="btn" href="workbench.html">Registry workbench</a>
   <a class="btn" href="gql-migration.html">GQL migration</a>
   <a class="btn" href="subgraph-codemigration.html">Code migration</a>
+  <!-- 
   <a class="btn" href="data-mapping.html">Data mapping</a>
   <a class="btn" href="rtm-mapping.html">Traceability</a>
+  -->
   <a class="btn" href="demo.html">▶ Demo</a>
 </header>
 
@@ -99,6 +101,7 @@
   <a class="sub" href="#code-single">Single op</a>
   <a class="sub" href="#code-bff">BFF composite</a>
   <a class="sub" href="#code-export">Export BFF mappings</a>
+  <!-- 
   <a class="grp" href="#data-mapping">Data mapping</a>
   <a class="sub" href="#dm-load">Load / Export / Template</a>
   <a class="sub" href="#dm-samples">Samples (retail · FCC)</a>
@@ -116,6 +119,7 @@
   <a class="sub" href="#rtm-lineage">Lineage</a>
   <a class="sub" href="#rtm-checks">Coverage &amp; checks</a>
   <a class="sub" href="#dm-issues">Issues &amp; architecture rules</a>
+  -->
   <a class="grp" href="#faq">FAQ &amp; troubleshooting</a>
 </nav>
 
@@ -138,8 +142,10 @@
         <tr><td><a href="#workbench">Registry workbench</a></td><td><code>workbench.html</code></td><td>Maintain the registry of entities, schema types, queries, mutations and auth scopes. Validate them against the schema standards, view the federated graph, and sync the workbook with SharePoint or Google Drive.</td></tr>
         <tr><td><a href="#migration">GQL migration</a></td><td><code>gql-migration.html</code></td><td>Turn a subgraph service's OpenAPI spec (and the MonoGraph schema) into registry rows for one entity, review them, and copy the approved ones into the registry.</td></tr>
         <tr><td><a href="#code-migration">Code migration</a></td><td><code>subgraph-codemigration.html</code></td><td>Map REST operations or composite BFF endpoints to FedGQL operations and generate client and server code.</td></tr>
+        <!-- 
         <tr><td><a href="#data-mapping">Data mapping</a></td><td><code>data-mapping.html</code></td><td>Trace each business attribute from core systems and third parties through Kafka, service data and REST / GraphQL APIs to the UI, in its own workbook, <code>DataMappingRegistry.xlsx</code>.</td></tr>
         <tr><td><a href="#rtm">Requirements traceability</a></td><td><code>rtm-mapping.html</code></td><td>Trace a program's high-level requirements to detail requirements, to the impacted applications and interfaces, to the Data mapping datasets, attributes and mappings, with a change summary and lineage per requirement, in <code>RTMRegistry.xlsx</code>.</td></tr>
+        -->
       </tbody>
     </table>
     <p>Look for the <span class="help-ico" style="display:inline-flex">?</span> icon next to buttons and tabs in each tool. It opens the matching section of this page.</p>
@@ -167,7 +173,9 @@
       <li><b class="t">A subgraph</b>On <b>Load data</b>, load <code>samples/GQLRegistry-sample.xlsx</code> and pick <code>ENT-002 · ProductStoreContext</code>. Then <span class="ui">Import OpenAPI spec</span> → <code>samples/subgraph/pnp/openapi.yaml</code>. Compare the result with the target <code>samples/subgraph/pnp/subgraph.gql</code>.</li>
       <li><b class="t">Single-op code</b>In Code migration, load the sample registry and <code>samples/subgraph/cart/openapi.yaml</code>. <code>GET /carts/{id}</code> pairs with <code>query cart</code>; scroll to the <b>Sequence trace</b> to see the router reach the product subgraph for each line.</li>
       <li><b class="t">BFF code</b>Load <code>samples/bff-openapi.yaml</code> and switch Mode to <b>BFF composite</b>. The sample registry already maps four endpoints. <code>POST /bff/checkout</code> shows the <b>orchestrated checkout</b>: one <code>submitCheckout</code> mutation whose resolver calls cart → inventory → payments → cart. <code>GET /bff/cart/{cartId}</code> shows query federation.</li>
-      <li><b class="t">Data mapping</b>In <a href="data-mapping.html">Data mapping</a> click <span class="ui">Load example</span>, or <span class="ui">Load .xlsx</span> → <code>samples/DataMappingRegistry-sample.xlsx</code> for the same retail flow attribute by attribute. Load <code>samples/DataMappingRegistry-FCC-sample.xlsx</code> for an end-to-end cart &amp; checkout on Flipkart Commerce Cloud (<a href="#dm-samples">details</a>).</li>
+      <!-- 
+        <li><b class="t">Data mapping</b>In <a href="data-mapping.html">Data mapping</a> click <span class="ui">Load example</span>, or <span class="ui">Load .xlsx</span> → <code>samples/DataMappingRegistry-sample.xlsx</code> for the same retail flow attribute by attribute. Load <code>samples/DataMappingRegistry-FCC-sample.xlsx</code> for an end-to-end cart &amp; checkout on Flipkart Commerce Cloud (<a href="#dm-samples">details</a>).</li>
+       -->
     </ol>
   </section>
 
@@ -415,6 +423,7 @@
   </section>
 
   <!-- ========================== Data mapping =========================== -->
+  <!-- 
   <section id="data-mapping">
     <h2>Data mapping <small class="hint">data-mapping.html</small></h2>
     <p>A registry of how each business attribute travels across layers: core systems (MDM / PIM / ERP) and third parties → integration services → Kafka events → service databases → REST / GraphQL APIs → the BFF and FedGQL router → UI. Mappings use the source-to-target (STTM) shape: <i>source dataset + path → target dataset + path</i>, with a transformation and a rule. Everything lives in one workbook, <code>DataMappingRegistry.xlsx</code>, cached in the browser like the other tools. The <span class="ui">ⓘ Quick guide</span> button in the page header opens a short in-page summary of this section.</p>
@@ -459,8 +468,10 @@
       <p>Errors: broken references, duplicate IDs or paths, mappings to attributes that don't exist. Warnings: unmapped API / UI / event fields, Direct mappings between incompatible types, PII or Confidential data flowing out without Mask / Hash / Encrypt, and Kafka events without a registration or a valid key. Each issue has a <span class="ui">Show</span> button.</p>
       <p>Architecture rules, checked per application type: front ends integrate only through the BFF (REST) or the FedGQL router (GraphQL); only domain and orchestrator services publish subgraphs to the router; core and third-party systems reach an integration service via REST API, Kafka event, File (CSV) or CDC; data hubs and data platforms integrate via Kafka event (preferred), CDC, File (CSV) or REST API, and one with no Kafka flow gets an info note; and each type owns only the dataset kinds that fit it (for example a BFF owns HTTP APIs, a front end owns UI components and forms).</p></div>
   </section>
+  -->
 
   <!-- ===================== Requirements traceability ====================== -->
+  <!-- 
   <section id="rtm">
     <h2>Requirements traceability <small class="hint">rtm-mapping.html</small></h2>
     <p>A requirements traceability matrix (RTM) for a program that spans several business domains, applications and datasets. Each high-level requirement (HLR) breaks down into detail requirements, which the high-level design satisfies by changing business applications and interfaces, which the detail design spells out as Data mapping artifacts: interfaces (flows), datasets, attributes, mappings and Kafka events. Applications, flows and datasets are read, never written, from the Data mapping registry.</p>
@@ -476,6 +487,7 @@
     <div class="feat" id="rtm-checks"><h3>Coverage &amp; checks <span class="where">tab</span></h3>
       <p>Coverage per HLR (designed and detailed requirements). Errors: broken references and artifacts that are not in Data mapping. Warnings: requirements without design, design rows without detail, artifacts outside their component, New artifacts that already exist. Info: new artifacts to register and interfaces reaching applications outside the design.</p></div>
   </section>
+  -->
 
   <section id="faq">
     <h2>FAQ &amp; troubleshooting</h2>

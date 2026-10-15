@@ -100,6 +100,8 @@
   #controls{ position: fixed; left: 0; right: 0; bottom: 0; height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 16px; color: #cbd5e1; font-size: 13px; }
   #controls button, #controls a{ background: transparent; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 5px 11px; font: inherit; cursor: pointer; text-decoration: none; }
   #controls button:hover, #controls a:hover{ background: #1e293b; }
+  #controls .copy{ font-size: 11.5px; color: #94a3b8; white-space: nowrap; }
+  @media (max-width: 760px){ #controls .copy{ display: none; } }
   #controls .sp{ flex: 1; }
   #progress{ position: fixed; left: 0; bottom: 46px; height: 3px; background: var(--accent); transition: width .3s; }
   #dots{ display: flex; gap: 5px; }
@@ -548,6 +550,7 @@
   <span id="count"></span>
   <span id="dots"></span>
   <span class="sp"></span>
+  <span class="copy">© 2026 iLabs Tools. All rights reserved.</span>
   <button id="fs" title="Full screen (F)">⛶ Full screen</button>
   <a href="help.html">Help</a>
   <a href="index.html">Home</a>

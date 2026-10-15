@@ -217,7 +217,7 @@ function dgStepAttrs() {
 // Step 5 records one of two kinds of flow; data apps and core systems start on the data sync.
 const DG_MT = {
   [MT_API]: { icon: "⇄", what: "A call from the front end to the back end, and its response back.", chain: "front end → BFF / FedGQL router → domain / integration service → database or third party", patterns: ["REST API", "GraphQL", "Internal"] },
-  [MT_SYNC]: { icon: "⟿", what: "Data synchronised and distributed between systems of record.", chain: "core / source → (integration service) → data hub → data platform → subscribers", patterns: ["Kafka event", "CDC", "File (CSV)", "REST API", "Internal"] },
+  [MT_SYNC]: { icon: "⟿", what: "Data synchronised and distributed between systems of record.", chain: "core / third party → (integration service) → data hub → data platform → subscribers / third party", patterns: ["Kafka event", "CDC", "File (CSV)", "REST API", "Internal"] },
 };
 const dgMtype = a => dg().mtype || (a && ["Core system", "Data hub", "Data platform"].includes(KN(a.AppType)) ? MT_SYNC : MT_API);
 // The chain the application sits in: applications reachable over this mapping type's flows, placed by layer.
@@ -309,7 +309,7 @@ function dgHopNew(v) {
   const [s, t, pattern, dir] = v.split("|"), src = appById(s), tgt = appById(t), w = dg(); if (!src || !tgt) return;
   const mt = dgMtype(dgApp()), tag = dir === "req" ? "request" : dir === "res" ? "response" : dir === "both" ? "request + response" : "sync";
   pushUndo(); const row = dgNewRow("Flows", { Name: s === t ? `${src.Name} API ⇄ tables (${tag})` : `${src.Name} → ${tgt.Name} (${pattern}${mt === MT_API ? ", " + tag : ""})`, SourceAppID: s, TargetAppID: t, Pattern: pattern, MappingType: mt, Status: "Draft" });
-  DB.Flows.push(row); save(); w.flow = row.FlowID; w.srcDs = ""; w.tgtDs = ""; DG_CHANGED.add(s); DG_CHANGED.add(t); toast(`Added ${row.FlowID}: map its attributes below`); dgRender();
+  DB.Flows.push(row); save(); w.flow = row.FlowID; w.srcDs = ""; w.tgtDs = ""; DG_CHANGED.add(s); DG_CHANGED.add(t); toast(`Added ${row.FlowID}: map its fields`); dgRender(); bmOpenFlow(row.FlowID, { onDone: () => dgRender() });
 }
 function dgStepInteg() {
   const w = dg(), a = dgApp(); if (!a) return dgH(5, "Integration mapping", "Pick an application first.");
@@ -317,7 +317,7 @@ function dgStepInteg() {
   const all = flowsOfApp(a.AppID), flows = all.filter(f => mapTypeOf(f) === mt).sort((x, y) => (x.SourceAppID === x.TargetAppID) - (y.SourceAppID === y.TargetAppID));
   let h = dgH(5, `Integration mapping for ${esc(a.Name)}`, "Record how data moves between <b>${esc(a.Name)}</b> and other applications, <b>in its own domain or across domains</b>. First choose what you are mapping: an <b>API data mapping</b> (a call from the front end to the back end) or a <b>domain data mapping</b> (a data sync from core systems to the data hub and data platform). Each integration flow has a pattern and carries attribute mappings from a source dataset to a target dataset, with a transformation.".replace("${esc(a.Name)}", esc(a.Name)));
   h += `<div class="wz-cards">${MAP_TYPES.map(t => { const n = all.filter(f => mapTypeOf(f) === t).length; return `<div class="wz-card mt-card${t === mt ? " sel" : ""}" data-act="mtype" data-v="${ea(t)}"><h4>${DG_MT[t].icon} ${esc(t)} <span class="hint">${n} flow${n === 1 ? "" : "s"}</span></h4><p>${esc(DG_MT[t].what)}</p><p class="chain">${esc(DG_MT[t].chain)}</p></div>`; }).join("")}</div>`;
-  h += `<div class="kv">${mt === MT_API ? "API call path: UI app → BFF / FedGQL router → service → database / third party" : "Data sync path: core → (integration service) → data hub → data platform → (subscribers)"}</div>` + dgPathHTML(a, mt)
+  h += `<div class="kv">${mt === MT_API ? "API call path: UI app → BFF / FedGQL router → service → database / third party" : "Data sync path: core / third party → (integration service) → data hub → data platform → (subscribers / third party)"}</div>` + dgPathHTML(a, mt)
     + `<details class="dg-note"><summary><b>Everything ${esc(a.Name)} reaches</b> over ${esc(mt.toLowerCase())} flows</summary>${dgChainHTML(a, mt)}</details>`;
   h += `<div class="kv">${esc(mt)} integrations (${flows.length})</div><div class="dg-scroll"><table class="dg-tbl"><thead><tr><th>Flow</th><th>Direction</th><th>Other application · domain</th><th>Pattern</th><th>Middleware</th><th>Frequency</th><th>Status</th><th>Mappings</th><th></th></tr></thead><tbody>${flows.map(f => {
     const out = f.SourceAppID === a.AppID, other = appById(out ? f.TargetAppID : f.SourceAppID), self = f.SourceAppID === f.TargetAppID;
@@ -348,7 +348,7 @@ function dgStepInteg() {
   const dsOpt = (list, v) => list.map(x => `<option value="${ea(x.DatasetID)}"${x.DatasetID === v ? " selected" : ""}>${esc(x.Name || x.DatasetID)} · ${esc(KN(x.Kind))}</option>`).join("");
   h += `<div class="kv" style="margin-top:14px">Attribute mappings · <span class="mono">${esc(f.FlowID)}</span> ${esc(f.Name || "")} ${dgCrossPill(f)}</div>
     <div class="dg-row">Source <select data-act="map-src">${dsOpt(sD, w.srcDs) || "<option value=''>(the source has no datasets)</option>"}</select> → Target <select data-act="map-tgt">${dsOpt(tD, w.tgtDs) || "<option value=''>(the target has no datasets)</option>"}</select>
-      <button data-act="automap"${w.srcDs && w.tgtDs ? "" : " disabled"} title="Suggest Draft mappings by business term and name similarity">✨ Auto-map</button><button data-act="add-map"${w.tgtDs ? "" : " disabled"}>＋ Mapping</button><button data-act="to-canvas"${w.srcDs && w.tgtDs ? "" : " disabled"} title="Open this source → target pair on the mapping canvas">Open in canvas ↗</button></div>
+      <button data-act="automap"${w.srcDs && w.tgtDs ? "" : " disabled"} title="Suggest Draft mappings by business term and name similarity">✨ Auto-map</button><button class="primary" data-act="bulk-map"${w.tgtDs ? "" : " disabled"} title="Map every field of the target from the source in one dialog">⇄ Map all fields…</button><button data-act="add-map"${w.tgtDs ? "" : " disabled"}>＋ Mapping</button><button data-act="to-canvas"${w.srcDs && w.tgtDs ? "" : " disabled"} title="Open this source → target pair on the mapping canvas">Open in canvas ↗</button></div>
     <div class="dg-scroll"><table class="dg-tbl"><thead><tr><th>MappingID</th><th>Source path</th><th>Target path</th><th>Transformation</th><th>Rule</th><th>Status</th><th></th></tr></thead><tbody>${maps.map(m => `<tr>
       <td class="ro">${esc(m.MappingID)}</td><td>${dgCell("Mappings", m, "SourcePath")}</td><td>${dgCell("Mappings", m, "TargetPath")}</td><td>${dgCell("Mappings", m, "Transformation")}</td><td>${dgCell("Mappings", m, "Rule")}</td><td>${dgCell("Mappings", m, "Status")}</td>
       <td class="act"><button class="rm-row" data-act="del-map" data-v="${ea(m._id)}" title="Delete mapping">✕</button></td></tr>`).join("") || `<tr><td colspan="7" class="empty">No mappings for this pair yet: ✨ Auto-map or add them.</td></tr>`}</tbody></table></div>
@@ -807,7 +807,8 @@ function dgInit() {
     else if (a === "paste-attrs") dgPasteAttrs();
     else if (a === "del-attr") { const x = dgRow("Attributes", v); if (x) { deleteAttribute(x.DatasetID, x.Path); DG_CHANGED.add(x.DatasetID); dgRender(); } }
     else if (a === "suggest-terms") dgSuggestTerms();
-    else if (a === "pick-flow") { w.flow = v; w.srcDs = ""; w.tgtDs = ""; dgRender(); }
+    else if (a === "pick-flow") { w.flow = v; w.srcDs = ""; w.tgtDs = ""; dgRender(); bmOpenFlow(v, { onDone: () => dgRender() }); }
+    else if (a === "bulk-map") bmOpenFlow(w.flow, { srcDs: w.srcDs, tgtDs: w.tgtDs, onDone: () => dgRender() });
     else if (a === "hop-new") dgHopNew(v);
     else if (a === "mtype") { w.mtype = v; if (w.flow && mapTypeOf(flowById(w.flow)) !== v) w.flow = ""; dgRender(); }
     else if (a === "add-flow") { w.nf.mw = val("dgNfMw"); w.nf.freq = val("dgNfFreq"); dgAddFlow(v); }

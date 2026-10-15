@@ -106,6 +106,7 @@
   <a class="sub" href="#dm-load">Load / Export / Template</a>
   <a class="sub" href="#dm-samples">Samples (retail · FCC)</a>
   <a class="sub" href="#dm-mapping-types">API vs domain data mapping</a>
+  <a class="sub" href="#dm-bulk-map">Bulk field mapping</a>
   <a class="sub" href="#dm-guide">Onboarding guide</a>
   <a class="sub" href="#dm-flows">Domains &amp; apps</a>
   <a class="sub" href="#dm-canvas">Mapping canvas</a>
@@ -462,6 +463,15 @@
         <li><b>Data sync path</b>: core / source system → integration service (optional) → data hub → data platform, with the hub also feeding subscribers (optional: services and channels). Each hop shows its sync flow, or a <span class="ui">＋ Kafka event flow</span> button.</li>
       </ul>
       <p>Below the path, <i>Everything … reaches</i> shows every application connected over that kind of flow, the list holds only that kind's integrations, and <i>Add an integration</i> offers the matching patterns with the next-layer applications marked. <b>Domains &amp; apps</b> filters the flow diagram and table by kind, and the canvas has <i>Focus → Mapping type</i>. The Issues view checks each kind: an API data mapping that is a Kafka / CDC / file sync, touches a core system, data hub or data platform, or skips a layer; and a domain data mapping that involves a front end, the BFF or the router.</p></div>
+    <div class="feat" id="dm-bulk-map"><h3>Map fields between systems (bulk mapping) <span class="where">step 5 · mapping canvas → ⇄ Bulk map</span></h3>
+      <p>A dialog that maps <b>every field</b> of a target dataset from a source dataset in one go. It opens from the guide's integration step (an integration's <span class="ui">mappings →</span>, a hop of the API / sync path, a newly created hop, or <span class="ui">⇄ Map all fields…</span>) and from the canvas toolbar (<span class="ui">⇄ Bulk map</span>, which starts from the focused source → target pair or flow, or the selected dataset).</p>
+      <ul>
+        <li><b>Source and target system</b>: pick each application and its dataset; <span class="ui">⇄</span> swaps them.</li>
+        <li><b>Integration flow</b>: the flow between the two systems that carries the mappings, or <i>＋ New integration flow</i> with its pattern (created on Save, as an API or domain data mapping).</li>
+        <li><b>One row per target field</b> (type, required <b>*</b>, business term): choose the source field (✓ marks fields already used), or <i>no source</i> for a Constant / Generate / Default / Derive, then the transformation, rule and status. <span class="ui">＋</span> adds another source for the same field (Concat / Derive); ⚠ flags a Direct / Rename between incompatible types.</li>
+        <li><span class="ui">✨ Suggest</span> fills the empty rows by business term, then by name similarity (highlighted until saved); filter <i>All · Unmapped · Suggested</i> or find a field.</li>
+        <li><span class="ui">Save mappings</span> creates, updates and removes the pair's mappings together (new ones as Draft) and carries business terms over; Ctrl/⌘+Z undoes it. Fields already mapped under another flow say so on their row.</li>
+      </ul></div>
     <div class="feat" id="dm-guide"><h3>Onboarding guide <span class="where">tab</span></h3>
       <p>A seven-step wizard for one domain and one business application at a time: domain &amp; business terms → business application → datasets &amp; types → attributes &amp; terms → integration mapping → lineage → export &amp; save (Excel and Markdown). The lineage visualizer slides in on the right; pick the level (applications, datasets, attributes) and what to trace.</p></div>
     <div class="feat" id="dm-flows"><h3>Domains &amp; apps <span class="where">tab</span></h3>
@@ -471,8 +481,8 @@
       <p>Each card is a dataset, coloured by layer; lines are attribute mappings, coloured by flow pattern and dashed until Approved. Drag an attribute's ● port onto another attribute to map it, click a line to edit its transformation, and use <b>Focus</b> to narrow to a flow, a source → target pair, a business term, a domain or an application. In pair mode <span class="ui">✨ Auto-map</span> suggests Draft mappings.</p>
       <p><b>Swimlanes</b> (<i>Focus → Mapping type</i>, on by default; untick <span class="ui">Swimlanes</span> for the free layout):</p>
       <ul>
-        <li><b>API data mapping</b>: one row per <b>UI form</b> (request: form → API) or <b>UI component</b> (response: API → screen), holding the call chain that starts there; columns are the layers left to right: front end · BFF / FedGQL router · one column per orchestrator, integration and domain service · database · third party / core. Datasets reached by no UI dataset share a <i>Service to service</i> row. In each cell, request datasets sit above response ones.</li>
-        <li><b>Domain data mapping</b>: one row per kind of domain data (e.g. <i>Product data</i>, <i>Order data</i>, named after the business-term domain its attributes carry); columns are the sync stages: core / source systems · files · Kafka events · integration service / data hub · domain services · data platform · channels (commerce, search).</li>
+        <li><b>API data mapping</b>: one row per <b>UI form</b> (request: form → API) or <b>UI component</b> (response: API → screen), holding the call chain that starts there; columns are the same layers as the guide's API call path: <b>UI app → BFF / FedGQL router → service</b> (orchestrator, domain and integration services together) <b>→ database / third party</b> (a service's tables, third parties and core systems). Datasets reached by no UI dataset share a <i>Service to service</i> row. In each cell, request datasets sit above response ones.</li>
+        <li><b>Domain data mapping</b>: one row per kind of domain data (e.g. <i>Product data</i>, <i>Order data</i>, named after the business-term domain its attributes carry); columns are the same layers as the guide's data sync path: <b>core / third party (source) → integration service → data hub → data platform → subscribers / third party</b>. Files and Kafka events sit with the system that owns them; a third party that is fed data (a commerce or search platform) is a subscriber, one that only sends data is a source. Every layer is shown, even when it is empty.</li>
       </ul>
       <p>In swimlanes the cards keep their lane: dragging a card header pans the canvas instead of moving it. Mapping by dragging a port, editing lines and the side panel work as usual.</p></div>
     <div class="feat" id="dm-registry"><h3>Registry <span class="where">tab</span></h3>
@@ -535,5 +545,6 @@ document.getElementById("tocSearch").addEventListener("input", e => {
 });
 </script>
 <script src="versions.js" defer></script>
+<footer class="site-foot">© 2026 iLabs Tools. All rights reserved.</footer>
 </body>
 </html>

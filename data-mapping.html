@@ -174,6 +174,25 @@
   nav .chrome-toggle{ align-self: center; padding: 3px 9px; font-size: 12px; }
   #view-guide{ --obw: 44%; }
   #view-guide .wz-steps{ grid-template-columns: repeat(7, 1fr); }
+  /* bulk field-mapping dialog (dm-bulkmap.js) */
+  .modal-card.bm-wide{ width: 1180px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; }
+  .bm-sys{ display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: start; margin: 8px 0; }
+  .bm-side{ display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fbfbfd; }
+  .bm-side .kv{ margin: 0; }
+  .bm-swap{ align-self: center; font-size: 16px; padding: 4px 10px; }
+  .bm-scroll{ overflow: auto; flex: 1 1 auto; min-height: 160px; max-height: 52vh; border: 1px solid var(--line); border-radius: 8px; }
+  .bm-tbl{ width: 100%; }
+  .bm-tbl thead th{ position: sticky; top: 0; background: #f8fafc; z-index: 1; }
+  .bm-tbl select, .bm-tbl input{ max-width: 100%; font-size: 12.5px; }
+  .bm-tbl td:nth-child(3) select{ min-width: 230px; }
+  .bm-tbl tr.on td:first-child{ box-shadow: inset 3px 0 0 #16a34a; }
+  .bm-tbl tr.sug{ background: #fefce8; }
+  .bm-tbl tr.more td{ border-top-style: dashed; }
+  .bm-arrow{ color: var(--muted); text-align: center; width: 18px; }
+  .bm-warn{ color: #b45309; cursor: help; }
+  .bm-req{ color: #b91c1c; font-weight: 700; margin-left: 1px; }
+  .bm-term{ font-size: 10.5px; padding: 0 5px; border-radius: 999px; background: #eef2ff; color: #4338ca; }
+  .bm-sug{ color: #a16207; }
   .mt-chip{ display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
   .mt-chip.mt-api{ background: #e0f2fe; color: #0369a1; } .mt-chip.mt-sync{ background: #fae8ff; color: #a21caf; }
   .ob-drawer{ position: relative; flex: none; width: 34px; align-self: stretch; margin-left: 14px; transition: width .32s ease; display: flex; }
@@ -357,6 +376,7 @@
       <label id="cvAppL">Application <select id="cvApp"></select></label>
       <label class="chk"><input type="checkbox" id="cvMapped" /> Mapped attributes only</label>
       <input type="search" id="cvFind" placeholder="Highlight attribute or dataset…" />
+      <button id="cvBulk" title="Map all fields between two systems in one dialog (source → target dataset, field by field)">⇄ Bulk map</button>
       <button id="cvAuto" title="Suggest mappings from the source dataset to the target by business term and name similarity">✨ Auto-map</button>
       <button id="cvAddDs" title="Add a dataset (API payload, table, topic, screen…)">+ Dataset</button>
       <button id="cvRelayout" title="Forget dragged card positions and lay the canvas out again">⟲ Auto layout</button>
@@ -491,7 +511,7 @@ const [MT_API, MT_SYNC] = MAP_TYPES;
 // Layers of each chain, front to back / source to platform: [label, application types].
 const MT_CHAIN = {
   [MT_API]: [["Front end", ["Frontend"]], ["BFF / FedGQL router", ["BFF", "FedGQL router"]], ["Domain / orchestrator / integration service", ["Domain service", "Orchestrator service", "Integration service"]], ["Database / third party", ["Third party", "Core system"]]],
-  [MT_SYNC]: [["Core / source system", ["Core system", "Third party"]], ["Integration service", ["Integration service"]], ["Data hub", ["Data hub"]], ["Data platform", ["Data platform"]], ["Subscribers (services, channels)", ["Domain service", "Orchestrator service"]]],
+  [MT_SYNC]: [["Core / third party (source)", ["Core system", "Third party"]], ["Integration service", ["Integration service"]], ["Data hub", ["Data hub"]], ["Data platform", ["Data platform"]], ["Subscribers / third party", ["Domain service", "Orchestrator service"]]],
 };
 const mtTier = (mt, appType) => MT_CHAIN[mt].findIndex(([, types]) => types.includes(KN(appType)));
 const SYNC_KINDS = /^(Kafka Event|Databricks Table|CSV Schema|JSON Schema)$/;
@@ -902,35 +922,30 @@ function cvScope() {
 }
 /* ---- Swimlanes (Focus → Mapping type) ----
    API data mapping: one row per UI form (request) / UI component (response) with the datasets its call reaches;
-   columns = front end → BFF / FedGQL router → each orchestrator / integration / domain service → database → third party.
+   columns = the guide's layers: UI app → BFF / FedGQL router → services (one column) → database / third party.
    Domain data mapping: one row per kind of domain data (the business-term domain its attributes carry);
-   columns = source systems → files → Kafka events → integration service / data hub → domain services → data platform → channels. */
+   columns = core / third party → integration service → data hub → data platform → subscribers / third party. */
 const LANE = { gutter: 220, head: 52, padX: 26, padY: 18 };
-const SVC_ORDER = ["Orchestrator service", "Integration service", "Domain service"];
+// The swimlane column of a dataset: the layer (MT_CHAIN) of the application that owns it, as in the guide's path builder.
+//   API:    UI app → BFF / FedGQL router → services (orchestrator, domain, integration: one column) → database / third party
+//   Domain: core / third party → integration service → data hub → data platform → subscribers / third party
+// Files and Kafka events sit with the application that owns them; a service's tables go to the database column;
+// a third party that is fed data is a subscriber, one that only sends data is a source.
 function laneCol(mt, d, maps) {
   const app = appOfDs(d) || {}, t = KN(app.AppType), k = KN(d.Kind);
-  if (mt === MT_API) {
-    if (t === "Frontend") return ["ui", 0, "Front end · UI forms & components"];
-    if (t === "BFF" || t === "FedGQL router") return ["edge", 1, "BFF / FedGQL router"];
-    if (SVC_ORDER.includes(t)) return /^(DB |Search Index|Databricks)/.test(k) ? ["db", 3, "Database"] : ["svc:" + app.AppID, 2 + (SVC_ORDER.indexOf(t) + 1) / 10, `${app.Name} · ${t.toLowerCase()}`];
-    return ["ext", 4, "Third party / core"];
-  }
-  if (/^(CSV|JSON) Schema$/.test(k)) return ["files", 1, "Files"];
-  if (k === "Kafka Event") return ["kafka", 2, "Kafka events"];
-  if (t === "Core system") return ["src", 0, "Core / source systems"];
-  if (t === "Third party") return maps.some(m => m.TargetDatasetID === d.DatasetID) ? ["chan", 6, "Channels (commerce, search)"] : ["src", 0, "Core / source systems"];
-  if (t === "Data hub" || t === "Integration service") return ["hub", 3, "Integration service / data hub"];
-  if (t === "Data platform") return ["plat", 5, "Data platform"];
-  return ["svc", 4, "Domain services"];
+  let i = mtTier(mt, t);
+  if (mt === MT_API) { if (i === 2 && /^(DB |Search Index|Databricks)/.test(k)) i = 3; if (i < 0) i = 3; }
+  else { if (t === "Third party") i = maps.some(m => m.TargetDatasetID === d.DatasetID && S(m.SourcePath)) ? 4 : 0; if (i < 0) i = 4; }   // a third party that is fed data is a subscriber, even if it answers
+  return ["c" + i, i, MT_CHAIN[mt][i][0]];
 }
 function laneRows(mt, ds, maps, col) {
   const row = {}, rows = [], adj = {}; ds.forEach(id => adj[id] = new Set());
   maps.forEach(m => { if (S(m.SourcePath) && adj[m.SourceDatasetID] && adj[m.TargetDatasetID] && m.SourceDatasetID !== m.TargetDatasetID) { adj[m.SourceDatasetID].add(m.TargetDatasetID); adj[m.TargetDatasetID].add(m.SourceDatasetID); } });
-  const claim = (seed, key, leaf) => { const q = [seed]; row[seed] = key; while (q.length) { const id = q.shift(); if (id !== seed && leaf(id)) continue; adj[id].forEach(o => { if (row[o] == null && !(mt === MT_API && col[o][0] === "ui")) { row[o] = key; q.push(o); } }); } };
+  const claim = (seed, key, leaf) => { const q = [seed]; row[seed] = key; while (q.length) { const id = q.shift(); if (id !== seed && leaf(id)) continue; adj[id].forEach(o => { if (row[o] == null && !(mt === MT_API && col[o][1] === 0)) { row[o] = key; q.push(o); } }); } };
   if (mt === MT_API) {
     // each UI dataset claims the call chain it reaches; tables and third parties end a chain
-    const uis = ds.filter(id => col[id][0] === "ui").sort((a, b) => String(appName(dsById(a).AppID)).localeCompare(appName(dsById(b).AppID)) || String(dsById(a).Name).localeCompare(dsById(b).Name));
-    uis.forEach(id => { const d = dsById(id), form = /Form/.test(KN(d.Kind)); rows.push({ key: id, label: d.Name || id, sub: `${appName(d.AppID)} · ${form ? "request (form → API)" : "response (API → screen)"}` }); claim(id, id, o => ["db", "ext"].includes(col[o][0])); });
+    const uis = ds.filter(id => col[id][1] === 0).sort((a, b) => String(appName(dsById(a).AppID)).localeCompare(appName(dsById(b).AppID)) || String(dsById(a).Name).localeCompare(dsById(b).Name));
+    uis.forEach(id => { const d = dsById(id), form = /Form/.test(KN(d.Kind)); rows.push({ key: id, label: d.Name || id, sub: `${appName(d.AppID)} · ${form ? "request (form → API)" : "response (API → screen)"}` }); claim(id, id, o => col[o][1] === 3); });
     if (ds.some(id => row[id] == null)) { rows.push({ key: "~", label: "Service to service", sub: "calls not started from a UI dataset" }); ds.filter(id => row[id] == null).forEach(id => row[id] = "~"); }
   } else {
     // connected groups of datasets, named after the business-term domain most of their attributes carry
@@ -947,15 +962,15 @@ function laneRows(mt, ds, maps, col) {
 }
 function laneLayout(cards, ds, maps) {
   const mt = CV.mtype, col = {}; ds.forEach(id => col[id] = laneCol(mt, cards[id].d, maps));
-  const cols = [...new Map(ds.map(id => [col[id][0], col[id]])).values()].sort((a, b) => a[1] - b[1] || a[2].localeCompare(b[2]));
+  const cols = MT_CHAIN[mt].map(([label], i) => ["c" + i, i, label]);   // every layer, even an empty one, so the lanes match the guide
   const { row, rows } = laneRows(mt, ds, maps, col);
   const req = d => /Request|Form/.test(KN(d.Kind)) ? 0 : 1;   // in a cell, request datasets above response ones
   let x = LANE.gutter;
-  const colX = cols.map(c => { const w = Math.max(...ds.filter(id => col[id][0] === c[0]).map(id => cards[id].w), tw(c[2], 11, true) + 20); const o = { key: c[0], label: c[2], x, w: w + 2 * LANE.padX }; x += o.w; return o; });
+  const colX = cols.map(c => { const w = Math.max(...ds.filter(id => col[id][0] === c[0]).map(id => cards[id].w), tw(c[2].toUpperCase(), 14, true) + 10); const o = { key: c[0], label: c[2], x, w: w + 2 * LANE.padX }; x += o.w; return o; });
   let y = LANE.head;
   const rowY = rows.map(r => {
     let h = 0;
-    colX.forEach(c => { const cell = ds.filter(id => row[id] === r.key && col[id][0] === c.key).sort((a, b) => req(cards[a].d) - req(cards[b].d) || String(cards[a].d.Name).localeCompare(cards[b].d.Name));
+    colX.forEach(c => { const cell = ds.filter(id => row[id] === r.key && col[id][0] === c.key).sort((a, b) => String(appName(cards[a].d.AppID)).localeCompare(appName(cards[b].d.AppID)) || req(cards[a].d) - req(cards[b].d) || String(cards[a].d.Name).localeCompare(cards[b].d.Name));
       let cy = y + LANE.padY; cell.forEach(id => { cards[id].x = c.x + LANE.padX; cards[id].y = cy; cy += cards[id].h + CG.gapY; }); h = Math.max(h, cy - y - CG.gapY + LANE.padY); });
     const o = { key: r.key, label: r.label, sub: r.sub, y, h: Math.max(h, 70) }; y += o.h; return o; });
   return { mt, cols: colX, rows: rowY, w: x, h: y };
@@ -1228,6 +1243,13 @@ function wireCanvas() {
   document.getElementById("cvDom").onchange = e => { CV.dom = e.target.value; refit(); };
   document.getElementById("cvMt").onchange = e => { CV.mtype = e.target.value; refit(); };
   document.getElementById("cvLanes").onchange = e => { CV.lanes = e.target.checked; refit(); };
+  // ⇄ Bulk map: starts from what the canvas is showing (a source → target pair, a flow or the selected dataset)
+  document.getElementById("cvBulk").onclick = () => {
+    const done = () => renderCanvas(true), A = dsById(CV.pairA), Bd = dsById(CV.pairB), sel = CV.sel && CV.sel.type === "ds" ? dsById(CV.sel.id) : null;
+    if (CV.focus === "pair" && A && Bd) bmOpenApps(A.AppID, Bd.AppID, { srcDs: A.DatasetID, tgtDs: Bd.DatasetID, onDone: done });
+    else if (CV.focus === "flow" && flowById(CV.flow)) bmOpenFlow(CV.flow, { onDone: done });
+    else bmOpenApps(sel ? sel.AppID : "", "", { srcDs: sel ? sel.DatasetID : "", onDone: done });
+  };
   document.getElementById("cvMapped").onchange = e => { CV.mapped = e.target.checked; refit(); };
   document.getElementById("cvFind").oninput = e => { CV.find = e.target.value; cvPaint(); };
   document.getElementById("cvRelayout").onclick = () => { Object.keys(CV.L ? CV.L.cards : {}).forEach(id => delete POS[id]); savePos(); refit(); };
@@ -2045,6 +2067,7 @@ function helpHTML() {
   <ul><li>The <b>Onboarding guide</b> tab walks one domain and one business application at a time: domain &amp; business terms → business application → datasets and their types (DB table / collection, CSV, JSON, Kafka event, REST, GQL, MDM / PIM / ERP, UI) → attributes tagged with terms → integration mapping with applications in any domain → lineage → export schemas and save as Excel (.xlsx) and Markdown (.md).</li>
   <li><b>Dataset details by type:</b> adding a dataset in step 3 (or <b>✎ Details</b>) opens a dialog shaped by its type: an HTTP request / response as a REST operation (OpenAPI) or a GraphQL operation (SDL), a GraphQL type, ER columns (PK, FK, not null, default) for DB tables and collections, an Avro record plus the Databricks StructType for Kafka events, a Delta table for Databricks and columns for CSV / JSON files. Its <b>Source</b> tab edits the same thing as GraphQL SDL, OpenAPI YAML, SQL DDL, MongoDB $jsonSchema, Avro JSON, Databricks SQL or YAML: paste one and click <i>Apply to fields</i>.</li>
   <li><b>Two kinds of integration:</b> step 5 asks what you are mapping. An <b>API data mapping</b> follows a call from the front end to the back end: front end → BFF / FedGQL router → domain / orchestrator / integration service → database or third party. A <b>domain data mapping</b> follows a data sync: core / source system → (integration service) → data hub → data platform, and the services and channels the hub feeds. Each flow records its type (Flows → MappingType); <b>Domains &amp; apps</b> and the canvas's <i>Focus → Mapping type</i> show the two apart.</li>
+  <li><b>Bulk mapping:</b> an integration's <i>mappings →</i> in step 5, or <i>⇄ Bulk map</i> on the canvas, opens one dialog that maps every field of a target dataset from a source system: source field, transformation and rule per row, ✨ Suggest by term / name, one Save.</li>
   <li><b>Samples:</b> a new dataset's <b>Source</b> tab starts with a commented-out sample for its type (table, collection, Databricks table, Kafka event, API, UI form…). Click <i>Uncomment sample</i>, edit it and <i>Apply to fields</i>. The dialog links the standard reference for the type.</li>
   <li><b>HTTP APIs:</b> a REST endpoint is one <b>HTTP API</b> dataset holding both its request and response fields (Direction tells them apart); a GraphQL call is an <b>HTTP Request</b> and / or an <b>HTTP Response</b> dataset. <b>⇪ Import from API spec</b> (step 3) loads an OpenAPI spec or a GraphQL schema, lets you pick operations and builds one HTTP API dataset per REST endpoint (request + response) or request / response datasets per GraphQL operation.</li>
   <li><b>Type sheets:</b> Export .xlsx adds HTTP APIs, GQL Schema (as in GQLRegistry.xlsx), Database, Kafka Avro, Databricks and Files. They can be edited in Excel; Load .xlsx reads them back into the datasets and attributes.</li>
@@ -2924,8 +2947,10 @@ renderAll();
 </script>
 <script src="onboarding.js"></script>
 <script src="dm-types.js"></script>
+<script src="dm-bulkmap.js"></script>
 <script src="dm-onboarding.js"></script>
 <script src="fullscreen.js"></script>
 <script src="versions.js" defer></script>
+<footer class="site-foot">© 2026 iLabs Tools. All rights reserved.</footer>
 </body>
 </html>

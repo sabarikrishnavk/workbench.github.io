@@ -220,7 +220,7 @@
 
 <script>
 const LS = "gqlmig-v2";
-function defaultMapping(){ return { customDomains: [], assign: {}, subgraphs: [], entityMeta: {}, focusEntity: null, migrationEntityId: "", overrides: {}, additions: {} }; }
+function defaultMapping(){ return { customDomains: [], assign: {}, subgraphs: [], entityMeta: {}, focusEntity: null, migrationEntityId: "", overrides: {}, additions: {}, deletions: {} }; }
 const state = { monographText: "", monograph: null, ops: [], summary: [], entities: [], schema: [], reg: {}, regHeaders: {} };
 let mapping = defaultMapping();
 let selmonograph = null, selRest = null;
@@ -1203,9 +1203,9 @@ function applyRowOverrides(out){
   }
 }
 function clearRowOverrides(){
-  if(!Object.keys(mapping.overrides||{}).length){ toast("No edits to reset."); return; }
-  if(!confirm("Discard all manual edits to the generated rows and regenerate from the spec?")) return;
-  mapping.overrides={}; persist(); renderCurrentSubgraph(); toast("Edits reset.");
+  if(!Object.keys(mapping.overrides||{}).length && !Object.keys(mapping.deletions||{}).length){ toast("No edits to reset."); return; }
+  if(!confirm("Discard all manual edits (including deleted rows) and regenerate from the spec?")) return;
+  mapping.overrides={}; mapping.deletions={}; persist(); renderCurrentSubgraph(); toast("Edits reset.");
 }
 /* --- Per-row Edit dialog (Schema / Queries / Mutations) ---
    A structured editor (ported from workbench.html): the Definition / Parameters is edited as one
@@ -1413,6 +1413,19 @@ function removeAddedRow(sheet, id){
   if(mapping.overrides && mapping.overrides[sheet]) delete mapping.overrides[sheet][id];
   persist(); renderCurrentSubgraph();
 }
+// Delete any row on the review step. User-added rows are dropped outright; generated rows are
+// recorded in mapping.deletions so they don't regenerate (and are left out of Export / Copy).
+// "Reset edits" clears deletions and restores the generated rows.
+function deleteSubgraphRow(sheet, id){
+  const sg=migrationSubgraph(); if(!sg) return;
+  const added=((mapping.additions||{})[sg.id]||{})[sheet]||[];
+  const isAdded=added.some(r=>String(r[OV_ID[sheet]])===String(id));
+  if(!confirm(`Delete ${sheet.replace(/s$/,"")} row "${id}"?\n\nIt will be removed from the FedGQL subgraph and left out of Export / Copy.${isAdded?"":'\n\nUse "Reset edits" to bring deleted generated rows back.'}`)) return;
+  if(isAdded){ removeAddedRow(sheet, id); toast("Row deleted"); return; }
+  const d=(mapping.deletions=mapping.deletions||{}); (d[sheet]=d[sheet]||{})[id]=true;
+  if(mapping.overrides && mapping.overrides[sheet]) delete mapping.overrides[sheet][id];
+  persist(); renderCurrentSubgraph(); toast("Row deleted");
+}
 function buildSubgraphRows(sg, seed){
   seed = seed || {};
   let eN=seed.ENT||0;
@@ -1463,6 +1476,8 @@ function buildSubgraphRows(sg, seed){
   const adds=(mapping.additions||{})[sg.id]||{};
   for(const sheet of ["Schema","Queries","Mutations"]) for(const r of adds[sheet]||[]) out[sheet].push(Object.assign({}, r));
   applyRowOverrides(out);                                    // fold in any manual edits from the FedGQL subgraph tab
+  const del=mapping.deletions||{};                           // drop rows the user deleted on the review step
+  for(const sheet of ["Entities","Schema","Queries","Mutations"]){ const set=del[sheet]; if(set) out[sheet]=out[sheet].filter(r=>!set[String(r[OV_ID[sheet]])]); }
   return out;
 }
 // Queries / Mutations always carry the NFR databag column, even against an older registry header row.
@@ -1645,8 +1660,7 @@ function renderCurrentSubgraph(){
   // ID cell with the ✎ edit button next to it (editable mode — opens the dialog); ✕ removes added rows.
   const idCell=(sheet,r,c)=>{
     const id=r[OV_ID[sheet]], flag=cellFlag(sheet,id,c.k), tip=cellTitle(sheet,id,c.k);
-    const rm=(addedIds[sheet] && addedIds[sheet].has(String(id)))
-      ? `<button class="rm-row" title="Remove this added row" onclick="removeAddedRow(${q(sheet)},${q(id)})">✕</button>` : "";
+    const rm=`<button class="rm-row" title="Delete this row" onclick="deleteSubgraphRow(${q(sheet)},${q(id)})">✕</button>`;
     return `<td data-k="${esc(c.k)}" class="ro mono${flag}"${tip}><div class="id-cell"><button class="icon-btn row-edit" title="Edit this row" onclick="openRowEditor(${q(sheet)},${q(id)})">✎</button><span>${esc(id)}</span>${rm}</div></td>`;
   };
   // A data row (+ inline assertion row when it has violations). Editable mode = read-only cells with a

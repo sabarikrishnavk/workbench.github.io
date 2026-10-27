@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Harness Engineering Playbook</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  :root{
+    --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+    --t-product: #7048e8; --t-arch: #0d9488; --t-eng: #2563eb; --t-qa: #c2410c; --t-sre: #b45309;
+  }
+  body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 14px; display: flex; flex-direction: column; height: 100vh; }
+  header{ background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  header a.btn{ text-decoration: none; }
+  body.chrome-collapsed header{ display: none; }
+  nav{ background: var(--panel); border-bottom: 1px solid var(--line); display: flex; gap: 2px; padding: 0 12px; flex-wrap: wrap; }
+  nav .spacer{ flex: 1; }
+  nav .cnt{ display: inline-block; min-width: 18px; font-size: 11px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: #fde68a; color: #7a5c00; }
+  nav .cnt.err{ background: #fde3e3; color: var(--bad); }
+  nav .chrome-toggle{ align-self: center; padding: 3px 9px; font-size: 12px; }
+  main{ flex: 1; overflow: auto; padding: 16px; }
+  [hidden]{ display: none !important; }
+  .toolbar-inline{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .toolbar-inline input[type=search], .toolbar-inline select{ padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12.5px; background: #fff; }
+  .seg{ display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button{ border: none; border-radius: 0; padding: 5px 12px; background: #fff; }
+  .seg button.active{ background: var(--accent); color: #fff; }
+  .idc{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: #334155; background: #f1f5f9; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+  .idc.lnk{ cursor: pointer; } .idc.lnk:hover{ background: var(--accent-soft); color: var(--accent); }
+  code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #f1f3f5; padding: 0 4px; border-radius: 3px; }
+  .team{ display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 4px; color: #fff; white-space: nowrap; }
+  .chip{ display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; background: #fff; font-size: 11.5px; white-space: nowrap; cursor: default; }
+  .chip.lnk{ cursor: pointer; } .chip.lnk:hover{ border-color: var(--accent); color: var(--accent); }
+  .chip small{ color: var(--muted); }
+  .chip.ev{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; background: #f3efff; border-color: #ddd3fb; color: #5b34d6; }
+  .chip.opt{ border-style: dashed; }
+  .chip.human{ background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+  .chip.auto{ background: #f0fdf4; border-color: #86efac; color: #166534; }
+  .chips{ display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .arrow{ color: var(--muted); font-size: 12px; }
+  .note{ border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 10px 0; font-size: 12.5px; background: #fbfbfd; }
+  .note.warn{ border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+  .note.ok{ border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+  /* playbook */
+  .pb{ display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .pb-side{ position: sticky; top: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px; max-height: calc(100vh - 150px); overflow: auto; }
+  .pb-side .grp{ font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; margin: 10px 6px 4px; display: flex; align-items: center; gap: 6px; }
+  .pb-side .grp i{ width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .pb-side button{ display: flex; width: 100%; text-align: left; border: none; background: transparent; padding: 6px 8px; border-radius: 6px; font-size: 13px; gap: 6px; align-items: center; }
+  .pb-side button:hover{ background: #f3f4f6; }
+  .pb-side button.active{ background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .pb-side button .n{ margin-left: auto; font-size: 11px; color: var(--muted); }
+  .pb-head{ display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .pb-head h2{ font-size: 18px !important; }
+  .pb-head .spacer{ flex: 1; }
+  .meta{ display: grid; grid-template-columns: 140px 1fr; gap: 4px 12px; font-size: 12.5px; margin: 10px 0 0; }
+  .meta dt{ color: var(--muted); } .meta dd{ margin: 0; }
+  .sk{ border: 1px solid var(--line); border-radius: 10px; background: #fff; margin: 0 0 14px; overflow: hidden; }
+  .sk-h{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--line); background: #fbfbfd; }
+  .sk-h b{ font-size: 14px; }
+  .sk-h .cmd{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--accent); }
+  .sk-h .spacer{ flex: 1; }
+  .sk-h button{ font-size: 12px; padding: 3px 10px; }
+  .sk-b{ display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .sk-b > div{ padding: 10px 14px; border-top: 1px solid var(--line); min-width: 0; }
+  .sk-b > div:nth-child(odd){ border-right: 1px solid var(--line); }
+  .sk-b > div.wide{ grid-column: 1 / -1; border-right: none; }
+  .sk-b h4{ margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .sk-b ol, .sk-b ul{ margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
+  .sk-b p{ margin: 0 0 6px; font-size: 12.5px; }
+  .gate-row{ font-size: 12px; padding: 3px 0; border-top: 1px dashed var(--line); display: grid; grid-template-columns: 110px 1fr; gap: 8px; }
+  .gate-row:first-of-type{ border-top: none; }
+  .gate-row small{ color: var(--muted); display: block; }
+  .flowline{ display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; }
+  /* principles */
+  .prin{ display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .prin > div{ border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; }
+  .prin b{ display: block; font-size: 13px; margin-bottom: 4px; }
+  .prin p{ margin: 0; font-size: 12.5px; color: #374151; line-height: 1.5; }
+  .stage-strip{ display: grid; gap: 3px; font-size: 11.5px; overflow-x: auto; }
+  .stage-strip > div{ padding: 5px 6px; border-radius: 5px; min-height: 30px; }
+  .stage-strip .sh{ font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .05em; background: #f8fafc; }
+  .stage-strip .tl{ font-weight: 700; color: #fff; }
+  .stage-strip .c{ background: #f8fafc; }
+  .stage-strip .c span{ display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; cursor: pointer; }
+  .stage-strip .c span:hover{ color: var(--accent); }
+  ol.how{ font-size: 13px; line-height: 1.6; padding-left: 20px; margin: 6px 0; }
+  /* workflow */
+  .svg-wrap{ overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #fbfbfd; max-height: 72vh; position: relative; }
+  .svg-wrap svg{ display: block; }
+  .svg-wrap.fit svg{ width: 100%; height: auto; }
+  .wf text{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wf .node{ cursor: pointer; }
+  .wf .node rect.box{ fill: #fff; stroke: #d6dae0; stroke-width: 1.2; }
+  .wf .node:hover rect.box{ stroke: var(--accent); }
+  .wf .node .t{ font-size: 11.5px; font-weight: 700; fill: #1f2933; }
+  .wf .node .s{ font-size: 10px; fill: #6b7280; }
+  .wf .edge{ fill: none; stroke: #a5afbd; stroke-width: 1.2; opacity: .75; }
+  .wf .edge.ctx{ stroke-dasharray: 4 3; opacity: .5; }
+  .wf .lane{ fill: #fff; stroke: #eceef2; }
+  .wf .lane.alt{ fill: #fafbfc; }
+  .wf .lanel{ font-size: 11px; font-weight: 700; }
+  .wf .colh{ font-size: 10px; font-weight: 700; letter-spacing: .05em; fill: #9aa3ae; }
+  .wf.focus .node:not(.on), .wf.focus .edge:not(.on){ opacity: .12; }
+  .wf .edge.on{ stroke: var(--accent); stroke-width: 2; opacity: 1; }
+  .wf .node.sel rect.box{ stroke: var(--accent); stroke-width: 2.4; }
+  .lg{ display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--muted); margin: 8px 0 0; }
+  .lg i{ display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.15); }
+  /* runner */
+  .run-top{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .run-top select{ padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; min-width: 260px; }
+  .pbar{ height: 8px; border-radius: 999px; background: #eceef2; overflow: hidden; width: 200px; }
+  .pbar span{ display: block; height: 100%; background: var(--ok); }
+  .kb{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; align-items: start; }
+  .kb-col{ background: #f1f3f6; border-radius: 10px; padding: 8px; min-height: 120px; }
+  .kb-col h3{ margin: 2px 4px 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .kb-col h3 .n{ background: #fff; border-radius: 999px; padding: 0 7px; font-size: 11px; }
+  .kc{ background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; font-size: 12.5px; }
+  .kc .top{ display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .kc .top b{ font-size: 12.5px; }
+  .kc .sub{ color: var(--muted); font-size: 11.5px; margin: 3px 0 6px; }
+  .kc .acts{ display: flex; gap: 4px; flex-wrap: wrap; }
+  .kc .acts button{ font-size: 11.5px; padding: 2px 8px; }
+  .kc.stale{ background: #fff7f7; }
+  .badge{ font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em; }
+  .badge.stale{ background: #fee2e2; color: #991b1b; }
+  .badge.rw{ background: #fef3c7; color: #92400e; }
+  .badge.na{ background: #e2e8f0; color: #475569; }
+  .waiting-list{ display: flex; flex-wrap: wrap; gap: 6px; }
+  .waiting-list .kc{ margin: 0; flex: 1 1 260px; max-width: 360px; opacity: .8; }
+  .log{ font-size: 12px; max-height: 320px; overflow: auto; }
+  .log div{ display: grid; grid-template-columns: 140px 80px 200px 1fr; gap: 8px; padding: 3px 0; border-top: 1px solid var(--line); }
+  .log div:first-child{ border-top: none; }
+  .log .ts{ color: var(--muted); font-variant-numeric: tabular-nums; }
+  /* registry grid */
+  .sheet-tabs{ display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+  .sheet-tabs button{ font-size: 12px; padding: 4px 10px; border-radius: 999px; }
+  .sheet-tabs button.active{ background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .sheet-tabs .n{ color: var(--muted); margin-left: 3px; }
+  .table-wrap{ overflow: auto; max-height: calc(100vh - 290px); border: 1px solid var(--line); border-radius: 8px; }
+  .table-wrap table{ font-size: 12.5px; }
+  th{ background: #fafbfc; position: sticky; top: 0; font-weight: 600; z-index: 1; white-space: nowrap; }
+  td{ padding: 2px 4px; }
+  td input, td select, td textarea{ width: 100%; min-width: 80px; border: 1px solid transparent; background: transparent; font: inherit; padding: 3px 4px; border-radius: 4px; resize: vertical; }
+  td textarea{ min-width: 240px; min-height: 26px; height: 26px; }
+  td input:focus, td select:focus, td textarea:focus{ border-color: var(--accent); background: #fff; outline: none; }
+  .icon-btn{ border: none; background: transparent; padding: 2px 6px; color: var(--muted); cursor: pointer; }
+  .icon-btn:hover{ color: var(--bad); background: transparent; }
+  /* checks */
+  .iss{ font-size: 12.5px; display: flex; gap: 8px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--line); }
+  .iss:first-child{ border-top: none; }
+  .iss .where{ margin-left: auto; white-space: nowrap; }
+  .sev-dot{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .sev-error .sev-dot{ background: #d33; } .sev-warning .sev-dot{ background: #e0a800; } .sev-info .sev-dot{ background: #3b82c4; }
+  .kpis{ display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+  .kpi{ background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; min-width: 118px; }
+  .kpi b{ display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .kpi span{ font-size: 12px; color: var(--muted); }
+  /* orchestration */
+  .grid2{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .sum-table{ border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  .sum-table th, .sum-table td{ border: 1px solid var(--line); padding: 5px 8px; vertical-align: top; }
+  .sum-table tr.rec td{ background: #f5f3ff; }
+  .phase{ border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; }
+  .phase b{ display: block; margin-bottom: 4px; }
+  .phase p, .phase li{ font-size: 12.5px; line-height: 1.5; }
+  .phase ul{ margin: 4px 0 0; padding-left: 18px; }
+  .phases{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  pre.code{ white-space: pre-wrap; overflow-wrap: anywhere; max-height: 460px; }
+  .code-head{ display: flex; align-items: center; gap: 8px; margin: 0 0 6px; flex-wrap: wrap; }
+  .code-head .spacer{ flex: 1; }
+  .code-head select{ padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12.5px; }
+  /* graph memory + KDD */
+  .mq td{ vertical-align: middle; }
+  .mq .acts{ display: flex; gap: 4px; }
+  .mq .acts button{ font-size: 11.5px; padding: 2px 8px; }
+  .badge.mem{ background: #e0f2fe; color: #075985; }
+  .badge.ok{ background: #dcfce7; color: #166534; }
+  .proc .node{ cursor: default; }
+  .proc .elbl{ font-size: 10px; fill: #5b34d6; font-weight: 600; }
+  .proc .edge.back{ stroke: #dc2626; stroke-dasharray: 4 3; opacity: .9; }
+  .kdd-calc input[type=number]{ width: 54px; padding: 3px 4px; border: 1px solid var(--line); border-radius: 5px; font: inherit; }
+  .kdd-calc input[type=text]{ width: 100%; min-width: 180px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; font: inherit; }
+  .kdd-calc tr.win td{ background: #f0fdf4; }
+  .toggle{ display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  /* modal */
+  .modal{ position: fixed; inset: 0; background: rgba(15,23,42,.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 5vh; z-index: 80; }
+  .modal-card{ background: #fff; border-radius: 12px; width: 780px; max-width: 94vw; max-height: 88vh; overflow: auto; padding: 18px 22px; box-shadow: 0 20px 50px rgba(0,0,0,.25); font-size: 13.5px; line-height: 1.5; }
+  .modal-card h2{ margin: 0 0 8px; font-size: 17px; }
+  .modal-card h3{ margin: 14px 0 4px; font-size: 13.5px; }
+  .modal-actions{ display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+  .frm{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .frm label{ display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--muted); min-width: 0; }
+  .frm label.wide{ grid-column: 1 / -1; }
+  .frm input, .frm select, .frm textarea{ width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 13px; color: var(--ink); background: #fff; }
+  .frm textarea{ min-height: 60px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .gchk{ display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; padding: 4px 0; border-top: 1px dashed var(--line); }
+  .gchk input{ margin-top: 3px; accent-color: var(--accent); }
+  .gchk small{ color: var(--muted); display: block; }
+  @media (max-width: 1000px){ .pb{ grid-template-columns: 1fr; } .pb-side{ position: static; max-height: none; } .kb{ grid-template-columns: 1fr 1fr; } .phases, .grid2{ grid-template-columns: 1fr; } }
+  @media (max-width: 700px){ .sk-b{ grid-template-columns: 1fr; } .sk-b > div:nth-child(odd){ border-right: none; } .kb{ grid-template-columns: 1fr; } .frm{ grid-template-columns: 1fr; } .log div{ grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="index.html" style="color:inherit;text-decoration:none" title="Workbench home">Harness Engineering Playbook</a></h1>
+  <span class="status" id="status"></span>
+  <span class="spacer"></span>
+  <a class="btn" href="rtm-mapping.html" target="_blank" rel="noopener">Traceability ↗</a>
+  <label class="btn" for="fileInput">Load .xlsx</label>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" />
+  <button id="exportBtn" title="Personas, agents, skills, artifacts, gates and runs as one workbook">Export .xlsx</button>
+  <button id="seedBtn" title="Replace the catalog with the SDLC example (runs are kept)">Load example</button>
+  <button class="danger" id="clearBtn">Clear</button>
+  <button id="guideBtn">❓ How it works</button>
+</header>
+
+<nav id="nav">
+  <button data-view="playbook" class="active">Playbooks</button>
+  <button data-view="flow">Workflow</button>
+  <button data-view="run">Run (manual)</button>
+  <button data-view="memory">Graph memory</button>
+  <button data-view="registry">Registry</button>
+  <button data-view="orch">Orchestration</button>
+  <button data-view="checks">Checks <span class="cnt" id="issueCnt" hidden></span></button>
+  <span class="spacer"></span>
+  <button class="chrome-toggle" id="chromeToggle" title="Show / hide the toolbar">▾ Toolbar</button>
+</nav>
+
+<main>
+  <!-- ============ Playbooks: one per persona ============ -->
+  <section class="view active" id="view-playbook">
+    <div class="pb">
+      <aside class="pb-side" id="pbSide"></aside>
+      <div id="pbBody"></div>
+    </div>
+  </section>
+
+  <!-- ============ Workflow: skill DAG by team swimlane ============ -->
+  <section class="view" id="view-flow">
+    <div class="card">
+      <h2>SDLC workflow: skills wired by artifact triggers</h2>
+      <p class="desc">Each box is a skill in its team's swimlane; columns run left to right in trigger order. A line means the downstream skill consumes the upstream skill's output artifact, so it fires when that artifact is approved. Dashed lines are optional context. Click a box to trace its path; click it again to clear.</p>
+      <div class="toolbar-inline">
+        <span class="hint">Team</span><select id="flTeam"></select>
+        <span class="hint">Overlay run</span><select id="flWi"></select>
+        <span class="spacer" style="flex:1"></span>
+        <button class="copy-btn" id="flFit" title="Fit to view">Fit to view</button>
+        <button class="copy-btn" id="flSvg">⤓ SVG</button>
+        <button class="copy-btn" id="flMmd">Copy as Mermaid</button>
+      </div>
+      <div class="svg-wrap" id="flWrap" data-fullscreen="SDLC workflow"></div>
+      <div class="lg" id="flLg"></div>
+    </div>
+    <div class="card" id="flDetail"><p class="hint" style="margin:0">Select a skill to see its trigger, inputs, output and what it triggers next.</p></div>
+  </section>
+
+  <!-- ============ Run: manual trigger console ============ -->
+  <section class="view" id="view-run">
+    <div class="card">
+      <div class="run-top">
+        <h2 style="margin:0">Manual run</h2>
+        <select id="rnWi"></select>
+        <button class="primary" id="rnNew">+ New work item</button>
+        <button class="danger" id="rnDel" title="Delete this work item and its run history">Delete</button>
+        <span class="spacer" style="flex:1"></span>
+        <span class="hint">Team</span><select id="rnTeam" style="min-width:0"></select>
+        <div class="pbar"><span id="rnBar"></span></div><span class="hint" id="rnPct"></span>
+      </div>
+      <p class="desc" style="margin:10px 0 0" id="rnDesc"></p>
+      <div class="note" style="margin-bottom:0">Each step: <b>▶ Start</b> copies the skill's pinned prompt, which you run in Claude Code. <b>Record output</b> takes the artifact reference (or the handoff envelope the agent prints) and the gate results. <b>Approve</b> emits the artifact's event, and every skill whose required inputs are now all approved moves to <b>Ready</b>. <b>Reopen</b> on an approved step marks everything downstream <b>stale</b>, so it has to run again.</div>
+      <div class="kb" id="rnBoard"></div>
+    </div>
+    <div class="card"><div class="code-head"><h2 style="margin:0">Graph memory sync</h2><span class="hint" id="rnMemN"></span><span class="spacer"></span>
+      <label class="toggle" title="On: a skill is triggered only after its input artifacts are approved AND synced to the common graph memory"><input type="checkbox" id="rnMemGate" /> Trigger only after memory sync</label>
+      <button class="copy-btn" id="rnMemAll">Mark all pending synced</button></div>
+      <p class="desc">Every approved artifact is queued for the memory steward (<code>/sync-graph-memory</code>), which upserts its nodes and edges into the common graph. Reopening an artifact queues a retract. The <b>Graph memory</b> tab shows the full process.</p>
+      <div id="rnMem"></div></div>
+    <div class="card"><div class="code-head"><h2 style="margin:0">Waiting on inputs</h2><span class="hint" id="rnWaitN"></span><span class="spacer"></span><button class="copy-btn" id="rnWaitToggle">Show</button></div><div class="waiting-list" id="rnWait" hidden></div></div>
+    <div class="card"><div class="code-head"><h2 style="margin:0">Event log</h2><span class="spacer"></span><button class="copy-btn" id="rnLogCsv">Copy as CSV</button></div><div class="log" id="rnLog"></div></div>
+  </section>
+
+  <!-- ============ Graph memory ============ -->
+  <section class="view" id="view-memory">
+    <div class="card">
+      <h2>Common graph memory: update process</h2>
+      <p class="desc">Every approved artifact becomes nodes and edges in one shared graph, so agents work from the same facts: requirements, decisions, dispensations, interfaces, contracts, tests and incidents, each linked to the artifact version it came from. One steward writes, every agent reads, and the next skills fire on <code>memory.synced</code>.</p>
+      <div class="toolbar-inline"><span class="spacer" style="flex:1"></span><button class="copy-btn" id="mmFit" title="Fit to view">Actual size</button><button class="copy-btn" id="mmSvg">⤓ SVG</button></div>
+      <div class="svg-wrap fit" id="mmProc" data-fullscreen="Graph memory update process"></div>
+      <div class="lg"><span><i style="background:#7048e8"></i>update path</span><span><i style="background:#dc2626"></i>retract path / validation failure</span><span><i style="background:#2563eb"></i>reads at the start of every skill, as context for the next artifact</span></div>
+    </div>
+    <div class="card"><h2>Rules</h2><p class="desc">These rules keep the memory deterministic and safe to share between agents.</p><div class="prin" id="mmRules"></div></div>
+    <div class="grid2">
+      <div class="card" style="min-width:0"><h2>Node types</h2><p class="desc">Parsed from each artifact's Memory mapping.</p><div style="overflow:auto;max-height:420px"><table class="sum-table" id="mmNodes"></table></div></div>
+      <div class="card" style="min-width:0"><h2>Edge types</h2><p class="desc">The relations agents traverse, e.g. Requirement ← Story ← TestCase, Decision → Dispensation ← TechDebt.</p><div style="overflow:auto;max-height:420px"><table class="sum-table" id="mmEdges"></table></div></div>
+    </div>
+    <div class="card"><div class="code-head"><h2 style="margin:0">Extraction mapping per artifact</h2><span class="spacer"></span><button class="copy-btn" id="mmCsv">Copy as CSV</button></div>
+      <p class="desc">Edit it in Registry → Artifacts → Memory. Format: <code>Node(ID) -RELATION-&gt; Node {props}</code>, with clauses separated by semicolons.</p><div style="overflow:auto"><table class="sum-table" id="mmMap"></table></div></div>
+    <div class="card"><div class="code-head"><h2 style="margin:0">Memory state</h2><select id="mmWi"></select><span class="spacer"></span><button class="copy-btn" id="mmGo">Manage in Run →</button></div><div id="mmState"></div></div>
+  </section>
+
+  <!-- ============ Registry ============ -->
+  <section class="view" id="view-registry">
+    <div class="sheet-tabs" id="sheetTabs"></div>
+    <div class="card">
+      <h2 id="sheetTitle"></h2>
+      <p class="desc" id="sheetDesc"></p>
+      <div class="toolbar-inline">
+        <button class="primary" id="addRow">+ Add row</button>
+        <input type="search" id="gridFind" placeholder="Filter rows…" />
+        <span class="hint" id="gridStats"></span>
+        <span class="spacer" style="flex:1"></span><button class="copy-btn" id="gridCsv">Copy as CSV</button>
+      </div>
+      <div class="table-wrap" id="gridWrap"></div>
+      <div id="datalists"></div>
+    </div>
+  </section>
+
+  <!-- ============ Orchestration ============ -->
+  <section class="view" id="view-orch">
+    <div class="card">
+      <h2>From manual triggers to an orchestrator</h2>
+      <p class="desc">The catalog is already a workflow definition: <b>skills</b> are tasks, <b>artifacts</b> are typed messages, an approved artifact's <b>event</b> is the trigger, <b>gates</b> are deterministic checks that run outside the model, and <b>approval</b> is a human wait state. Every phase below runs the same definition. Only the thing that moves the events changes.</p>
+      <div class="phases" id="orPhases"></div>
+    </div>
+    <div class="card">
+      <h2>Orchestrator options</h2>
+      <p class="desc">The highlighted row is the recommendation for a multi-week SDLC with human approvals, parallel work items and reruns. For the agent runtime inside each task, use the Claude Agent SDK (or headless Claude Code) whichever engine you choose.</p>
+      <div style="overflow:auto"><table class="sum-table" id="orTable"></table></div>
+    </div>
+    <div class="card">
+      <div class="code-head"><h2 style="margin:0">Event routing table</h2><span class="spacer"></span><button class="copy-btn" id="orRouteCsv">Copy as CSV</button></div>
+      <p class="desc">Subscribe each skill to these events. A skill with several required inputs waits for all of them (an AND-join, keyed by work item).</p>
+      <div style="overflow:auto"><table class="sum-table" id="orRoutes"></table></div>
+    </div>
+    <div class="grid2">
+      <div class="card" style="min-width:0">
+        <div class="code-head"><h2 style="margin:0">Claude Code scaffold</h2><span class="spacer"></span>
+          <select id="orFile"></select><button class="copy-btn" id="orCopy">Copy</button><button class="copy-btn" id="orSh" title="A shell script that writes every .claude/agents/*.md and .claude/skills/*/SKILL.md">⤓ Scaffold .sh</button></div>
+        <p class="desc">The agent and skill files for <code>.claude/</code>. Run the script at the repo root to create them all at once.</p>
+        <pre class="code" id="orPre"></pre>
+      </div>
+      <div class="card" style="min-width:0">
+        <div class="code-head"><h2 style="margin:0">Workflow manifest</h2><span class="spacer"></span><button class="copy-btn" id="orManCopy">Copy</button><button class="copy-btn" id="orManDl">⤓ harness.workflow.json</button></div>
+        <p class="desc">An engine-neutral definition (tasks, inputs, outputs, gates, approvals, routes) for an orchestrator to load.</p>
+        <pre class="code" id="orMan"></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Checks ============ -->
+  <section class="view" id="view-checks">
+    <div class="card">
+      <h2>Catalog checks</h2>
+      <p class="desc">The workflow is deterministic only when every input has exactly one producer, the graph is acyclic, every skill has gates and every output has a consumer or is marked terminal.</p>
+      <div class="kpis" id="ckKpis"></div>
+      <div class="toolbar-inline"><span class="seg" id="ckSev"><button data-s="" class="active">All</button><button data-s="error">Errors</button><button data-s="warning">Warnings</button><button data-s="info">Info</button></span><input type="search" id="ckFind" placeholder="Filter…" /></div>
+      <div id="ckOut"></div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   Harness Engineering Playbook
+   A catalog of the agents and skills that run an SDLC: teams → personas → agents → skills. Each skill
+   reads declared input artifacts, writes exactly one output artifact against a contract, passes
+   deterministic gates and (optionally) a human approval; the approved artifact emits an event that
+   triggers every skill consuming it. The Run view drives the workflow by hand per work item; the
+   Orchestration view exports the same definition for an engine (and Claude Code agent/skill files).
+   ===================================================================== */
+const LS_KEY = "hx.catalog.v2", LS_RUN = "hx.run.v2", LS_UI = "hx.ui.v1";
+const TEAMS = ["Product", "Architecture", "Engineering", "Quality", "SRE", "Platform"];
+const TEAM_COLOR = { Product: "#7048e8", Architecture: "#0d9488", Engineering: "#2563eb", Quality: "#c2410c", SRE: "#b45309", Platform: "#475569" };
+const STAGES = ["Discover", "Define", "Design", "Architect", "Plan", "Contract", "Build", "Verify", "Release", "Operate", "Learn", "Continuous"];
+const GATE_KINDS = ["Schema", "Trace", "Lint", "Test", "Security", "Perf", "Ops"];
+const YN = ["Y", "N"];
+const MODES = ["Pipeline", "Hook: every approval"];
+const ST_COLOR = { waiting: "#ffffff", ready: "#fef9c3", running: "#dbeafe", produced: "#ede9fe", approved: "#dcfce7", na: "#e2e8f0", stale: "#fee2e2" };
+const ST_LABEL = { waiting: "Waiting", ready: "Ready", running: "In progress", produced: "Awaiting approval", approved: "Approved", na: "Not applicable", stale: "Stale" };
+
+const SH = {
+  Personas: { id: "PersonaID", prefix: "P-", desc: "Who does the work. Each persona belongs to a team, is played by one agent and has a human who is accountable for its outputs.",
+    cols: [{ key: "PersonaID", w: 90 }, { key: "Team", opts: TEAMS }, { key: "Name", w: 180 }, { key: "Accountable", w: 190 }, { key: "Description", area: 1 }] },
+  Agents: { id: "AgentID", prefix: "AG-", desc: "The agent that plays a persona: its name (the .claude/agents file), pinned model, allowed tools and the MCP servers it needs.",
+    cols: [{ key: "AgentID", w: 90 }, { key: "PersonaID", ref: "Personas", w: 90 }, { key: "Name", w: 190 }, { key: "Model", w: 150 }, { key: "Tools", w: 230 }, { key: "MCP", w: 200 }, { key: "Description", area: 1 }] },
+  Skills: { id: "SkillID", prefix: "SK-", desc: "One repeatable unit of work. Inputs are required artifacts (the trigger is all of them approved), Context is optional. Exactly one Output artifact. Steps are one per line. Approval is Auto, a reviewer role, or several roles joined with + (all must approve). Mode Hook skills run after every approval instead of in the pipeline.",
+    cols: [{ key: "SkillID", w: 80 }, { key: "AgentID", ref: "Agents", w: 80 }, { key: "Name", w: 190 }, { key: "Stage", opts: STAGES }, { key: "Mode", opts: MODES }, { key: "Purpose", area: 1 }, { key: "Inputs", multi: "Artifacts", w: 240 }, { key: "Context", multi: "Artifacts", w: 180 }, { key: "Output", ref: "Artifacts", w: 120 }, { key: "Steps", area: 1 }, { key: "Gates", multi: "Gates", w: 220 }, { key: "Approval", w: 170 }] },
+  Artifacts: { id: "ArtifactID", prefix: "A-", desc: "The contract between skills: format, path convention ({wi} = work item), required fields and the event emitted on approval. Seed = provided by a human when the work item starts. Terminal = no consumer expected. Memory = the nodes and edges it writes to the common graph memory (Node(ID) -REL-> Node; …).",
+    cols: [{ key: "ArtifactID", w: 110 }, { key: "Name", w: 200 }, { key: "Format", w: 190 }, { key: "Path", w: 230 }, { key: "Fields", area: 1 }, { key: "Event", w: 150 }, { key: "Seed", opts: YN }, { key: "Terminal", opts: YN }, { key: "Memory", area: 1 }] },
+  Gates: { id: "GateID", prefix: "G-", desc: "Deterministic checks that run outside the model. A skill's output is not accepted until every blocking gate passes.",
+    cols: [{ key: "GateID", w: 130 }, { key: "Name", w: 170 }, { key: "Kind", opts: GATE_KINDS }, { key: "Check", area: 1 }, { key: "Tool", w: 230 }, { key: "Blocking", opts: YN }] },
+};
+const SH_ORDER = ["Personas", "Agents", "Skills", "Artifacts", "Gates"];
+
+/* ------------------------------- helpers ------------------------------- */
+const E = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const S = v => String(v == null ? "" : v).trim();
+const $ = id => document.getElementById(id);
+const uid = () => "R" + Math.random().toString(36).slice(2, 9);
+const list = v => S(v).split(/[,;\n]+/).map(x => x.trim()).filter(Boolean);
+const fields = v => S(v).split(/[;\n]+/).map(x => x.trim()).filter(Boolean);   // artifact fields: semicolon-separated (items may contain commas)
+const lines = v => S(v).split(/\n+/).map(x => x.replace(/^\s*(\d+[.)]|[-*•])\s*/, "").trim()).filter(Boolean);
+const uniq = a => [...new Set(a)];
+const trunc = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
+function toast(msg, ms) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), ms || 1900); }
+function download(text, name, type) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: type || "text/plain" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+function copyText(t, msg) { navigator.clipboard.writeText(t).then(() => toast(msg || "Copied")).catch(() => toast("Copy failed: select the text and copy it")); }
+const csvCell = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v == null ? "" : v);
+const toCSV = rows => rows.map(r => r.map(csvCell).join(",")).join("\n");
+const teamChip = t => `<span class="team" style="background:${TEAM_COLOR[t] || "#64748b"}">${E(t || "?")}</span>`;
+const isAuto = s => !S(s.Approval) || /^auto/i.test(S(s.Approval));
+const isHook = s => /^hook/i.test(S(s.Mode));
+const approvers = s => isAuto(s) ? [] : S(s.Approval).split(/\s*\+\s*/).map(S).filter(Boolean);
+const pipeline = () => DB.Skills.filter(s => !isHook(s));
+const memGate = () => UI.memGate !== false;
+
+/* ------------------------------- state -------------------------------- */
+let DB = emptyDB(), UNDO = [], IX = null;
+let RUN = { items: [], steps: {}, log: [], memq: {}, cur: "" };
+let UI = (() => { try { return JSON.parse(localStorage.getItem(LS_UI)) || {}; } catch (e) { return {}; } })();
+function emptyDB() { const d = {}; SH_ORDER.forEach(s => d[s] = []); return d; }
+function ensureIds(db) { SH_ORDER.forEach(s => { db[s] = db[s] || []; db[s].forEach(r => { if (!r._id) r._id = uid(); SH[s].cols.forEach(c => { if (r[c.key] == null) r[c.key] = ""; }); }); }); return db; }
+function save() { IX = null; try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch (e) {} setStatus(); }
+function saveRun() { try { localStorage.setItem(LS_RUN, JSON.stringify(RUN)); } catch (e) {} setStatus(); }
+function saveUI() { try { localStorage.setItem(LS_UI, JSON.stringify(UI)); } catch (e) {} }
+function load() {
+  try { const raw = localStorage.getItem(LS_KEY); DB = raw ? ensureIds({ ...emptyDB(), ...JSON.parse(raw) }) : ensureIds(exampleCatalog()); } catch (e) { DB = ensureIds(exampleCatalog()); }
+  try { const raw = localStorage.getItem(LS_RUN); RUN = raw ? JSON.parse(raw) : exampleRun(); } catch (e) { RUN = exampleRun(); }
+  RUN.items = RUN.items || []; RUN.steps = RUN.steps || {}; RUN.log = RUN.log || []; RUN.memq = RUN.memq || {};
+  if (!RUN.items.some(w => w.id === RUN.cur)) RUN.cur = (RUN.items[0] || {}).id || "";
+}
+function pushUndo() { UNDO.push(JSON.stringify({ DB, RUN })); if (UNDO.length > 40) UNDO.shift(); }
+function undo() { const s = UNDO.pop(); if (!s) { toast("Nothing to undo"); return; } const o = JSON.parse(s); DB = o.DB; RUN = o.RUN; save(); saveRun(); renderAll(); toast("Undone"); }
+function setStatus() {
+  const n = s => DB[s].length;
+  $("status").textContent = `${n("Personas")} personas · ${n("Agents")} agents · ${n("Skills")} skills · ${n("Artifacts")} artifacts · ${n("Gates")} gates · ${RUN.items.length} work item${RUN.items.length === 1 ? "" : "s"}`;
+  const c = issueCounts(), el = $("issueCnt");
+  el.hidden = !(c.error + c.warning); el.textContent = c.error + c.warning; el.className = "cnt" + (c.error ? " err" : "");
+}
+
+/* --------------------------- derived index ---------------------------- */
+function ix() {
+  if (IX) return IX;
+  const X = { persona: {}, agent: {}, skill: {}, art: {}, gate: {}, producer: {}, producers: {}, consumers: {}, ctxConsumers: {}, depth: {}, cyclic: new Set() };
+  DB.Personas.forEach(r => X.persona[r.PersonaID] = r);
+  DB.Agents.forEach(r => X.agent[r.AgentID] = r);
+  DB.Skills.forEach(r => X.skill[r.SkillID] = r);
+  DB.Artifacts.forEach(r => X.art[r.ArtifactID] = r);
+  DB.Gates.forEach(r => X.gate[r.GateID] = r);
+  DB.Skills.forEach(s => {
+    const o = S(s.Output); if (o) { (X.producers[o] = X.producers[o] || []).push(s.SkillID); X.producer[o] = X.producer[o] || s.SkillID; }
+    list(s.Inputs).forEach(a => (X.consumers[a] = X.consumers[a] || []).push(s.SkillID));
+    list(s.Context).forEach(a => (X.ctxConsumers[a] = X.ctxConsumers[a] || []).push(s.SkillID));
+  });
+  // depth = longest chain of required inputs back to a seed
+  const state = {};
+  const dep = id => {
+    if (state[id] === 2) return X.depth[id];
+    if (state[id] === 1) { X.cyclic.add(id); return 0; }
+    state[id] = 1; let d = 0;
+    list((X.skill[id] || {}).Inputs).forEach(a => { const p = X.producer[a]; if (p && p !== id) d = Math.max(d, dep(p) + 1); });
+    state[id] = 2; return X.depth[id] = d;
+  };
+  DB.Skills.forEach(s => dep(s.SkillID));
+  return IX = X;
+}
+const personaOf = s => { const X = ix(), a = X.agent[(s || {}).AgentID]; return a ? X.persona[a.PersonaID] : null; };
+const teamOf = s => (personaOf(s) || {}).Team || "";
+const nextSkills = sid => { const X = ix(), s = X.skill[sid]; return s ? (X.consumers[S(s.Output)] || []).filter(x => x !== sid) : []; };
+const prevSkills = sid => { const X = ix(), s = X.skill[sid]; return s ? uniq(list(s.Inputs).map(a => X.producer[a]).filter(Boolean)) : []; };
+const skillsOfPersona = pid => { const X = ix(); return DB.Skills.filter(s => (X.agent[s.AgentID] || {}).PersonaID === pid).sort(bySkillOrder); };
+const bySkillOrder = (a, b) => (ix().depth[a.SkillID] - ix().depth[b.SkillID]) || (STAGES.indexOf(a.Stage) - STAGES.indexOf(b.Stage)) || a.SkillID.localeCompare(b.SkillID);
+const fillPath = (p, wi) => S(p).replace(/\{wi\}/g, wi || "{wi}");
+function closure(start, step) { const seen = new Set(), q = [start]; while (q.length) { const x = q.shift(); step(x).forEach(y => { if (!seen.has(y) && y !== start) { seen.add(y); q.push(y); } }); } return seen; }
+
+/* ---------------------------- run engine ------------------------------ */
+// stored step status: "" | running | produced | approved | na | stale. ready / waiting are derived from inputs.
+// step.mem: "" | pending | synced, the common-graph-memory state of the step's approved artifact.
+// step.appr: { role: timestamp } for skills with several reviewers ("Product Owner + Lead Solution Architect").
+const curWi = () => RUN.items.find(w => w.id === RUN.cur);
+const stepRec = (wi, sid) => ((RUN.steps[wi] || {})[sid]) || {};
+function setStep(wi, sid, patch) { RUN.steps[wi] = RUN.steps[wi] || {}; RUN.steps[wi][sid] = { ...stepRec(wi, sid), ...patch, ts: now() }; }
+function logEv(wi, ev, detail) { RUN.log.unshift({ ts: now(), wi, ev, detail: detail || "" }); if (RUN.log.length > 800) RUN.log.length = 800; }
+const memOps = wi => (RUN.memq[wi] = RUN.memq[wi] || []);
+function artDone(wi, aid) {
+  const X = ix(), a = X.art[aid];
+  if (a && a.Seed === "Y") return true;
+  const p = X.producer[aid]; if (!p) return false;
+  const r = stepRec(wi, p);
+  if (r.st === "na") return true;
+  return r.st === "approved" && (!memGate() || r.mem === "synced");
+}
+function stepState(wi, sid) {
+  const st = stepRec(wi, sid).st || "";
+  if (["running", "produced", "approved", "na"].includes(st)) return st;
+  const s = ix().skill[sid]; if (!s || isHook(s)) return "waiting";
+  return list(s.Inputs).every(a => artDone(wi, a)) ? "ready" : "waiting";
+}
+const missingInputs = (wi, sid) => list((ix().skill[sid] || {}).Inputs).filter(a => !artDone(wi, a));
+function readySet(wi) { return new Set(pipeline().filter(s => stepState(wi, s.SkillID) === "ready").map(s => s.SkillID)); }
+const cancelPendingUpserts = (wi, sid) => memOps(wi).forEach(o => { if (o.sid === sid && o.st === "pending" && o.op === "upsert") o.st = "cancelled"; });
+function queueMem(wi, sid, op) {
+  const s = ix().skill[sid], r = stepRec(wi, sid);
+  cancelPendingUpserts(wi, sid);
+  memOps(wi).unshift({ id: uid(), sid, art: S(s.Output), ref: r.ref || "", ver: r.ver || "", op, st: "pending", ts: now() });
+  if (op === "upsert") setStep(wi, sid, { mem: "pending" });
+  logEv(wi, "memory." + op + ".queued", `${S(s.Output)}${r.ver ? "@" + r.ver : ""} (${sid})`);
+}
+function onApproved(wi, sid) {
+  const s = ix().skill[sid], a = ix().art[S(s.Output)] || {};
+  logEv(wi, a.Event || (S(s.Output) + ".approved"), `${sid} ${s.Name} → ${S(s.Output)}`);
+  queueMem(wi, sid, "upsert");
+  toast(memGate() ? `${S(s.Output)} approved. Sync it to graph memory to trigger the next skills` : `${S(s.Output)} approved and queued for graph memory`, 3000);
+}
+function memSync(wi, opId) {
+  const o = memOps(wi).find(x => x.id === opId); if (!o || o.st !== "pending") return;
+  o.st = "done"; o.done = now();
+  if (o.op === "upsert") { if (stepRec(wi, o.sid).st === "approved") setStep(wi, o.sid, { mem: "synced" }); logEv(wi, "memory.synced", `${o.art}${o.ver ? "@" + o.ver : ""} → common graph`); }
+  else logEv(wi, "memory.retracted", `${o.art}${o.ver ? "@" + o.ver : ""} nodes marked retracted`);
+}
+function runAct(act, sid, data) {
+  const wi = RUN.cur; if (!wi) return;
+  data = data || {};
+  const s = ix().skill[sid]; if (!s && act !== "sync" && act !== "syncAll") return;
+  const before = readySet(wi);
+  pushUndo();
+  if (act === "start") { setStep(wi, sid, { st: "running" }); logEv(wi, "skill.started", `${sid} ${s.Name}`); }
+  else if (act === "record") {
+    setStep(wi, sid, { st: isAuto(s) ? "approved" : "produced", ref: data.ref, ver: data.ver, gates: data.gates, notes: data.notes, appr: {}, by: "", mem: "" });
+    logEv(wi, S(s.Output) + ".produced", `${sid} → ${data.ref || "(no ref)"}${data.ver ? "@" + data.ver : ""}`);
+    if (isAuto(s)) onApproved(wi, sid); else toast(`Waiting for review: ${approvers(s).join(" and ")}`);
+  }
+  else if (act === "approve") {
+    const role = data.role || approvers(s)[0], appr = { ...(stepRec(wi, sid).appr || {}), [role]: now() }, pend = approvers(s).filter(x => !appr[x]);
+    if (pend.length) { setStep(wi, sid, { appr }); logEv(wi, S(s.Output) + ".review", `${role} approved; waiting for ${pend.join(", ")}`); toast(`Still waiting for ${pend.join(", ")}`); }
+    else { setStep(wi, sid, { st: "approved", appr, by: approvers(s).join(" + ") }); onApproved(wi, sid); }
+  }
+  else if (act === "reject") { const r = stepRec(wi, sid); setStep(wi, sid, { st: "", appr: {}, rework: (r.rework || 0) + 1, notes: data.reason }); logEv(wi, S(s.Output) + ".rejected", `${sid}: ${data.reason || "no reason"}`); toast("Sent back for rework"); }
+  else if (act === "na") { setStep(wi, sid, { st: "na", notes: data.reason, mem: "" }); logEv(wi, S(s.Output) + ".not-applicable", `${sid}: ${data.reason}`); }
+  else if (act === "reopen") {
+    const down = [...closure(sid, x => nextSkills(x))].filter(x => (stepRec(wi, x).st || "") !== "");
+    [sid, ...down].forEach(x => { if (stepRec(wi, x).mem === "synced") queueMem(wi, x, "retract"); else cancelPendingUpserts(wi, x); });
+    setStep(wi, sid, { st: "", appr: {}, mem: "", rework: (stepRec(wi, sid).rework || 0) + 1 });
+    down.forEach(x => setStep(wi, x, { st: "stale", appr: {}, mem: "" }));
+    logEv(wi, S(s.Output) + ".reopened", `${sid}${down.length ? "; stale: " + down.join(", ") : ""}`);
+    toast(down.length ? `Reopened. ${down.length} downstream step(s) marked stale and retracted from memory` : "Reopened");
+  }
+  else if (act === "sync") memSync(wi, sid);
+  else if (act === "syncAll") memOps(wi).filter(o => o.st === "pending").forEach(o => memSync(wi, o.id));
+  const fired = [...readySet(wi)].filter(x => !before.has(x));
+  if (fired.length) { logEv(wi, "triggered", fired.join(", ")); toast(`Triggered: ${fired.join(", ")}`, 3200); }
+  saveRun(); renderRun(); if (UI.flowWi === wi && UI.view === "flow") renderFlow();
+}
+
+/* ------------------------- prompt / file builders ---------------------- */
+const memHook = () => DB.Skills.find(isHook) || {};
+const MEM_READ = wi => `Query the common graph memory (MCP graph-memory, read-only) scoped to ${wi || "{wi}"} for the nodes behind your inputs and any related decisions (KDD), dispensations (DSP) and tech debt. Use it to find context. The pinned artifacts stay the source of truth. Never write to the graph: ${memHook().SkillID || "the memory steward"} does that after approval.`;
+function envelope(wi, s, ref) {
+  const X = ix(), inputs = {};
+  if (isHook(s)) return { envelope: "harness/v1", workItem: wi || "{wi}", skill: s.SkillID, artifact: S(s.Output), op: "upsert | retract", source: "<artifact>@<version>",
+    nodesUpserted: [], edgesUpserted: [], superseded: [], retracted: [], gates: Object.fromEntries(list(s.Gates).map(g => [g, "pass | fail"])), status: "synced" };
+  list(s.Inputs).concat(list(s.Context)).forEach(a => { const p = X.producer[a], r = wi && p ? stepRec(wi, p) : {}; inputs[a] = r.ref ? r.ref + (r.ver ? "@" + r.ver : "") : fillPath((X.art[a] || {}).Path, wi); });
+  return { envelope: "harness/v1", workItem: wi || "{wi}", skill: s.SkillID, artifact: S(s.Output), ref: ref || fillPath((X.art[S(s.Output)] || {}).Path, wi), version: "1",
+    inputs, gates: Object.fromEntries(list(s.Gates).map(g => [g, "pass | fail"])), status: "produced", openQuestions: [], next: nextSkills(s.SkillID) };
+}
+function memClauses(m) {
+  return S(m).split(/;/).map(S).filter(Boolean).map(c => {
+    const r = c.match(/^([A-Za-z][\w/|]*)(?:\(([^)]*)\))?\s*(?:-([A-Z_]+)->\s*([A-Za-z][\w/|]*)(?:\(([^)]*)\))?)?\s*(\{[^}]*\})?\s*$/);
+    return r ? { from: r[1], id: r[2] || "", rel: r[3] || "", to: r[4] || "", toId: r[5] || "", props: r[6] || "", raw: c } : { raw: c, bad: 1 };
+  });
+}
+function buildMemPrompt(wi, o) {
+  const X = ix(), h = memHook(), ag = X.agent[h.AgentID] || {}, a = X.art[o.art] || {}, w = RUN.items.find(x => x.id === wi) || {};
+  const L = [`Run skill /${h.Name || "sync-graph-memory"} (${h.SkillID || "MEM-01"}) as the ${ag.Name || "memory-steward"} agent for work item ${wi || "{wi}"}${w.title ? ": " + w.title : ""}.`, "",
+    "## Operation", `${(o.op || "upsert").toUpperCase()} ${o.art || "<artifact>"} ${a.Name || ""} at ${o.ref || fillPath(a.Path, wi) || "<ref>"}${o.ver ? "@" + o.ver : ""}${o.sid ? ` (produced by ${o.sid}, ${(X.skill[o.sid] || {}).Name || ""})` : ""}`];
+  if (o.op === "retract") L.push("", "## Retract", "- Find every node and edge whose provenance is this artifact version.", "- Set status=retracted and valid_to=now. Do not delete anything.", "- List the retracted IDs in the envelope.");
+  else {
+    L.push("", "## Extraction mapping (write only these node and edge types)", ...(S(a.Memory) ? memClauses(a.Memory).map(c => "- " + c.raw) : ["- Use the source artifact's Memory mapping in Registry → Artifacts."]));
+    L.push("", "## Steps", ...lines(h.Steps).map((x, i) => `${i + 1}. ${x}`));
+  }
+  L.push("", "## Gates", ...list(h.Gates).map(g => { const G = X.gate[g] || {}; return `- ${g} ${G.Name || ""}: ${G.Check || ""}${G.Tool ? `  [${G.Tool}]` : ""}`; }));
+  L.push("", "## Return", `Write the delta to ${fillPath((X.art[S(h.Output)] || {}).Path, wi).replace("<artifact>", o.art || "<artifact>").replace("<ver>", o.ver || "1")} and finish with this envelope as the last fenced json block:`,
+    "```json", JSON.stringify({ ...envelope(wi, h), op: o.op || "upsert", source: `${o.art || "<artifact>"}@${o.ver || "1"}` }, null, 2), "```");
+  return L.join("\n");
+}
+function buildPrompt(wi, sid) {
+  const X = ix(), s = X.skill[sid], ag = X.agent[s.AgentID] || {}, per = personaOf(s) || {}, out = X.art[S(s.Output)] || {}, w = RUN.items.find(x => x.id === wi) || {};
+  if (isHook(s)) return buildMemPrompt(wi, { op: "upsert" });
+  const inLine = a => { const ar = X.art[a] || {}, p = X.producer[a], r = wi && p ? stepRec(wi, p) : {};
+    return `- ${a} ${ar.Name || "?"}: ${r.ref ? r.ref + (r.ver ? "@" + r.ver : "") : fillPath(ar.Path, wi)}${p ? `  (from ${p})` : ar.Seed === "Y" ? "  (seed: work item request)" : ""}`; };
+  const L = [];
+  L.push(`Run skill /${s.Name} (${s.SkillID}) as the ${ag.Name || "?"} agent (${per.Name || "?"}) for work item ${wi || "{wi}"}${w.title ? ": " + w.title : ""}.`);
+  if (w.desc) L.push("", "## Work item", w.desc);
+  L.push("", "## Inputs (read these and nothing else, at these versions)", ...list(s.Inputs).map(inLine));
+  if (list(s.Context).length) L.push("", "## Optional context", ...list(s.Context).map(inLine));
+  L.push("", "## Graph memory", MEM_READ(wi));
+  L.push("", "## Produce exactly one artifact", `${S(s.Output)} ${out.Name || ""} (${out.Format || "?"})`, `Path: ${fillPath(out.Path, wi)}`, "Required fields / sections:", ...fields(out.Fields).map(f => "- " + f));
+  L.push("", "## Steps", ...lines(s.Steps).map((x, i) => `${i + 1}. ${x}`));
+  L.push("", "## Gates (run each check; do not report pass without running it)", ...list(s.Gates).map(g => { const G = X.gate[g] || {}; return `- ${g} ${G.Name || ""}: ${G.Check || ""}${G.Tool ? `  [${G.Tool}]` : ""}`; }));
+  if (approvers(s).length) L.push("", "## Reviewers", `After the gates pass, the output goes to ${approvers(s).join(" and ")}. All of them must approve.`);
+  L.push("", "## Rules", "- If the inputs leave something unresolved, record it under openQuestions with an owner. Never write TBD.", "- Re-running with the same inputs overwrites the same path (idempotent). Do not edit other artifacts.",
+    "- Finish with the handoff envelope below as the last fenced json block, with the gate results filled in.");
+  L.push("", "```json", JSON.stringify(envelope(wi, s), null, 2), "```");
+  return L.join("\n");
+}
+function skillMd(s) {
+  const X = ix(), ag = X.agent[s.AgentID] || {}, per = personaOf(s) || {}, out = X.art[S(s.Output)] || {}, hook = isHook(s);
+  const evs = hook ? ["*.approved", "*.reopened"] : list(s.Inputs).map(a => (X.art[a] || {}).Event || a + ".approved");
+  const L = ["---", `name: ${s.Name}`, `description: ${S(s.Purpose).replace(/\n/g, " ")} ${hook ? "Use after any artifact is approved (upsert) or reopened (retract)." : `Use when ${evs.join(" and ")} ${evs.length > 1 ? "have" : "has"} fired for a work item.`} Produces ${out.Name || S(s.Output)} (${S(s.Output)}).`, "---", "",
+    `# ${s.Name} (${s.SkillID})`, "", `Persona: ${per.Name || "?"} (${per.Team || "?"}) · Agent: ${ag.Name || "?"} · Stage: ${s.Stage} · Approval: ${S(s.Approval) || "Auto"}`, ""];
+  if (hook) L.push("## When to run", "Once per approved artifact version (`*.approved`) to upsert it, and once per reopened artifact (`*.reopened`) to retract it. The prompt names the artifact, its ref and version, and the operation.", "",
+    "## Inputs", "- The approved artifact at the pinned ref and version.", "- Its Memory mapping (the node and edge types it may write), listed in the prompt.", "");
+  else L.push("## When to run", `All of these events have fired for the work item: ${evs.map(e => "`" + e + "`").join(", ")}.`, "",
+    "## Inputs", "| Artifact | Path | Produced by |", "|---|---|---|",
+    ...list(s.Inputs).map(a => `| ${a} ${(X.art[a] || {}).Name || ""} | \`${(X.art[a] || {}).Path || ""}\` | ${X.producer[a] || ((X.art[a] || {}).Seed === "Y" ? "seed" : "?")} |`),
+    ...list(s.Context).map(a => `| ${a} ${(X.art[a] || {}).Name || ""} (optional) | \`${(X.art[a] || {}).Path || ""}\` | ${X.producer[a] || "?"} |`), "",
+    "## Graph memory", MEM_READ(""), "");
+  L.push("## Steps", ...lines(s.Steps).map((x, i) => `${i + 1}. ${x}`), "",
+    "## Output contract", `- Artifact: ${S(s.Output)} ${out.Name || ""}`, `- Format: ${out.Format || ""}`, `- Path: \`${out.Path || ""}\``, "- Required fields / sections:", ...fields(out.Fields).map(f => "  - " + f), `- On approval emits: \`${out.Event || ""}\` → ${nextSkills(s.SkillID).join(", ") || "terminal"}`, "",
+    "## Gates", ...list(s.Gates).map(g => { const G = X.gate[g] || {}; return `- **${g} ${G.Name || ""}**: ${G.Check || ""}${G.Tool ? ` (\`${G.Tool}\`)` : ""}`; }), "");
+  if (approvers(s).length) L.push("## Reviewers", ...approvers(s).map(r => `- ${r}`), "All reviewers must approve before the event fires.", "");
+  L.push("## Rules", ...(hook ? ["- You are the only writer to the common graph memory.", "- Write only the node and edge types in the artifact's Memory mapping.", "- Upserts are idempotent on (type, id, work item). Never delete: supersede or retract."]
+      : ["- Read only the declared inputs, at the versions passed in the prompt.", "- Produce exactly one artifact at the path above. A re-run overwrites it."]),
+    "- Never report a gate as pass without running its check. Report fail with the output.", "- Unresolved items go to openQuestions with an owner, never TBD.", "",
+    "## Handoff envelope (last fenced block of your reply)", "```json", JSON.stringify(envelope("", s), null, 2), "```", "");
+  return L.join("\n");
+}
+function agentMd(a) {
+  const X = ix(), per = X.persona[a.PersonaID] || {}, sk = DB.Skills.filter(s => s.AgentID === a.AgentID).sort(bySkillOrder);
+  const m = S(a.Model), writer = sk.some(isHook);
+  return ["---", `name: ${a.Name}`, `description: ${per.Name || ""} agent (${per.Team || ""}). ${S(a.Description)} Skills: ${sk.map(s => s.Name).join(", ")}.`,
+    `tools: ${S(a.Tools)}`, m ? `model: ${m}` : "", "---", "",
+    `You are the ${per.Name || ""} agent on the ${per.Team || ""} team. ${S(per.Description)}`, "",
+    `Accountable human: ${per.Accountable || "?"}. They approve what you produce${sk.some(s => !isAuto(s)) ? " where a skill says so" : ""}.`, "",
+    "## Your skills", ...sk.map(s => `- /${s.Name} (${s.SkillID}, ${s.Stage}): ${S(s.Purpose)} → ${S(s.Output)}`), "",
+    "## Operating rules", "- Run one skill per invocation, and only when its trigger events have fired.", "- Read only the skill's declared inputs. Write only its output artifact.",
+    writer ? "- You are the only writer to the common graph memory. Write only what each artifact's Memory mapping allows." : "- Read the common graph memory (MCP graph-memory) for context. Never write to it.",
+    "- Run every gate the skill lists before replying, and finish with the handoff envelope.", "- Escalate to the accountable human instead of guessing when an input conflicts with another.",
+    S(a.MCP) ? `\nMCP servers this agent expects (configure them in .mcp.json): ${S(a.MCP)}.` : "", ""].join("\n").replace(/\n{3,}/g, "\n\n");
+}
+function scaffoldSh() {
+  const L = ["#!/usr/bin/env bash", "# Generated by harness-playbook.html: writes the Claude Code agents and skills for the SDLC harness.", "set -euo pipefail", ""];
+  DB.Agents.forEach(a => { L.push("mkdir -p .claude/agents", `cat > .claude/agents/${a.Name}.md <<'HARNESS_EOF'`, agentMd(a), "HARNESS_EOF", ""); });
+  DB.Skills.forEach(s => { L.push(`mkdir -p .claude/skills/${s.Name}`, `cat > .claude/skills/${s.Name}/SKILL.md <<'HARNESS_EOF'`, skillMd(s), "HARNESS_EOF", ""); });
+  L.push(`echo "Wrote ${DB.Agents.length} agents and ${DB.Skills.length} skills under .claude/"`);
+  return L.join("\n");
+}
+function memSchema() {
+  const nodes = {}, edges = {}, nd = n => nodes[n] = nodes[n] || { ids: new Set(), arts: new Set() };
+  DB.Artifacts.forEach(a => memClauses(a.Memory).forEach(c => {
+    if (c.bad) return;
+    c.from.split(/[|/]/).forEach(n => { const o = nd(n); if (c.id) o.ids.add(c.id); o.arts.add(a.ArtifactID); });
+    if (!c.rel) return;
+    c.to.split(/[|/]/).forEach(n => { const o = nd(n); if (c.toId) o.ids.add(c.toId); });
+    const k = `${c.from} -${c.rel}-> ${c.to}`, e = edges[k] = edges[k] || { from: c.from, rel: c.rel, to: c.to, props: c.props, arts: new Set() }; e.arts.add(a.ArtifactID);
+  }));
+  return { nodes, edges };
+}
+function manifest() {
+  const X = ix(), ms = memSchema();
+  return { version: "harness/v1", generated: now(), stages: STAGES, teams: TEAMS,
+    personas: DB.Personas.map(p => ({ id: p.PersonaID, team: p.Team, name: p.Name, accountable: p.Accountable })),
+    agents: DB.Agents.map(a => ({ id: a.AgentID, persona: a.PersonaID, name: a.Name, model: a.Model, tools: list(a.Tools), mcp: list(a.MCP) })),
+    artifacts: DB.Artifacts.map(a => ({ id: a.ArtifactID, name: a.Name, format: a.Format, path: a.Path, fields: fields(a.Fields), event: a.Event, seed: a.Seed === "Y", terminal: a.Terminal === "Y", producer: X.producer[a.ArtifactID] || null, memory: memClauses(a.Memory).map(c => c.raw) })),
+    gates: DB.Gates.map(g => ({ id: g.GateID, name: g.Name, kind: g.Kind, check: g.Check, tool: g.Tool, blocking: g.Blocking !== "N" })),
+    tasks: DB.Skills.slice().sort(bySkillOrder).map(s => ({ id: s.SkillID, skill: s.Name, agent: (X.agent[s.AgentID] || {}).Name || s.AgentID, stage: s.Stage, mode: isHook(s) ? "hook" : "pipeline",
+      trigger: isHook(s) ? { on: ["*.approved", "*.reopened"] } : { all: list(s.Inputs).map(a => ((X.art[a] || {}).Event || a + ".approved") + (memGate() && (X.art[a] || {}).Seed !== "Y" ? " + memory.synced" : "")) },
+      inputs: list(s.Inputs), context: list(s.Context), output: S(s.Output),
+      gates: list(s.Gates), approval: isAuto(s) ? { type: "auto" } : { type: "human", all: approvers(s) }, emits: (X.art[S(s.Output)] || {}).Event || "", next: nextSkills(s.SkillID) })),
+    memory: { writer: memHook().SkillID || null, gateTriggersOnSync: memGate(), key: ["type", "id", "workItem"], versioning: "supersede (valid_from / valid_to)", retract: "on reopen",
+      nodeTypes: Object.keys(ms.nodes).sort(), edgeTypes: Object.values(ms.edges).map(e => ({ from: e.from, rel: e.rel, to: e.to, from_artifacts: [...e.arts] })) },
+  };
+}
+
+/* ============================== PLAYBOOKS ============================== */
+function renderPlaybook() {
+  const sel = UI.pb || "_how";
+  let h = `<button data-p="_how" class="${sel === "_how" ? "active" : ""}">📘 How the harness works</button>`;
+  TEAMS.forEach(t => {
+    const ps = DB.Personas.filter(p => p.Team === t); if (!ps.length) return;
+    h += `<div class="grp"><i style="background:${TEAM_COLOR[t]}"></i>${E(t)}</div>`;
+    ps.forEach(p => h += `<button data-p="${E(p.PersonaID)}" class="${sel === p.PersonaID ? "active" : ""}">${E(p.Name)}<span class="n">${skillsOfPersona(p.PersonaID).length}</span></button>`);
+  });
+  const orphan = DB.Personas.filter(p => !TEAMS.includes(p.Team));
+  if (orphan.length) { h += `<div class="grp">Other</div>`; orphan.forEach(p => h += `<button data-p="${E(p.PersonaID)}" class="${sel === p.PersonaID ? "active" : ""}">${E(p.Name || p.PersonaID)}</button>`); }
+  $("pbSide").innerHTML = h;
+  $("pbSide").querySelectorAll("button[data-p]").forEach(b => b.onclick = () => { UI.pb = b.dataset.p; saveUI(); renderPlaybook(); $("pbBody").scrollIntoView({ block: "start" }); });
+  $("pbBody").innerHTML = sel === "_how" || !ix().persona[sel] ? howHtml() : personaHtml(sel);
+  wirePbBody();
+}
+function howHtml() {
+  const X = ix();
+  let strip = `<div class="sh"></div>` + STAGES.map(s => `<div class="sh">${s}</div>`).join("");
+  TEAMS.forEach(t => {
+    strip += `<div class="tl" style="background:${TEAM_COLOR[t]}">${t}</div>`;
+    STAGES.forEach(st => { const sk = DB.Skills.filter(s => teamOf(s) === t && s.Stage === st);
+      strip += `<div class="c">${sk.map(s => `<span data-sk="${E(s.SkillID)}" title="${E(s.Name)}: ${E(s.Purpose)}">${E(s.SkillID)}</span>`).join("")}</div>`; });
+  });
+  return `<div class="card"><h2>How the harness works</h2>
+    <p class="desc">An SDLC run is a chain of <b>skills</b>, each played by a persona's <b>agent</b>. A skill fires when every artifact it needs has been <b>approved</b>. It writes one artifact against a contract, the artifact has to pass deterministic <b>gates</b>, and then a human may approve it. The approval emits an event, and that event triggers the next skills.</p>
+    <div class="flowline" style="margin:4px 0 12px"><span class="chip ev">event fired</span><span class="arrow">→</span><span class="chip">skill reads pinned inputs</span><span class="arrow">→</span><span class="chip">writes 1 artifact + envelope</span><span class="arrow">→</span><span class="chip">gates run (code)</span><span class="arrow">→</span><span class="chip human">human approval</span><span class="arrow">→</span><span class="chip ev">&lt;artifact&gt;.approved</span><span class="arrow">→</span><span class="chip">graph memory upsert</span><span class="arrow">→</span><span class="chip ev">memory.synced</span><span class="arrow">→</span><span class="chip">next skills ready</span></div>
+    <div class="stage-strip" style="grid-template-columns:110px repeat(${STAGES.length}, minmax(70px, 1fr))">${strip}</div>
+    <p class="hint" style="margin:6px 0 0">${DB.Skills.length} skills by team and stage. Click an ID to open its playbook.</p></div>
+  <div class="card"><h2>What makes the output deterministic</h2><p class="desc">An LLM doesn't produce the same text twice. The harness makes the <b>process</b> deterministic instead: what goes in, what shape comes out, what is checked, and what fires next.</p><div class="prin">
+    <div><b>1 · One skill, one artifact</b><p>Each skill writes exactly one artifact type, at a path derived from the work item (<code>docs/{wi}/02-prd.md</code>). Re-running it overwrites that path, so a rerun is idempotent.</p></div>
+    <div><b>2 · Pinned, declared inputs</b><p>A skill reads only its declared inputs, at the versions or commits recorded in the run. It doesn't browse for anything else. The prompt lists the inputs explicitly.</p></div>
+    <div><b>3 · Contract-first outputs</b><p>Every artifact has a format and required fields (JSON Schema, OpenAPI, SDL, Avro, Gherkin, OpenSLO). The output is valid only when it validates against that contract.</p></div>
+    <div><b>4 · Gates are code, not prompts</b><p>Schema validation, linters, compatibility checks, tests, scans and canary analysis run outside the model and return pass or fail. The agent runs them, and the orchestrator runs them again.</p></div>
+    <div><b>5 · Handoff envelope</b><p>Each reply ends with a JSON envelope: work item, artifact, ref, version, inputs, gate results, open questions and next skills. It's the machine-readable trigger for the next step.</p></div>
+    <div><b>6 · Stable IDs and traceability</b><p>REQ, STY, JNY, SCR, IF, TSK and TC IDs follow fixed patterns, and every item cites an upstream ID. A trace gate fails on any dangling reference.</p></div>
+    <div><b>7 · Human approval at boundaries</b><p>Stage-boundary artifacts (brief, PRD, SAD, contracts, test verdict, release) wait for the accountable role. Inner steps are approved automatically once their gates pass.</p></div>
+    <div><b>8 · Pinned model and skill versions</b><p>Each agent pins a model ID, and each skill is versioned in git. Record both in the run so a result can be reproduced or explained.</p></div>
+    <div><b>9 · Staleness, not drift</b><p>Reopening an approved artifact marks everything downstream stale, and stale steps must rerun. Nothing downstream is left silently built on an old version.</p></div>
+    <div><b>10 · Evals per skill</b><p>Keep 3–5 golden input/output pairs per skill, and re-run them when you change the skill, prompt or model. A skill change ships only when its evals pass.</p></div>
+    <div><b>11 · Decisions drive the design</b><p>Key design decisions (KDD-01) come before the solution design. Each option is scored on product priority, engineering effort and ops TCO with fixed weights. Any deviation from the target architecture becomes a dispensation, and TD-01 turns it into a tech-debt ticket.</p></div>
+    <div><b>12 · One common graph memory</b><p>Every approved artifact is synced into a shared graph by a single writer (MEM-01). Agents read it for context, and the next skills fire only once their inputs are in memory. See <b>Graph memory</b>.</p></div>
+  </div></div>
+  <div class="card"><h2>Running it by hand today</h2><ol class="how">
+    <li>Load this catalog into Claude Code: <b>Orchestration → ⤓ Scaffold .sh</b> writes every <code>.claude/agents/*.md</code> and <code>.claude/skills/*/SKILL.md</code>. Run it at your repo root.</li>
+    <li>Open <b>Run (manual)</b> and add a work item. Its description is the seed <span class="idc">A-REQUEST</span>.</li>
+    <li>For each card in <b>Ready</b>: click <b>▶ Start</b> to copy the pinned prompt, paste it into Claude Code, and let the agent produce the artifact and its envelope.</li>
+    <li>Click <b>Record output</b>, paste the envelope (or type the ref) and tick the gates that passed. Auto-approved skills complete right away. The rest wait for the accountable role to <b>Approve</b> or <b>Reject</b>.</li>
+    <li>Each approval logs the artifact's event and moves the newly unblocked skills to <b>Ready</b>. Mark a skill <b>N/A</b> when the work item doesn't need it (for example, no Kafka events, or TD-01 when no KDD has a dispensation).</li>
+    <li>Under <b>Graph memory sync</b>, copy each queued op's prompt into Claude Code (<code>/sync-graph-memory</code>), then <b>Mark synced</b>. With <em>Trigger only after memory sync</em> on, the next skills become Ready only at that point.</li>
+    <li>Export the workbook to keep the catalog and the run history together. When you're ready to automate, see <b>Orchestration</b>.</li></ol></div>`;
+}
+function personaHtml(pid) {
+  const X = ix(), p = X.persona[pid], ag = DB.Agents.filter(a => a.PersonaID === pid), sk = skillsOfPersona(pid);
+  const ups = uniq(sk.flatMap(s => prevSkills(s.SkillID)).map(x => personaOf(X.skill[x])).filter(q => q && q.PersonaID !== pid).map(q => q.PersonaID));
+  const downs = uniq(sk.flatMap(s => nextSkills(s.SkillID)).map(x => personaOf(X.skill[x])).filter(q => q && q.PersonaID !== pid).map(q => q.PersonaID));
+  const pchip = id => `<span class="chip lnk" data-p="${E(id)}">${E((X.persona[id] || {}).Name || id)}</span>`;
+  let h = `<div class="card"><div class="pb-head"><div><h2>${E(p.Name)} playbook</h2>${teamChip(p.Team)} <span class="hint">${E(p.PersonaID)}</span></div><span class="spacer"></span>
+    ${ag.map(a => `<button class="copy-btn" data-agmd="${E(a.AgentID)}">Copy ${E(a.Name)}.md</button>`).join("")}</div>
+    <p class="desc" style="margin:8px 0 0">${E(p.Description)}</p>
+    <dl class="meta"><dt>Accountable</dt><dd>${E(p.Accountable || "—")}</dd>
+      ${ag.map(a => `<dt>Agent</dt><dd><code>${E(a.Name)}</code> · ${E(a.Model || "model not pinned")}<br><span class="hint">Tools: ${E(a.Tools || "—")}${a.MCP ? " · MCP: " + E(a.MCP) : ""}</span></dd>`).join("") || `<dt>Agent</dt><dd class="hint">No agent plays this persona yet. Add one in Registry → Agents.</dd>`}
+      <dt>Receives from</dt><dd><div class="chips">${ups.map(pchip).join("") || '<span class="hint">seed request only</span>'}</div></dd>
+      <dt>Hands off to</dt><dd><div class="chips">${downs.map(pchip).join("") || '<span class="hint">none</span>'}</div></dd>
+      <dt>Skills</dt><dd><div class="chips">${sk.map(s => `<a class="chip lnk" href="#sk-${E(s.SkillID)}">${E(s.SkillID)} /${E(s.Name)}</a>`).join("") || '<span class="hint">none</span>'}</div></dd></dl></div>`;
+  sk.forEach(s => h += skillCard(s));
+  return h;
+}
+function artChip(a, opt) {
+  const X = ix(), ar = X.art[a], p = X.producer[a];
+  return `<span class="chip${opt ? " opt" : ""}${p ? " lnk" : ""}" ${p ? `data-sk="${E(p)}"` : ""} title="${E(ar ? ar.Name + " · " + ar.Format : "Unknown artifact")}">${E(a)} <small>${E(ar ? ar.Name : "?")}${p ? " · " + E(p) : ar && ar.Seed === "Y" ? " · seed" : ""}</small></span>`;
+}
+function skillCard(s) {
+  const X = ix(), out = X.art[S(s.Output)] || {}, nx = nextSkills(s.SkillID), cx = (X.ctxConsumers[S(s.Output)] || []);
+  const evs = isHook(s) ? ["*.approved", "*.reopened"] : list(s.Inputs).map(a => (X.art[a] || {}).Event || a + ".approved");
+  return `<div class="sk" id="sk-${E(s.SkillID)}"><div class="sk-h"><span class="idc">${E(s.SkillID)}</span><b>${E(s.Name)}</b><span class="cmd">/${E(s.Name)}</span>
+      <span class="chip">${E(s.Stage)}</span>${isHook(s) ? '<span class="chip ev">hook: after every approval</span>' : ""}${isAuto(s) ? '<span class="chip auto">auto-approve on gates</span>' : approvers(s).map(r => `<span class="chip human">reviewer: ${E(r)}</span>`).join("")}
+      <span class="spacer"></span><button data-skmd="${E(s.SkillID)}">Copy SKILL.md</button><button data-prompt="${E(s.SkillID)}">Prompt</button><button data-flow="${E(s.SkillID)}">In workflow</button></div>
+    <div class="sk-b">
+      <div class="wide"><p>${E(s.Purpose)}</p></div>
+      <div><h4>Trigger: when all of</h4><div class="chips">${evs.map(e => `<span class="chip ev">${E(e)}</span>`).join("") || '<span class="hint">no inputs (runs on work item start)</span>'}</div></div>
+      <div><h4>Inputs</h4><div class="chips">${isHook(s) ? '<span class="hint">the approved (or reopened) artifact named in the prompt, plus its Memory mapping</span>' : ""}${list(s.Inputs).map(a => artChip(a)).join("")}${list(s.Context).map(a => artChip(a, 1)).join("")}</div>${list(s.Context).length ? '<p class="hint" style="margin:4px 0 0">dashed = optional context</p>' : ""}</div>
+      <div><h4>Steps</h4><ol>${lines(s.Steps).map(x => `<li>${E(x)}</li>`).join("")}</ol></div>
+      <div><h4>Output contract</h4><p><span class="idc">${E(s.Output)}</span> <b>${E(out.Name || "?")}</b> · ${E(out.Format || "")}<br><code>${E(out.Path || "")}</code></p><ul>${fields(out.Fields).map(f => `<li>${E(f)}</li>`).join("")}</ul></div>
+      <div><h4>Gates</h4>${list(s.Gates).map(g => { const G = X.gate[g] || {}; return `<div class="gate-row"><span class="idc">${E(g)}</span><span><b>${E(G.Name || "?")}</b> ${G.Blocking === "N" ? '<span class="hint">(advisory)</span>' : ""}<small>${E(G.Check || "")}${G.Tool ? " · " + E(G.Tool) : ""}</small></span></div>`; }).join("") || '<p class="hint">No gates. Add at least a schema gate.</p>'}</div>
+      <div><h4>On approval: emits → triggers</h4><div class="flowline"><span class="chip ev">${E(out.Event || "?")}</span><span class="arrow">→</span>${nx.map(x => `<span class="chip lnk" data-sk="${E(x)}">${E(x)} <small>${E((X.skill[x] || {}).Name)}</small></span>`).join("") || (isHook(s) ? '<span class="hint">releases every skill waiting on this artifact (when triggers wait for memory sync)</span>' : out.Terminal === "Y" ? '<span class="hint">terminal: closes the loop</span>' : '<span class="hint">nothing yet</span>')}${cx.length ? `<span class="hint">· context for ${cx.map(E).join(", ")}</span>` : ""}</div></div>
+      ${S(s.Output) === "A-KDD" ? kddCalc() : ""}
+    </div></div>`;
+}
+function gotoSkill(sid) {
+  const p = personaOf(ix().skill[sid]); if (!p) return;
+  UI.pb = p.PersonaID; saveUI(); showView("playbook"); renderPlaybook();
+  setTimeout(() => { const el = document.getElementById("sk-" + sid); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.style.boxShadow = "0 0 0 3px #c4b5fd"; setTimeout(() => el.style.boxShadow = "", 1600); } }, 30);
+}
+function wirePbBody() {
+  const b = $("pbBody");
+  b.querySelectorAll("[data-sk]").forEach(x => x.onclick = () => gotoSkill(x.dataset.sk));
+  b.querySelectorAll("[data-p]").forEach(x => x.onclick = () => { UI.pb = x.dataset.p; saveUI(); renderPlaybook(); });
+  b.querySelectorAll("[data-skmd]").forEach(x => x.onclick = () => copyText(skillMd(ix().skill[x.dataset.skmd]), "SKILL.md copied"));
+  b.querySelectorAll("[data-agmd]").forEach(x => x.onclick = () => copyText(agentMd(ix().agent[x.dataset.agmd]), "Agent file copied"));
+  b.querySelectorAll("[data-prompt]").forEach(x => x.onclick = () => promptModal(RUN.cur, x.dataset.prompt));
+  b.querySelectorAll("[data-flow]").forEach(x => x.onclick = () => { UI.flowSel = x.dataset.flow; UI.flowTeam = ""; saveUI(); showView("flow"); });
+  b.querySelectorAll('a[href^="#sk-"]').forEach(a => a.onclick = e => { e.preventDefault(); const el = document.getElementById(a.getAttribute("href").slice(1)); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
+  wireKdd();
+}
+
+/* ============================== WORKFLOW ============================== */
+let FLOW_SVG = "";
+function renderFlow() {
+  const X = ix(), tf = UI.flowTeam || "", wi = UI.flowWi || "";
+  $("flTeam").innerHTML = `<option value="">All teams</option>` + TEAMS.map(t => `<option ${t === tf ? "selected" : ""}>${t}</option>`).join("");
+  $("flWi").innerHTML = `<option value="">None</option>` + RUN.items.map(w => `<option value="${E(w.id)}" ${w.id === wi ? "selected" : ""}>${E(w.id)} · ${E(trunc(w.title, 40))}</option>`).join("");
+  const sks = pipeline().filter(s => !tf || teamOf(s) === tf);
+  if (!sks.length) { $("flWrap").innerHTML = '<div class="empty">No skills.</div>'; return; }
+  const cols = uniq(sks.map(s => X.depth[s.SkillID] || 0)).sort((a, b) => a - b), ci = Object.fromEntries(cols.map((d, i) => [d, i]));
+  const lanes = TEAMS.filter(t => sks.some(s => teamOf(s) === t)); if (sks.some(s => !TEAMS.includes(teamOf(s)))) lanes.push("");
+  const NW = 172, NH = 42, VG = 8, CW = 206, LW = 104, PAD = 12, TOP = 24;
+  const pos = {}, laneBox = []; let y = TOP;
+  lanes.forEach(t => {
+    const cell = {};
+    sks.filter(s => (TEAMS.includes(teamOf(s)) ? teamOf(s) : "") === t).forEach(s => { const c = ci[X.depth[s.SkillID] || 0]; (cell[c] = cell[c] || []).push(s); });
+    const mx = Math.max(1, ...Object.values(cell).map(a => a.length)), h = PAD * 2 + mx * NH + (mx - 1) * VG;
+    Object.entries(cell).forEach(([c, arr]) => { arr.sort((a, b) => a.SkillID.localeCompare(b.SkillID)); const off = (h - (arr.length * NH + (arr.length - 1) * VG)) / 2;
+      arr.forEach((s, i) => pos[s.SkillID] = { x: LW + c * CW + 16, y: y + off + i * (NH + VG), s }); });
+    laneBox.push({ t, y, h }); y += h;
+  });
+  const W = LW + cols.length * CW + 16, H = y + 8;
+  let g = `<svg xmlns="http://www.w3.org/2000/svg" class="wf" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  laneBox.forEach((l, i) => { g += `<rect class="lane${i % 2 ? " alt" : ""}" x="0" y="${l.y}" width="${W}" height="${l.h}"/><rect x="0" y="${l.y}" width="5" height="${l.h}" fill="${TEAM_COLOR[l.t] || "#94a3b8"}"/><text class="lanel" x="14" y="${l.y + l.h / 2 + 4}" fill="${TEAM_COLOR[l.t] || "#64748b"}">${E(l.t || "Unassigned")}</text>`; });
+  cols.forEach((d, i) => { const st = uniq(sks.filter(s => (X.depth[s.SkillID] || 0) === d).map(s => s.Stage)).join(" / ");
+    g += `<text class="colh" x="${LW + i * CW + 16}" y="16">${E(trunc(st.toUpperCase(), 30))}</text>`; });
+  const edges = [];
+  sks.forEach(s => {
+    list(s.Inputs).forEach(a => { const p = X.producer[a]; if (pos[p] && pos[s.SkillID] && p !== s.SkillID) edges.push({ f: p, t: s.SkillID, a, ctx: 0 }); });
+    list(s.Context).forEach(a => { const p = X.producer[a]; if (pos[p] && pos[s.SkillID] && p !== s.SkillID) edges.push({ f: p, t: s.SkillID, a, ctx: 1 }); });
+  });
+  edges.forEach(e => { const A = pos[e.f], B = pos[e.t], x1 = A.x + NW, y1 = A.y + NH / 2, x2 = B.x, y2 = B.y + NH / 2;
+    const dx = x2 > x1 ? Math.max(30, (x2 - x1) / 2) : 60;
+    const d = x2 > x1 ? `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}` : `M${x1},${y1} C${x1 + dx},${y1 + 40} ${x2 - dx},${y2 + 40} ${x2},${y2}`;
+    g += `<path class="edge${e.ctx ? " ctx" : ""}" data-f="${E(e.f)}" data-t="${E(e.t)}" d="${d}" marker-end="url(#ah)"><title>${E(e.a)} ${E((X.art[e.a] || {}).Name || "")}${e.ctx ? " (context)" : ""}: ${E(e.f)} → ${E(e.t)}</title></path>`; });
+  g += `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs>`;
+  Object.values(pos).forEach(({ x, y, s }) => {
+    const st = wi ? stepState(wi, s.SkillID) : "", fill = wi ? ST_COLOR[(stepRec(wi, s.SkillID).st === "stale" && st === "ready") ? "stale" : st] : "#fff";
+    g += `<g class="node" data-id="${E(s.SkillID)}" transform="translate(${x},${y})"><title>${E(s.SkillID)} ${E(s.Name)}: ${E(s.Purpose)}${wi ? "\nStatus: " + ST_LABEL[st] : ""}</title>
+      <rect class="box" width="${NW}" height="${NH}" rx="7" style="fill:${fill}"/><rect width="4" height="${NH}" rx="2" fill="${TEAM_COLOR[teamOf(s)] || "#94a3b8"}"/>
+      <text class="t" x="11" y="17">${E(s.SkillID)} · ${E(trunc(s.Name, 19))}</text><text class="s" x="11" y="32">${E(s.Stage)} → ${E(s.Output)}${isAuto(s) ? "" : " · 👤"}</text></g>`;
+  });
+  g += `</svg>`;
+  FLOW_SVG = g;
+  const wrap = $("flWrap"); wrap.innerHTML = g; wrap.classList.toggle("fit", UI.flowFit === true);
+  $("flFit").textContent = UI.flowFit === true ? "Actual size" : "Fit to view";
+  $("flLg").innerHTML = TEAMS.map(t => `<span><i style="background:${TEAM_COLOR[t]}"></i>${t}</span>`).join("") + `<span>👤 human review</span><span>- - - optional context</span>${DB.Skills.filter(isHook).map(s => `<span>⟳ ${E(s.SkillID)} /${E(s.Name)} runs after every approval (not drawn)</span>`).join("")}`
+    + (wi ? " · " + Object.keys(ST_LABEL).map(k => `<span><i style="background:${ST_COLOR[k]}"></i>${ST_LABEL[k]}</span>`).join("") : "");
+  const svg = wrap.querySelector("svg");
+  const focus = id => {
+    svg.classList.toggle("focus", !!id); svg.querySelectorAll(".on,.sel").forEach(n => n.classList.remove("on", "sel"));
+    if (!id) { $("flDetail").innerHTML = '<p class="hint" style="margin:0">Select a skill to see its trigger, inputs, output and what it triggers next.</p>'; return; }
+    const up = closure(id, prevSkills), dn = closure(id, nextSkills), all = new Set([id, ...up, ...dn]);
+    svg.querySelectorAll(".node").forEach(n => { if (all.has(n.dataset.id)) n.classList.add("on"); if (n.dataset.id === id) n.classList.add("sel"); });
+    svg.querySelectorAll(".edge").forEach(e => { const f = e.dataset.f, t = e.dataset.t;
+      if (((t === id || up.has(t)) && up.has(f)) || ((f === id || dn.has(f)) && dn.has(t))) e.classList.add("on"); });
+    const s = X.skill[id];
+    $("flDetail").innerHTML = `<div class="code-head"><h2 style="margin:0">${E(id)} · /${E(s.Name)}</h2>${teamChip(teamOf(s))}<span class="hint">${E((personaOf(s) || {}).Name || "")} · ${E(s.Stage)}</span><span class="spacer"></span><button class="copy-btn" id="flOpen">Open playbook</button></div>
+      <p class="desc">${E(s.Purpose)}</p><div class="flowline"><b class="hint">Upstream</b> ${[...up].length} skills <span class="arrow">·</span> <b class="hint">Downstream</b> ${[...dn].length} skills <span class="arrow">·</span> <b class="hint">Next</b> ${nextSkills(id).map(x => `<span class="chip lnk" data-s="${E(x)}">${E(x)}</span>`).join("") || "—"}</div>`;
+    $("flOpen").onclick = () => gotoSkill(id);
+    $("flDetail").querySelectorAll("[data-s]").forEach(c => c.onclick = () => { UI.flowSel = c.dataset.s; focus(c.dataset.s); });
+  };
+  svg.querySelectorAll(".node").forEach(n => n.onclick = () => { UI.flowSel = UI.flowSel === n.dataset.id ? "" : n.dataset.id; saveUI(); focus(UI.flowSel); });
+  if (UI.flowSel && pos[UI.flowSel]) { focus(UI.flowSel); if (UI.flowFit !== true) { const p = pos[UI.flowSel]; wrap.scrollLeft = Math.max(0, p.x - 200); } } else focus("");
+}
+function mermaid() {
+  const X = ix(), L = ["flowchart LR"];
+  TEAMS.forEach(t => { const sk = pipeline().filter(s => teamOf(s) === t); if (!sk.length) return;
+    L.push(`  subgraph ${t}`); sk.sort(bySkillOrder).forEach(s => L.push(`    ${s.SkillID.replace(/\W/g, "_")}["${s.SkillID} ${s.Name}"]`)); L.push("  end"); });
+  DB.Skills.forEach(s => list(s.Inputs).forEach(a => { const p = X.producer[a]; if (p) L.push(`  ${p.replace(/\W/g, "_")} -->|${a}| ${s.SkillID.replace(/\W/g, "_")}`); }));
+  return L.join("\n");
+}
+
+/* ================================ RUN ================================= */
+function renderRun() {
+  const sel = $("rnWi"), w = curWi(), tf = UI.runTeam || "";
+  sel.innerHTML = RUN.items.length ? RUN.items.map(x => `<option value="${E(x.id)}" ${x.id === RUN.cur ? "selected" : ""}>${E(x.id)} · ${E(x.title)}</option>`).join("") : `<option>No work items yet</option>`;
+  $("rnTeam").innerHTML = `<option value="">All</option>` + TEAMS.map(t => `<option ${t === tf ? "selected" : ""}>${t}</option>`).join("");
+  $("rnDel").hidden = !w;
+  if (!w) { $("rnBoard").innerHTML = '<div class="empty" style="grid-column:1/-1">Add a work item to start a run. Its description is the seed request (A-REQUEST).</div>'; $("rnWait").innerHTML = ""; $("rnLog").innerHTML = ""; $("rnDesc").textContent = ""; $("rnBar").style.width = "0"; $("rnPct").textContent = ""; $("rnWaitN").textContent = ""; $("rnMem").innerHTML = ""; $("rnMemN").textContent = ""; return; }
+  $("rnDesc").innerHTML = `<b>Request:</b> ${E(w.desc || "—")} <span class="hint">· started ${E(w.created || "")}</span>`;
+  const sks = pipeline().sort(bySkillOrder), all = sks.map(s => ({ s, st: stepState(w.id, s.SkillID), r: stepRec(w.id, s.SkillID) }));
+  const done = all.filter(x => x.st === "approved" || x.st === "na").length, pct = all.length ? Math.round(done / all.length * 100) : 0;
+  $("rnBar").style.width = pct + "%"; $("rnPct").textContent = `${done}/${all.length} done · ${pct}%`;
+  const vis = all.filter(x => !tf || teamOf(x.s) === tf);
+  const col = (title, arr) => `<div class="kb-col"><h3>${title}<span class="n">${arr.length}</span></h3>${arr.map(card).join("") || '<p class="hint" style="margin:4px">—</p>'}</div>`;
+  $("rnBoard").innerHTML = col("Ready", vis.filter(x => x.st === "ready")) + col("In progress", vis.filter(x => x.st === "running")) + col("Awaiting approval", vis.filter(x => x.st === "produced")) + col("Done", vis.filter(x => x.st === "approved" || x.st === "na").reverse());
+  const wait = vis.filter(x => x.st === "waiting");
+  $("rnWaitN").textContent = `${wait.length} skill${wait.length === 1 ? "" : "s"}`;
+  $("rnWait").innerHTML = wait.map(card).join("") || '<p class="hint">Nothing is waiting.</p>';
+  $("rnWait").hidden = !UI.showWait; $("rnWaitToggle").textContent = UI.showWait ? "Hide" : "Show";
+  const lg = RUN.log.filter(l => l.wi === w.id);
+  $("rnLog").innerHTML = lg.map(l => `<div><span class="ts">${E(l.ts)}</span><span class="idc">${E(l.wi)}</span><span class="chip ev" style="justify-self:start">${E(l.ev)}</span><span>${E(l.detail)}</span></div>`).join("") || '<p class="hint">No events yet.</p>';
+  const q = memOps(w.id), pend = q.filter(o => o.st === "pending");
+  $("rnMemGate").checked = memGate(); $("rnMemAll").disabled = !pend.length;
+  $("rnMemN").textContent = `${pend.length} pending · ${q.filter(o => o.st === "done").length} done`;
+  $("rnMem").innerHTML = q.some(o => o.st !== "cancelled") ? `<div style="overflow:auto;max-height:300px"><table class="sum-table mq"><thead><tr><th>Op</th><th>Artifact</th><th>Ref</th><th>From</th><th>Status</th><th>When</th><th></th></tr></thead><tbody>${q.filter(o => o.st !== "cancelled").map(o => `<tr><td><span class="badge ${o.op === "retract" ? "stale" : "mem"}">${E(o.op)}</span></td><td><span class="idc">${E(o.art)}</span> ${E((ix().art[o.art] || {}).Name || "")}</td><td>${E(o.ref || "—")}${o.ver ? "@" + E(o.ver) : ""}</td><td><span class="idc">${E(o.sid)}</span></td><td>${o.st === "done" ? '<span class="badge ok">synced</span>' : '<span class="badge rw">pending</span>'}</td><td class="hint">${E(o.done || o.ts)}</td><td><div class="acts">${o.st === "pending" ? `<button data-mprompt="${o.id}">Prompt</button><button class="primary" data-msync="${o.id}">Mark synced</button>` : ""}</div></td></tr>`).join("")}</tbody></table></div>` : '<p class="hint">Nothing queued yet. Approved artifacts appear here.</p>';
+  document.querySelectorAll("#rnMem [data-msync]").forEach(b => b.onclick = () => runAct("sync", b.dataset.msync));
+  document.querySelectorAll("#rnMem [data-mprompt]").forEach(b => b.onclick = () => memPromptModal(w.id, b.dataset.mprompt));
+  document.querySelectorAll("#view-run [data-act]").forEach(b => b.onclick = () => {
+    const sid = b.dataset.sid, a = b.dataset.act;
+    if (a === "start") { runAct("start", sid); promptModal(RUN.cur, sid, true); }
+    else if (a === "prompt") promptModal(RUN.cur, sid);
+    else if (a === "record") recordModal(sid);
+    else if (a === "approve") runAct("approve", sid, { role: b.dataset.role });
+    else if (a === "reject") { const r = prompt("Why is it rejected? (goes back to Ready for rework)"); if (r !== null) runAct("reject", sid, { reason: r }); }
+    else if (a === "na") { const r = prompt("Why does this work item not need this skill?"); if (r) runAct("na", sid, { reason: r }); }
+    else if (a === "reopen") { if (confirm("Reopen this step? Every downstream step that has started is marked stale.")) runAct("reopen", sid); }
+    else if (a === "view") viewModal(sid);
+    else if (a === "open") gotoSkill(sid);
+  });
+}
+function card({ s, st, r }) {
+  const wi = RUN.cur, stale = r.st === "stale" && st === "ready", X = ix();
+  const btn = (a, t, cls) => `<button data-act="${a}" data-sid="${E(s.SkillID)}" ${cls ? `class="${cls}"` : ""}>${t}</button>`;
+  let acts = "";
+  if (st === "ready") acts = btn("start", "▶ Start", "primary") + btn("record", "Record output") + btn("na", "N/A");
+  else if (st === "running") acts = btn("prompt", "Prompt") + btn("record", "Record output", "primary") + btn("na", "N/A");
+  else if (st === "produced") acts = approvers(s).filter(x => !(r.appr || {})[x]).map(x => `<button data-act="approve" data-role="${E(x)}" data-sid="${E(s.SkillID)}" class="primary">Approve · ${E(x)}</button>`).join("") + btn("reject", "Reject", "danger") + btn("view", "View");
+  else if (st === "approved" || st === "na") acts = btn("view", "View") + btn("reopen", "Reopen");
+  else acts = btn("open", "Playbook");
+  const sub = st === "waiting" ? `waiting for ${missingInputs(wi, s.SkillID).map(a => `<span class="idc">${E(a)}</span>`).join(" ")}`
+    : st === "produced" ? `reviewers: ${approvers(s).map(x => (r.appr || {})[x] ? `${E(x)} ✓` : `<b>${E(x)}</b>`).join(", ")} · ${E(r.ref || "")}`
+    : (st === "approved" || st === "na") ? `${E(r.ref || r.notes || "")}${r.by ? " · " + E(r.by) : ""}`
+    : `→ <span class="idc">${E(s.Output)}</span> ${E((X.art[S(s.Output)] || {}).Name || "")}`;
+  return `<div class="kc${stale ? " stale" : ""}" style="border-left-color:${TEAM_COLOR[teamOf(s)] || "#cbd5e1"}"><div class="top"><span class="idc">${E(s.SkillID)}</span><b>${E(s.Name)}</b>
+    ${stale ? '<span class="badge stale">stale</span>' : ""}${r.rework ? `<span class="badge rw">rework ×${r.rework}</span>` : ""}${st === "na" ? '<span class="badge na">n/a</span>' : ""}${st === "approved" ? (r.mem === "synced" ? '<span class="badge ok">in memory</span>' : r.mem === "pending" ? '<span class="badge mem">memory sync pending</span>' : "") : ""}</div>
+    <div class="sub">${E((personaOf(s) || {}).Name || "")} · ${sub}</div><div class="acts">${acts}</div></div>`;
+}
+function modal(html) { $("modalCard").innerHTML = html; $("modal").hidden = false; }
+function closeModal() { $("modal").hidden = true; }
+function promptModal(wi, sid, started) {
+  const s = ix().skill[sid], txt = buildPrompt(wi, sid);
+  modal(`<h2>${started ? "Started " : ""}${E(sid)} · /${E(s.Name)}</h2><p class="hint">${started ? "Copied to your clipboard. " : ""}Paste this into Claude Code${wi ? "" : ". Pick a work item in Run to fill in real input refs"}. When the agent finishes, choose <b>Record output</b> and paste its envelope.</p>
+    <pre class="code" id="mPre">${E(txt)}</pre><div class="modal-actions"><button id="mCopy">Copy prompt</button><button class="primary" id="mClose">Close</button></div>`);
+  $("mCopy").onclick = () => copyText(txt, "Prompt copied"); $("mClose").onclick = closeModal;
+  if (started) copyText(txt, "Prompt copied: paste it into Claude Code");
+}
+function recordModal(sid) {
+  const X = ix(), s = X.skill[sid], out = X.art[S(s.Output)] || {}, r = stepRec(RUN.cur, sid);
+  modal(`<h2>Record output · ${E(sid)} /${E(s.Name)}</h2>
+    <div class="frm"><label class="wide">Paste the handoff envelope (optional, fills the form)<textarea id="rEnv" placeholder='{"envelope":"harness/v1", "artifact":"${E(s.Output)}", "ref":"…", "gates":{…}}'></textarea></label>
+      <label>Artifact ref (path, URL or PR)<input id="rRef" value="${E(r.ref || fillPath(out.Path, RUN.cur))}" /></label>
+      <label>Version / commit<input id="rVer" value="${E(r.ver || "")}" placeholder="v1 or a1b2c3d" /></label>
+      <label class="wide">Notes / open questions<input id="rNotes" value="${E(r.notes || "")}" /></label></div>
+    <h3>Gates. Tick each one that passed</h3><div id="rGates">${list(s.Gates).map(g => { const G = X.gate[g] || {}; return `<label class="gchk"><input type="checkbox" data-g="${E(g)}" ${(r.gates || {})[g] === "pass" ? "checked" : ""}/><span><b>${E(g)} ${E(G.Name || "")}</b>${G.Blocking === "N" ? " <span class='hint'>(advisory)</span>" : ""}<small>${E(G.Check || "")}${G.Tool ? " · " + E(G.Tool) : ""}</small></span></label>`; }).join("") || '<p class="hint">This skill has no gates.</p>'}</div>
+    <p class="hint">${isAuto(s) ? "Auto-approve: once every blocking gate passes, the step is approved and its event fires." : `Goes to <b>Awaiting approval</b> for ${E(s.Approval)}.`}</p>
+    <div class="modal-actions"><button id="rCancel">Cancel</button><button class="primary" id="rSave">${isAuto(s) ? "Record &amp; approve" : "Record"}</button></div>`);
+  $("rEnv").oninput = () => { const t = $("rEnv").value, m = t.match(/\{[\s\S]*\}/); if (!m) return;
+    try { const j = JSON.parse(m[0]);
+      if (j.artifact && j.artifact !== S(s.Output)) toast(`Envelope is for ${j.artifact}, not ${s.Output}`, 3000);
+      if (j.ref) $("rRef").value = j.ref; if (j.version) $("rVer").value = j.version;
+      if (j.openQuestions && j.openQuestions.length) $("rNotes").value = "Open questions: " + j.openQuestions.map(q => typeof q === "string" ? q : JSON.stringify(q)).join("; ");
+      Object.entries(j.gates || {}).forEach(([g, v]) => { const c = document.querySelector(`#rGates [data-g="${g}"]`); if (c) c.checked = /^pass/i.test(String(v)); });
+      toast("Envelope parsed");
+    } catch (e) {} };
+  $("rCancel").onclick = closeModal;
+  $("rSave").onclick = () => {
+    const gates = {}; document.querySelectorAll("#rGates [data-g]").forEach(c => gates[c.dataset.g] = c.checked ? "pass" : "fail");
+    const failed = Object.entries(gates).filter(([g, v]) => v === "fail" && (X.gate[g] || {}).Blocking !== "N").map(([g]) => g);
+    if (failed.length) { toast(`Blocking gate(s) not passed: ${failed.join(", ")}. Fix the artifact and run them again`, 3600); return; }
+    closeModal(); runAct("record", sid, { ref: S($("rRef").value), ver: S($("rVer").value), notes: S($("rNotes").value), gates });
+  };
+}
+function viewModal(sid) {
+  const s = ix().skill[sid], r = stepRec(RUN.cur, sid), st = stepState(RUN.cur, sid);
+  modal(`<h2>${E(sid)} /${E(s.Name)} · ${E(ST_LABEL[st])}</h2><dl class="meta"><dt>Artifact</dt><dd><span class="idc">${E(s.Output)}</span> ${E(r.ref || "—")}${r.ver ? " @ " + E(r.ver) : ""}</dd>
+    <dt>Approved by</dt><dd>${Object.entries(r.appr || {}).map(([k, v]) => `${E(k)} <span class="hint">${E(v)}</span>`).join("<br>") || E(r.by || (isAuto(s) ? "auto (gates)" : "—"))}${approvers(s).filter(x => !(r.appr || {})[x]).length ? `<br><span class="hint">pending: ${E(approvers(s).filter(x => !(r.appr || {})[x]).join(", "))}</span>` : ""}</dd><dt>Graph memory</dt><dd>${E(r.mem || "—")}</dd><dt>Updated</dt><dd>${E(r.ts || "—")}</dd><dt>Notes</dt><dd>${E(r.notes || "—")}</dd>
+    <dt>Gates</dt><dd>${Object.entries(r.gates || {}).map(([g, v]) => `<span class="chip ${v === "pass" ? "auto" : "human"}">${E(g)}: ${E(v)}</span>`).join(" ") || "—"}</dd>
+    <dt>Next</dt><dd>${nextSkills(sid).map(x => `<span class="idc">${E(x)}</span>`).join(" ") || "terminal"}</dd></dl>
+    <h3>Envelope</h3><pre class="code">${E(JSON.stringify({ ...envelope(RUN.cur, s, r.ref), version: r.ver || "1", gates: r.gates || {}, status: st }, null, 2))}</pre>
+    <div class="modal-actions"><button class="primary" id="mClose">Close</button></div>`);
+  $("mClose").onclick = closeModal;
+}
+function newWorkItem() {
+  const n = Math.max(0, ...RUN.items.map(w => +((w.id.match(/(\d+)$/) || [, 0])[1]))) + 1, id = "WI-" + String(n).padStart(3, "0");
+  modal(`<h2>New work item ${id}</h2><div class="frm"><label class="wide">Title<input id="wTitle" placeholder="e.g. Buy now, pay later at checkout" /></label>
+    <label class="wide">Request (becomes A-REQUEST: problem, requester, business goal, deadline)<textarea id="wDesc" style="font-family:inherit;font-size:13px;min-height:90px"></textarea></label></div>
+    <div class="modal-actions"><button id="wCancel">Cancel</button><button class="primary" id="wSave">Create &amp; start</button></div>`);
+  $("wCancel").onclick = closeModal;
+  $("wSave").onclick = () => { const t = S($("wTitle").value); if (!t) { toast("Give it a title"); return; }
+    pushUndo(); RUN.items.push({ id, title: t, desc: S($("wDesc").value), created: now() }); RUN.cur = id;
+    logEv(id, "request.created", t); const r = [...readySet(id)]; if (r.length) logEv(id, "triggered", r.join(", "));
+    saveRun(); closeModal(); renderRun(); toast(`${id} created. Ready: ${r.join(", ") || "none"}`, 3000); };
+}
+
+/* ============================== REGISTRY ============================== */
+let CUR_SHEET = "Skills";
+function renderRegistry() {
+  $("sheetTabs").innerHTML = SH_ORDER.map(s => `<button data-s="${s}" class="${s === CUR_SHEET ? "active" : ""}">${s}<span class="n">${DB[s].length}</span></button>`).join("");
+  $("sheetTabs").querySelectorAll("button").forEach(b => b.onclick = () => { CUR_SHEET = b.dataset.s; renderRegistry(); });
+  $("sheetTitle").textContent = CUR_SHEET; $("sheetDesc").textContent = SH[CUR_SHEET].desc;
+  const X = ix(), dl = { Personas: Object.keys(X.persona), Agents: Object.keys(X.agent), Artifacts: Object.keys(X.art), Gates: Object.keys(X.gate) };
+  $("datalists").innerHTML = Object.entries(dl).map(([k, v]) => `<datalist id="dl-${k}">${v.map(x => `<option value="${E(x)}">`).join("")}</datalist>`).join("")
+    + `<datalist id="dl-Approval"><option value="Auto">${uniq(DB.Skills.map(s => S(s.Approval)).filter(Boolean)).map(x => `<option value="${E(x)}">`).join("")}</datalist>`;
+  renderGrid();
+}
+function renderGrid() {
+  const sh = SH[CUR_SHEET], q = S($("gridFind").value).toLowerCase();
+  const rows = DB[CUR_SHEET].filter(r => !q || sh.cols.some(c => S(r[c.key]).toLowerCase().includes(q)));
+  $("gridStats").textContent = `${rows.length} of ${DB[CUR_SHEET].length} rows`;
+  const cell = (r, c) => {
+    const v = E(r[c.key]), at = `data-r="${r._id}" data-k="${c.key}"`, w = c.w ? `style="min-width:${c.w}px"` : "";
+    if (c.opts) return `<select ${at}><option></option>${c.opts.map(o => `<option ${o === r[c.key] ? "selected" : ""}>${E(o)}</option>`).join("")}</select>`;
+    if (c.area) return `<textarea ${at}>${v}</textarea>`;
+    const l = c.ref || (c.key === "Approval" ? "Approval" : "");
+    return `<input ${at} value="${v}" ${w} ${l ? `list="dl-${l}"` : ""} ${c.multi ? `title="Comma list of ${c.multi} IDs"` : ""}/>`;
+  };
+  $("gridWrap").innerHTML = `<table><thead><tr>${sh.cols.map(c => `<th>${E(c.key)}</th>`).join("")}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${sh.cols.map(c => `<td>${cell(r, c)}</td>`).join("")}<td><button class="icon-btn" data-del="${r._id}" title="Delete row">✕</button></td></tr>`).join("")}</tbody></table>`;
+  $("gridWrap").querySelectorAll("[data-k]").forEach(el => {
+    el.onfocus = () => { el._v = el.value; };
+    el.onchange = () => { const r = DB[CUR_SHEET].find(x => x._id === el.dataset.r); if (!r || el._v === el.value) return; pushUndo(); r[el.dataset.k] = el.value; save(); el._v = el.value; };
+  });
+  $("gridWrap").querySelectorAll("[data-del]").forEach(b => b.onclick = () => { pushUndo(); DB[CUR_SHEET] = DB[CUR_SHEET].filter(r => r._id !== b.dataset.del); save(); renderGrid(); });
+}
+function addRow() {
+  const sh = SH[CUR_SHEET], re = new RegExp("^" + sh.prefix.replace(/[-]/g, "\\-") + "(\\d+)$");
+  const n = Math.max(0, ...DB[CUR_SHEET].map(r => +((S(r[sh.id]).match(re) || [, 0])[1]))) + 1;
+  pushUndo(); const r = { _id: uid() }; sh.cols.forEach(c => r[c.key] = ""); r[sh.id] = sh.prefix + String(n).padStart(2, "0");
+  if (CUR_SHEET === "Skills") r.Approval = "Auto"; if (CUR_SHEET === "Gates") r.Blocking = "Y"; if (CUR_SHEET === "Artifacts") { r.Seed = "N"; r.Terminal = "N"; }
+  DB[CUR_SHEET].unshift(r); save(); $("gridFind").value = ""; renderGrid();
+}
+
+/* =============================== CHECKS ================================ */
+let ISS = null;
+function issues() {
+  if (ISS && ISS._ix === ix()) return ISS;
+  const X = ix(), out = [], add = (sev, msg, where) => out.push({ sev, msg, where });
+  SH_ORDER.forEach(s => { const seen = {}; DB[s].forEach(r => { const id = S(r[SH[s].id]); if (!id) add("error", `${s}: a row has no ${SH[s].id}`, s); else if (seen[id]) add("error", `${s}: duplicate ID ${id}`, id); seen[id] = 1; }); });
+  DB.Personas.forEach(p => { if (!TEAMS.includes(p.Team)) add("warning", `Persona ${p.PersonaID} has no known team`, p.PersonaID); if (!DB.Agents.some(a => a.PersonaID === p.PersonaID)) add("warning", `Persona ${p.PersonaID} ${p.Name} has no agent`, p.PersonaID); if (!S(p.Accountable)) add("info", `Persona ${p.PersonaID} has no accountable human`, p.PersonaID); });
+  DB.Agents.forEach(a => { if (!X.persona[a.PersonaID]) add("error", `Agent ${a.AgentID} → unknown persona ${a.PersonaID || "(blank)"}`, a.AgentID); if (!S(a.Model)) add("warning", `Agent ${a.AgentID} has no pinned model`, a.AgentID); if (!/^[a-z0-9-]+$/.test(S(a.Name))) add("warning", `Agent ${a.AgentID} name "${a.Name}" should be kebab-case (it becomes the .claude/agents file name)`, a.AgentID); if (!DB.Skills.some(s => s.AgentID === a.AgentID)) add("info", `Agent ${a.AgentID} has no skills`, a.AgentID); });
+  const names = {};
+  DB.Skills.forEach(s => {
+    const id = s.SkillID;
+    if (!X.agent[s.AgentID]) add("error", `Skill ${id} → unknown agent ${s.AgentID || "(blank)"}`, id);
+    if (!/^[a-z0-9-]+$/.test(S(s.Name))) add("warning", `Skill ${id} name "${s.Name}" should be kebab-case (it becomes /${s.Name})`, id);
+    if (names[s.Name]) add("error", `Skills ${names[s.Name]} and ${id} share the name ${s.Name}`, id); names[s.Name] = id;
+    if (!S(s.Output)) add("error", `Skill ${id} has no output artifact`, id); else if (!X.art[S(s.Output)]) add("error", `Skill ${id} output ${s.Output} is not in Artifacts`, id);
+    if (isHook(s) && (list(s.Inputs).length || list(s.Context).length)) add("warning", `Hook skill ${id} should not declare inputs: it runs on every approval`, id);
+    if (!isHook(s) && !list(s.Inputs).length) add("warning", `Skill ${id} has no required inputs, so it can only run when a work item starts. Add A-REQUEST if that's intended.`, id);
+    list(s.Inputs).concat(list(s.Context)).forEach(a => { if (!X.art[a]) add("error", `Skill ${id} input ${a} is not in Artifacts`, id); else if (!X.producer[a] && X.art[a].Seed !== "Y") add("error", `Skill ${id} needs ${a}, but no skill produces it and it isn't a seed`, id); });
+    if (list(s.Inputs).includes(S(s.Output))) add("error", `Skill ${id} consumes its own output`, id);
+    if (!list(s.Gates).length) add("warning", `Skill ${id} has no gates, so its output can't be checked deterministically`, id);
+    list(s.Gates).forEach(g => { if (!X.gate[g]) add("error", `Skill ${id} gate ${g} is not in Gates`, id); });
+    if (!lines(s.Steps).length) add("warning", `Skill ${id} has no steps`, id);
+    if (!STAGES.includes(s.Stage)) add("info", `Skill ${id} has no stage`, id);
+    if (X.cyclic.has(id)) add("error", `Skill ${id} is in a trigger cycle, so the workflow can't complete`, id);
+  });
+  DB.Artifacts.forEach(a => {
+    const id = a.ArtifactID, pr = X.producers[id] || [], cs = (X.consumers[id] || []).concat(X.ctxConsumers[id] || []);
+    if (pr.length > 1) add("error", `Artifact ${id} is produced by several skills (${pr.join(", ")}). Each artifact needs exactly one producer.`, id);
+    if (a.Seed === "Y" && pr.length) add("warning", `Artifact ${id} is a seed but ${pr[0]} also produces it`, id);
+    if (!pr.length && a.Seed !== "Y") add("warning", `Artifact ${id} has no producer`, id);
+    if (!cs.length && a.Terminal !== "Y") add("warning", `Artifact ${id} has no consumer. Mark it Terminal if that's intended.`, id);
+    if (!S(a.Event) && a.Seed !== "Y") add("warning", `Artifact ${id} has no event`, id);
+    if (!fields(a.Fields).length) add("warning", `Artifact ${id} has no required fields (contract)`, id);
+    if (!S(a.Path)) add("info", `Artifact ${id} has no path convention`, id);
+    const hk = pr.length && isHook(X.skill[pr[0]] || {});
+    if (!hk && !S(a.Memory)) add("warning", `Artifact ${id} has no Memory mapping, so it won't be added to the common graph memory`, id);
+    memClauses(a.Memory).filter(c => c.bad).forEach(c => add("warning", `Artifact ${id} Memory clause "${c.raw}" doesn't parse (use Node(ID) -REL-> Node {props})`, id));
+  });
+  const hooks = DB.Skills.filter(isHook);
+  if (!hooks.length) add("info", "No hook skill syncs approved artifacts to the common graph memory", "Skills");
+  if (hooks.length > 1) add("warning", `Several hook skills (${hooks.map(h => h.SkillID).join(", ")}): the graph memory should have a single writer`, hooks[0].SkillID);
+  DB.Gates.forEach(g => { if (!S(g.Check)) add("warning", `Gate ${g.GateID} has no check`, g.GateID); if (!S(g.Tool)) add("info", `Gate ${g.GateID} has no tool or command`, g.GateID); if (!DB.Skills.some(s => list(s.Gates).includes(g.GateID))) add("info", `Gate ${g.GateID} is not used by any skill`, g.GateID); });
+  ISS = out; ISS._ix = X; return out;
+}
+function issueCounts() { const c = { error: 0, warning: 0, info: 0 }; issues().forEach(i => c[i.sev]++); return c; }
+function renderChecks() {
+  const all = issues(), c = issueCounts(), sev = UI.ckSev || "", q = S($("ckFind").value).toLowerCase();
+  const X = ix(), maxD = Math.max(0, ...Object.values(X.depth));
+  $("ckKpis").innerHTML = [[c.error, "errors"], [c.warning, "warnings"], [c.info, "info"], [DB.Skills.length, "skills"], [pipeline().filter(s => !isAuto(s)).length, "human reviews"], [maxD + 1, "trigger depth"]].map(([n, l]) => `<div class="kpi"><b>${n}</b><span>${l}</span></div>`).join("");
+  $("ckSev").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.s === sev));
+  const rows = all.filter(i => (!sev || i.sev === sev) && (!q || (i.msg + i.where).toLowerCase().includes(q)));
+  $("ckOut").innerHTML = rows.map(i => `<div class="iss sev-${i.sev}"><span class="sev-dot"></span><span>${E(i.msg)}</span><span class="where idc ${X.skill[i.where] ? "lnk" : ""}" data-w="${E(i.where)}">${E(i.where)}</span></div>`).join("") || '<div class="note ok">No issues. Every input has one producer, the graph is acyclic and every skill is gated.</div>';
+  $("ckOut").querySelectorAll(".lnk[data-w]").forEach(x => x.onclick = () => gotoSkill(x.dataset.w));
+}
+
+/* ============================ ORCHESTRATION ============================ */
+const OPTIONS = [
+  ["Temporal", "Durable workflow-as-code (Go, Java, TS, Python, .NET)", "Signals and updates: a workflow waits days for an approval, then resumes", "Event-sourced history; retries, timeouts and child workflows per work item", "Work item = workflow, skill = activity calling the Claude Agent SDK, approval = signal, reopen = cancel and re-run downstream activities. Recommended for phase 2.", 1],
+  ["LangGraph", "Agent graph with checkpointers (Python / JS)", "interrupt() pauses a node for human input", "Checkpoints per thread (Postgres/Redis); good inside one long agent session", "Natural if your team builds in Python and wants the graph and the agents in one place. Weaker as a company-wide process engine spanning weeks and many repos.", 0],
+  ["GitHub Actions + Claude Code headless", "Repo-native events: PR merged, label, path filter", "Required reviewers / environments as the approval", "State lives in git (artifacts + envelopes); no cross-run memory", "Lowest-effort first step: merging an artifact PR is the approval event; a workflow per route runs `claude -p` with the skill prompt and posts the envelope. Recommended for phase 1.", 1],
+  ["Camunda 8 (BPMN)", "BPMN process models with user tasks", "First-class human task lists and forms", "Durable process state, timers, escalation", "Fits when product and governance teams need to see and edit the process diagram. Heavier modelling overhead.", 0],
+  ["AWS Step Functions", "Managed state machines (JSON/ASL)", "waitForTaskToken callback for approvals", "Managed; standard workflows run up to a year", "Good if you're AWS-native; the AND-joins and reruns are more verbose than in code-first engines.", 0],
+  ["Argo Workflows / Tekton", "Kubernetes-native DAGs of containers", "Suspend steps; approval is basic", "Workflow CRDs in the cluster", "Strong for the gate and build side (container per gate). Pair it with a different engine for long human waits.", 0],
+];
+function renderOrch() {
+  $("orPhases").innerHTML = `<div class="phase"><b>Phase 0 · Manual (now)</b><p>This page is the control plane. A person starts each ready skill, pastes the pinned prompt into Claude Code, records the envelope and approves.</p><ul><li>State: browser + exported .xlsx</li><li>Events: the Run log</li><li>Good for proving the contracts and gates</li></ul></div>
+    <div class="phase"><b>Phase 1 · Git-event driven</b><p>Artifacts live in the repo at their path conventions. Merging an artifact PR is the approval and emits its event.</p><ul><li>One CI workflow per route (table below), triggered on path filters</li><li><code>claude -p "/&lt;skill&gt; …" --output-format json</code> runs headless with the agent's tools</li><li>Gates run as CI jobs. The envelope is committed next to the artifact</li><li>A post-merge job runs <code>/sync-graph-memory</code>, commits the delta and loads it into the graph</li></ul></div>
+    <div class="phase"><b>Phase 2 · Durable orchestrator</b><p>A workflow engine owns state per work item: AND-joins, human waits with SLAs, retries, timeouts, reruns of stale steps and parallel work items.</p><ul><li>Load <code>harness.workflow.json</code> (right)</li><li>Each task calls the Claude Agent SDK with the agent definition and the skill</li><li>The engine verifies the envelope and re-runs the gates before it emits the next event</li><li>The memory upsert is an activity between approval and <code>memory.synced</code>. A reopen triggers a compensating retract</li></ul></div>`;
+  $("orTable").innerHTML = `<thead><tr><th>Option</th><th>Model</th><th>Human in the loop</th><th>Durability / state</th><th>Fit for this harness</th></tr></thead><tbody>${OPTIONS.map(o => `<tr class="${o[5] ? "rec" : ""}"><td><b>${E(o[0])}</b>${o[5] ? ' <span class="chip auto">recommended</span>' : ""}</td><td>${E(o[1])}</td><td>${E(o[2])}</td><td>${E(o[3])}</td><td>${E(o[4])}</td></tr>`).join("")}</tbody>`;
+  const X = ix();
+  const routes = DB.Artifacts.filter(a => (X.consumers[a.ArtifactID] || []).length).map(a => [a.Event || a.ArtifactID + ".approved", X.producer[a.ArtifactID] || (a.Seed === "Y" ? "seed" : "—"), a.ArtifactID,
+    (X.consumers[a.ArtifactID] || []).map(sid => { const n = list(X.skill[sid].Inputs).length; return n > 1 ? `${sid} (waits for all ${n})` : sid; }).join(", ")]);
+  DB.Skills.filter(isHook).forEach(h => { routes.unshift(["*.reopened", "any skill", "any artifact", `${h.SkillID} (retract in graph memory)`]); routes.unshift(["*.approved", "any skill", "any artifact", `${h.SkillID} (upsert into graph memory)`]); });
+  if (memGate()) routes.push(["memory.synced", memHook().SkillID || "—", S(memHook().Output) || "—", "releases each subscription above for that artifact: skills wait for <artifact>.approved AND its memory.synced"]);
+  ROUTES = routes;
+  $("orRoutes").innerHTML = `<thead><tr><th>Event</th><th>Emitted by</th><th>Artifact</th><th>Subscribed skills</th></tr></thead><tbody>${routes.map(r => `<tr><td><span class="chip ev">${E(r[0])}</span></td><td><span class="idc">${E(r[1])}</span></td><td><span class="idc">${E(r[2])}</span> ${E((X.art[r[2]] || {}).Name || "")}</td><td>${E(r[3])}</td></tr>`).join("")}</tbody>`;
+  const f = $("orFile"), cur = f.value;
+  f.innerHTML = `<optgroup label="Agents">${DB.Agents.map(a => `<option value="a:${E(a.AgentID)}">.claude/agents/${E(a.Name)}.md</option>`).join("")}</optgroup><optgroup label="Skills">${DB.Skills.slice().sort(bySkillOrder).map(s => `<option value="s:${E(s.SkillID)}">.claude/skills/${E(s.Name)}/SKILL.md</option>`).join("")}</optgroup>`;
+  if (cur && [...f.options].some(o => o.value === cur)) f.value = cur;
+  renderOrFile();
+  $("orMan").textContent = JSON.stringify(manifest(), null, 2);
+}
+let ROUTES = [];
+function orFileText() { const v = $("orFile").value || "", X = ix(); if (v.startsWith("a:")) return X.agent[v.slice(2)] ? agentMd(X.agent[v.slice(2)]) : ""; if (v.startsWith("s:")) return X.skill[v.slice(2)] ? skillMd(X.skill[v.slice(2)]) : ""; return ""; }
+function renderOrFile() { $("orPre").textContent = orFileText(); }
+
+/* ============================ KDD scoring ============================ */
+const KDD_CRIT = [["P", "Product priority", "Business value, MoSCoW priority, time to market. 5 = highest value"], ["E", "Engineering effort", "Build effort, complexity, dependencies, skills. 5 = least effort"], ["T", "Ops TCO (3-year)", "Infra, licences, support and on-call toil. 5 = lowest cost"]];
+function kddState() {
+  const k = UI.kdd = UI.kdd || {};
+  k.w = k.w || { P: 35, E: 30, T: 35 };
+  k.opts = k.opts || [{ name: "A: extend the existing checkout service", P: 4, E: 4, T: 3, dev: false }, { name: "B: new payments-vault service + events", P: 4, E: 2, T: 4, dev: false }, { name: "C: PSP-hosted vault (SaaS)", P: 4, E: 5, T: 3, dev: true }];
+  return k;
+}
+const kddScore = (k, o) => { const W = (k.w.P + k.w.E + k.w.T) || 1; return (k.w.P * o.P + k.w.E * o.E + k.w.T * o.T) / W; };
+function kddCalc() {
+  const k = kddState(), W = k.w.P + k.w.E + k.w.T, sc = k.opts.map(o => kddScore(k, o)), best = sc.length ? sc.indexOf(Math.max(...sc)) : -1, win = k.opts[best];
+  return `<div class="wide kdd-calc" id="kddCalc"><h4>KDD scoring model (try it)</h4>
+    <p>Score each option 1–5 on the three major criteria (5 is always the best outcome). The weights are program policy: set them once and use them for every KDD. Risk, reversibility and strategic fit only break ties. An option that deviates from the target architecture or a standard needs a <b>dispensation</b> (DSP-nn with an owner and an expiry), which TD-01 turns into a tech-debt ticket.</p>
+    <div style="overflow:auto"><table class="sum-table"><thead><tr><th>Option</th>${KDD_CRIT.map(([c, n, h]) => `<th title="${E(h)}">${E(n)}<br><span class="hint">weight <input type="number" min="0" max="100" data-kw="${c}" value="${k.w[c]}"/> %</span></th>`).join("")}<th>Deviates?</th><th>Weighted (of 5)</th><th></th></tr></thead><tbody>
+    ${k.opts.map((o, i) => `<tr class="${i === best ? "win" : ""}"><td><input type="text" data-ko="${i}" data-f="name" value="${E(o.name)}"/></td>${KDD_CRIT.map(([c]) => `<td><input type="number" min="1" max="5" data-ko="${i}" data-f="${c}" value="${o[c]}"/></td>`).join("")}<td><input type="checkbox" data-ko="${i}" data-f="dev" ${o.dev ? "checked" : ""}/></td><td><b>${sc[i].toFixed(2)}</b>${i === best ? " ✓" : ""}</td><td><button class="icon-btn" data-kdel="${i}" title="Remove option">✕</button></td></tr>`).join("")}</tbody></table></div>
+    <div class="toolbar-inline" style="margin:8px 0 0"><button class="copy-btn" id="kddAdd">+ Option</button><button class="copy-btn" id="kddMd">Copy as KDD table (Markdown)</button>
+      <span class="hint">${W !== 100 ? `<b style="color:var(--bad)">The weights add up to ${W}%, not 100%.</b> ` : ""}Highest score: <b>${E(win ? win.name : "—")}</b>${win && win.dev ? " → needs a dispensation (DSP-nn) and a tech-debt ticket from TD-01" : ""}</span></div></div>`;
+}
+function kddMarkdown() {
+  const k = kddState(), sc = k.opts.map(o => kddScore(k, o)), best = sc.indexOf(Math.max(...sc));
+  return [`| Option | Product priority (${k.w.P}%) | Engineering effort (${k.w.E}%) | Ops TCO 3y (${k.w.T}%) | Deviates | Weighted |`, "|---|---|---|---|---|---|",
+    ...k.opts.map((o, i) => `| ${o.name}${i === best ? " **(chosen)**" : ""} | ${o.P} | ${o.E} | ${o.T} | ${o.dev ? "yes → DSP-nn" : "no"} | ${sc[i].toFixed(2)} |`)].join("\n");
+}
+function wireKdd() {
+  const box = $("kddCalc"); if (!box) return;
+  const k = kddState(), redo = () => { saveUI(); $("kddCalc").outerHTML = kddCalc(); wireKdd(); };
+  box.querySelectorAll("[data-kw]").forEach(x => x.onchange = () => { k.w[x.dataset.kw] = Math.max(0, +x.value || 0); redo(); });
+  box.querySelectorAll("[data-ko]").forEach(x => x.onchange = () => { const o = k.opts[+x.dataset.ko], f = x.dataset.f; o[f] = f === "name" ? x.value : f === "dev" ? x.checked : Math.min(5, Math.max(1, +x.value || 1)); redo(); });
+  box.querySelectorAll("[data-kdel]").forEach(x => x.onclick = () => { k.opts.splice(+x.dataset.kdel, 1); redo(); });
+  $("kddAdd").onclick = () => { k.opts.push({ name: "Option " + String.fromCharCode(65 + k.opts.length), P: 3, E: 3, T: 3, dev: false }); redo(); };
+  $("kddMd").onclick = () => copyText(kddMarkdown(), "KDD table copied");
+}
+
+/* ============================ GRAPH MEMORY ============================ */
+const PROC_LANES = ["Skill agent", "Gates & reviewers", "Harness (runner / orchestrator)", "Memory steward (MEM-01)", "Graph store", "Consuming agents"];
+const PROC_NODES = [
+  ["r1", 1, 0, "Artifact reopened", "rework after approval", "r"], ["r2", 2, 1, "Queue retract op", "it + stale downstream", "r"], ["r3", 4, 2, "Retract nodes", "status = retracted, valid_to", "r"],
+  ["n1", 0, 0, "Produce artifact", "1 artifact + envelope"], ["n2", 1, 1, "Gates + review", "code checks · all reviewers"], ["n3", 2, 2, "Queue upsert op", "artifact@version · provenance"],
+  ["n4", 3, 3, "Extract nodes & edges", "only the Memory mapping"], ["n5", 3, 4, "Validate delta", "schema · IDs · PII · dangling"], ["n6", 4, 5, "Upsert (idempotent)", "key: type + id + work item"],
+  ["n7", 4, 6, "Supersede old version", "valid_to · SUPERSEDES edge"], ["n8", 2, 7, "Trigger next skills", "AND-join on memory.synced"], ["n9", 5, 8, "Query memory (read-only)", "MCP graph-memory, scoped", "a"],
+];
+const PROC_EDGES = [["n1", "n2", "envelope"], ["n2", "n3", "<artifact>.approved"], ["n3", "n4", ""], ["n4", "n5", ""], ["n5", "n6", "pass"], ["n6", "n7", ""], ["n7", "n8", "memory.synced"], ["n8", "n9", "next skill starts"],
+  ["n5", "n4", "fail: fix the delta or escalate", "back"], ["r1", "r2", "<artifact>.reopened", "r"], ["r2", "r3", "memory.retracted", "r"]];
+let PROC_SVG = "";
+function drawProcess() {
+  const LW = 150, CW = 178, NW = 150, NH = 46, LH = 74, TOP = 34, pos = {};
+  PROC_NODES.forEach(([id, lane, col]) => pos[id] = { x: LW + col * CW + 14, y: TOP + lane * LH + (LH - NH) / 2 });
+  const W = LW + 9 * CW + 14, H = TOP + PROC_LANES.length * LH + 8;
+  let g = `<svg xmlns="http://www.w3.org/2000/svg" class="wf proc" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+    <defs><marker id="pah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker>
+    <marker id="pahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/></marker></defs>`;
+  PROC_LANES.forEach((l, i) => g += `<rect class="lane${i % 2 ? " alt" : ""}" x="0" y="${TOP + i * LH}" width="${W}" height="${LH}"/><text class="lanel" x="12" y="${TOP + i * LH + LH / 2 + 4}" fill="#475569">${E(l)}</text>`);
+  g += `<text class="colh" x="${LW + 14}" y="20">UPDATE PATH (LEFT TO RIGHT) · RETRACT PATH IN RED</text>`;
+  const lbl = (x, y, t, red) => t ? `<text class="elbl" x="${x}" y="${y}" text-anchor="middle" style="paint-order:stroke;stroke:#fff;stroke-width:3px${red ? ";fill:#b91c1c" : ""}">${E(t)}</text>` : "";
+  PROC_EDGES.forEach(([f, t, label, kind]) => {
+    const A = pos[f], B = pos[t];
+    if (kind === "back") { const xa = A.x + NW / 2, xb = B.x + NW / 2, y = A.y;
+      g += `<path class="edge back" d="M${xa},${y} C${xa},${y - 26} ${xb},${y - 26} ${xb},${y}" marker-end="url(#pahr)"/>` + lbl((xa + xb) / 2, y - 22, label, 1); return; }
+    const x1 = A.x + NW, y1 = A.y + NH / 2, x2 = B.x, y2 = B.y + NH / 2, dx = Math.max(24, (x2 - x1) / 2);
+    g += `<path class="edge${kind === "r" ? " back" : ""}" style="${kind === "r" ? "" : "stroke:#64748b;opacity:1;stroke-width:1.5"}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}" marker-end="url(#${kind === "r" ? "pahr" : "pah"})"/>`;
+    g += lbl((x1 + x2) / 2, (y1 + y2) / 2 - 6, label, kind === "r");
+  });
+  PROC_NODES.forEach(([id, , , t, s, k]) => { const p = pos[id], c = k === "r" ? "#dc2626" : k === "a" ? "#2563eb" : "#7048e8";
+    g += `<g class="node" transform="translate(${p.x},${p.y})"><rect class="box" width="${NW}" height="${NH}" rx="7"/><rect width="4" height="${NH}" rx="2" fill="${c}"/><text class="t" x="11" y="19">${E(t)}</text><text class="s" x="11" y="34">${E(s)}</text></g>`; });
+  g += `</svg>`;
+  PROC_SVG = g;
+  const w = $("mmProc"); w.innerHTML = g; w.classList.toggle("fit", UI.memFit !== false); $("mmFit").textContent = UI.memFit !== false ? "Actual size" : "Fit to view";
+}
+const MEM_RULES = [
+  ["Single writer", "Only the memory steward (MEM-01) writes. Every other agent reads through the <code>graph-memory</code> MCP server with a read-only scope."],
+  ["Approved artifacts only", "Drafts and rejected outputs never reach the graph. Ingestion starts from <code>&lt;artifact&gt;.approved</code>, so memory holds only what was signed off."],
+  ["Mapping is the contract", "Each artifact's Memory mapping lists exactly which node and edge types it may write. The validator rejects anything else."],
+  ["Idempotent upsert", "Nodes are keyed by (type, id, work item), and edges by (from, relation, to). Ingesting the same artifact version twice changes nothing."],
+  ["Versioned, never overwritten", "A new artifact version supersedes the previous nodes (<code>valid_to</code> and a SUPERSEDES edge), so agents can ask what was believed at release time."],
+  ["Provenance on every fact", "Each node and edge carries the artifact ref@version, skill, agent, model, approver and timestamp, so an agent can open the source behind any fact."],
+  ["Retract on reopen", "Reopening an artifact queues a retract. Its nodes become <code>status=retracted</code>, and downstream steps go stale until they run again."],
+  ["Memory gates triggers", "With <em>Trigger only after memory sync</em> on, the next skills fire on <code>memory.synced</code>, not on approval, so no agent queries a graph that's missing its inputs."],
+  ["No raw PII or secrets", "Only IDs, names, decisions and relations go in. Attributes classified as PII in the data model are stored as references, never values."],
+  ["Store", "Phase 0: delta files in git (<code>memory/{wi}/*.delta.json</code>) merged into <code>memory/graph.jsonl</code>. Later: a graph database (e.g. Neo4j or Memgraph) behind an MCP server, rebuilt by replaying the deltas."],
+];
+function renderMemory() {
+  drawProcess();
+  $("mmRules").innerHTML = MEM_RULES.map(([t, d]) => `<div><b>${E(t)}</b><p>${d}</p></div>`).join("");
+  const { nodes, edges } = memSchema(), X = ix(), ids = s => [...s].map(a => `<span class="idc">${E(a)}</span>`).join(" ");
+  $("mmNodes").innerHTML = `<thead><tr><th>Node type</th><th>ID pattern</th><th>Written from</th></tr></thead><tbody>${Object.keys(nodes).sort().map(n => `<tr><td><b>${E(n)}</b></td><td>${ids(nodes[n].ids) || '<span class="hint">—</span>'}</td><td>${ids(nodes[n].arts) || '<span class="hint">referenced only</span>'}</td></tr>`).join("")}</tbody>`;
+  $("mmEdges").innerHTML = `<thead><tr><th>From</th><th>Relation</th><th>To</th><th>Written from</th></tr></thead><tbody>${Object.values(edges).sort((a, b) => a.rel.localeCompare(b.rel)).map(e => `<tr><td>${E(e.from)}</td><td><code>${E(e.rel)}</code>${e.props ? ` <span class="hint">${E(e.props)}</span>` : ""}</td><td>${E(e.to)}</td><td>${ids(e.arts)}</td></tr>`).join("")}</tbody>`;
+  $("mmMap").innerHTML = `<thead><tr><th>Artifact</th><th>Producer</th><th>Ingested on</th><th>Memory mapping</th></tr></thead><tbody>${DB.Artifacts.map(a => `<tr><td><span class="idc">${E(a.ArtifactID)}</span> ${E(a.Name)}</td><td>${E(X.producer[a.ArtifactID] || (a.Seed === "Y" ? "seed" : "—"))}</td><td><span class="chip ev">${E(a.Event)}</span></td><td>${S(a.Memory) ? memClauses(a.Memory).map(c => `<div${c.bad ? ' style="color:var(--bad)"' : ""}>${E(c.raw)}</div>`).join("") : '<span class="hint">not added to memory</span>'}</td></tr>`).join("")}</tbody>`;
+  const wi = RUN.items.some(w => w.id === UI.memWi) ? UI.memWi : RUN.cur;
+  $("mmWi").innerHTML = RUN.items.map(w => `<option value="${E(w.id)}" ${w.id === wi ? "selected" : ""}>${E(w.id)} · ${E(trunc(w.title, 40))}</option>`).join("") || "<option>No work items</option>";
+  if (!wi) { $("mmState").innerHTML = '<p class="hint">No work items yet.</p>'; return; }
+  const q = memOps(wi), syn = pipeline().filter(s => stepRec(wi, s.SkillID).mem === "synced"), pend = q.filter(o => o.st === "pending"), ret = q.filter(o => o.op === "retract" && o.st === "done");
+  $("mmState").innerHTML = `<div class="kpis"><div class="kpi"><b>${syn.length + 1}</b><span>artifacts in memory</span></div><div class="kpi"><b>${pend.length}</b><span>ops pending</span></div><div class="kpi"><b>${ret.length}</b><span>retractions</span></div><div class="kpi"><b>${memGate() ? "on" : "off"}</b><span>trigger on sync</span></div></div>
+    <div class="chips"><span class="chip auto">A-REQUEST <small>WorkItem ${E(wi)}</small></span>${syn.map(s => { const r = stepRec(wi, s.SkillID); return `<span class="chip auto">${E(s.Output)} <small>${E(r.ref || "")}${r.ver ? "@" + E(r.ver) : ""}</small></span>`; }).join("")}${pend.map(o => `<span class="chip human">${E(o.op)} ${E(o.art)} <small>pending</small></span>`).join("")}</div>`;
+}
+function memPromptModal(wi, opId) {
+  const o = memOps(wi).find(x => x.id === opId); if (!o) return;
+  const txt = buildMemPrompt(wi, o);
+  modal(`<h2>Graph memory ${E(o.op)} · ${E(o.art)}</h2><p class="hint">Paste this into Claude Code. When the steward reports that every gate passed, choose <b>Mark synced</b>.</p><pre class="code">${E(txt)}</pre>
+    <div class="modal-actions"><button id="mCopy">Copy prompt</button><button class="primary" id="mSync">Mark synced</button><button id="mClose">Close</button></div>`);
+  $("mCopy").onclick = () => copyText(txt, "Prompt copied"); $("mClose").onclick = closeModal;
+  $("mSync").onclick = () => { closeModal(); runAct("sync", opId); };
+}
+
+/* =========================== import / export =========================== */
+function exportXlsx() {
+  const wb = XLSX.utils.book_new();
+  SH_ORDER.forEach(s => { const cols = SH[s].cols.map(c => c.key), ws = XLSX.utils.json_to_sheet(DB[s].map(r => Object.fromEntries(cols.map(k => [k, r[k] == null ? "" : r[k]]))), { header: cols });
+    ws["!cols"] = SH[s].cols.map(c => ({ wch: Math.max(12, Math.round((c.w || (c.area ? 320 : 120)) / 7)) })); XLSX.utils.book_append_sheet(wb, ws, s); });
+  const wiCols = ["WorkItemID", "Title", "Request", "Created"], stCols = ["WorkItemID", "SkillID", "Status", "Ref", "Version", "Gates", "ApprovedBy", "Approvals", "Memory", "Rework", "Notes", "Updated"];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(RUN.items.map(w => ({ WorkItemID: w.id, Title: w.title, Request: w.desc, Created: w.created })), { header: wiCols }), "WorkItems");
+  const st = []; Object.entries(RUN.steps).forEach(([wi, m]) => Object.entries(m).forEach(([sid, r]) => st.push({ WorkItemID: wi, SkillID: sid, Status: r.st || "", Ref: r.ref || "", Version: r.ver || "", Gates: Object.entries(r.gates || {}).map(([g, v]) => g + "=" + v).join(", "), ApprovedBy: r.by || "", Approvals: Object.entries(r.appr || {}).map(([k, v]) => k + "@" + v).join(" | "), Memory: r.mem || "", Rework: r.rework || "", Notes: r.notes || "", Updated: r.ts || "" })));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(st, { header: stCols }), "RunSteps");
+  const mo = []; Object.entries(RUN.memq || {}).forEach(([wi, q]) => q.forEach(o => mo.push({ WorkItemID: wi, OpID: o.id, Op: o.op, Artifact: o.art, SkillID: o.sid, Ref: o.ref, Version: o.ver, Status: o.st, Queued: o.ts, Done: o.done || "" })));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mo, { header: ["WorkItemID", "OpID", "Op", "Artifact", "SkillID", "Ref", "Version", "Status", "Queued", "Done"] }), "MemoryOps");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(RUN.log.map(l => ({ Time: l.ts, WorkItemID: l.wi, Event: l.ev, Detail: l.detail })), { header: ["Time", "WorkItemID", "Event", "Detail"] }), "RunLog");
+  XLSX.writeFile(wb, "HarnessPlaybook.xlsx"); toast("Exported HarnessPlaybook.xlsx");
+}
+function importXlsx(file) {
+  const rd = new FileReader();
+  rd.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" }), norm = x => x.replace(/\s+/g, "").toLowerCase(), sheet = n => { const k = wb.SheetNames.find(x => norm(x) === norm(n)); return k ? XLSX.utils.sheet_to_json(wb.Sheets[k], { defval: "", raw: false }) : null; };
+      const db = emptyDB(); let found = 0;
+      SH_ORDER.forEach(s => { const rows = sheet(s); if (!rows) return; found++;
+        db[s] = rows.map(row => { const o = {}; SH[s].cols.forEach(c => { const k = Object.keys(row).find(x => norm(x) === norm(c.key)); o[c.key] = k ? String(row[k]) : ""; }); return o; }).filter(o => Object.values(o).some(v => S(v))); });
+      if (!found) { toast("No Personas / Agents / Skills / Artifacts / Gates sheets found"); return; }
+      pushUndo(); DB = ensureIds(db);
+      const wis = sheet("WorkItems"), sts = sheet("RunSteps"), lg = sheet("RunLog");
+      if (wis) {
+        RUN = { memq: {}, items: wis.map(w => ({ id: S(w.WorkItemID), title: S(w.Title), desc: S(w.Request), created: S(w.Created) })).filter(w => w.id), steps: {}, log: [], cur: "" };
+        (sts || []).forEach(r => { const wi = S(r.WorkItemID), sid = S(r.SkillID); if (!wi || !sid) return; RUN.steps[wi] = RUN.steps[wi] || {};
+          RUN.steps[wi][sid] = { st: S(r.Status), ref: S(r.Ref), ver: S(r.Version), by: S(r.ApprovedBy), rework: +r.Rework || 0, mem: S(r.Memory), appr: Object.fromEntries(S(r.Approvals).split("|").map(S).filter(Boolean).map(x => { const i = x.indexOf("@"); return i < 0 ? [x, ""] : [x.slice(0, i), x.slice(i + 1)]; })), notes: S(r.Notes), ts: S(r.Updated), gates: Object.fromEntries(list(r.Gates).map(x => x.split("=").map(S))) }; });
+        (sheet("MemoryOps") || []).forEach(o => { const wi = S(o.WorkItemID); if (!wi) return; (RUN.memq[wi] = RUN.memq[wi] || []).push({ id: S(o.OpID) || uid(), op: S(o.Op), art: S(o.Artifact), sid: S(o.SkillID), ref: S(o.Ref), ver: S(o.Version), st: S(o.Status), ts: S(o.Queued), done: S(o.Done) }); });
+        RUN.log = (lg || []).map(l => ({ ts: S(l.Time), wi: S(l.WorkItemID), ev: S(l.Event), detail: S(l.Detail) }));
+        RUN.cur = (RUN.items[0] || {}).id || "";
+      }
+      save(); saveRun(); renderAll(); toast(`Loaded ${file.name}`);
+    } catch (err) { toast("Could not read the workbook: " + err.message, 3500); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+/* ================================ shell ================================ */
+const VIEWS = { playbook: renderPlaybook, flow: renderFlow, run: renderRun, memory: renderMemory, registry: renderRegistry, orch: renderOrch, checks: renderChecks };
+function showView(v) {
+  if (!VIEWS[v]) v = "playbook";
+  UI.view = v; saveUI(); try { history.replaceState(null, "", "#" + v); } catch (e) {}
+  document.querySelectorAll("#nav button[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  document.querySelectorAll("main .view").forEach(s => s.classList.toggle("active", s.id === "view-" + v));
+  VIEWS[v]();
+}
+function renderAll() { setStatus(); showView(UI.view || "playbook"); }
+function wire() {
+  document.querySelectorAll("#nav button[data-view]").forEach(b => b.onclick = () => showView(b.dataset.view));
+  $("chromeToggle").onclick = () => { document.body.classList.toggle("chrome-collapsed"); $("chromeToggle").textContent = document.body.classList.contains("chrome-collapsed") ? "▸ Toolbar" : "▾ Toolbar"; };
+  $("fileInput").onchange = e => { const f = e.target.files[0]; if (f) importXlsx(f); e.target.value = ""; };
+  $("exportBtn").onclick = exportXlsx;
+  $("seedBtn").onclick = () => { if (DB.Skills.length && !confirm("Replace the catalog with the SDLC example? Runs are kept. (Ctrl/⌘+Z undoes)")) return; pushUndo(); DB = ensureIds(exampleCatalog()); if (!RUN.items.length) RUN = exampleRun(); save(); saveRun(); renderAll(); toast("Example loaded"); };
+  $("clearBtn").onclick = () => { if (!confirm("Clear the catalog and every run? (Ctrl/⌘+Z undoes)")) return; pushUndo(); DB = emptyDB(); RUN = { items: [], steps: {}, log: [], memq: {}, cur: "" }; save(); saveRun(); renderAll(); };
+  $("guideBtn").onclick = () => { UI.pb = "_how"; showView("playbook"); };
+  $("modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !$("modal").hidden) closeModal();
+    if ((e.ctrlKey || e.metaKey) && e.key === "z" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); undo(); }
+  });
+  // workflow
+  $("flTeam").onchange = () => { UI.flowTeam = $("flTeam").value; saveUI(); renderFlow(); };
+  $("flWi").onchange = () => { UI.flowWi = $("flWi").value; saveUI(); renderFlow(); };
+  $("flFit").onclick = () => { UI.flowFit = UI.flowFit !== true; saveUI(); renderFlow(); };
+  $("flSvg").onclick = () => download(FLOW_SVG.replace("<svg ", '<svg style="font-family:Helvetica,Arial,sans-serif" '), "harness-workflow.svg", "image/svg+xml");
+  $("flMmd").onclick = () => copyText(mermaid(), "Mermaid copied");
+  // run
+  $("rnWi").onchange = () => { RUN.cur = $("rnWi").value; saveRun(); renderRun(); };
+  $("rnTeam").onchange = () => { UI.runTeam = $("rnTeam").value; saveUI(); renderRun(); };
+  $("rnNew").onclick = newWorkItem;
+  $("rnDel").onclick = () => { const w = curWi(); if (!w || !confirm(`Delete ${w.id} and its run history? (Ctrl/⌘+Z undoes)`)) return; pushUndo();
+    RUN.items = RUN.items.filter(x => x.id !== w.id); delete RUN.steps[w.id]; delete RUN.memq[w.id]; RUN.log = RUN.log.filter(l => l.wi !== w.id); RUN.cur = (RUN.items[0] || {}).id || ""; saveRun(); renderRun(); };
+  $("rnWaitToggle").onclick = () => { UI.showWait = !UI.showWait; saveUI(); renderRun(); };
+  $("rnLogCsv").onclick = () => copyText(toCSV([["Time", "WorkItem", "Event", "Detail"], ...RUN.log.filter(l => l.wi === RUN.cur).map(l => [l.ts, l.wi, l.ev, l.detail])]));
+  $("rnMemGate").onchange = () => { UI.memGate = $("rnMemGate").checked; saveUI(); renderRun(); toast(UI.memGate ? "Skills now trigger on memory.synced" : "Skills now trigger on approval"); };
+  $("rnMemAll").onclick = () => runAct("syncAll");
+  // graph memory
+  $("mmFit").onclick = () => { UI.memFit = UI.memFit === false; saveUI(); drawProcess(); };
+  $("mmSvg").onclick = () => download(PROC_SVG.replace("<svg ", '<svg style="font-family:Helvetica,Arial,sans-serif" '), "graph-memory-process.svg", "image/svg+xml");
+  $("mmWi").onchange = () => { UI.memWi = $("mmWi").value; saveUI(); renderMemory(); };
+  $("mmGo").onclick = () => { if (UI.memWi) RUN.cur = UI.memWi; showView("run"); };
+  $("mmCsv").onclick = () => copyText(toCSV([["ArtifactID", "Name", "Producer", "Event", "Memory"], ...DB.Artifacts.map(a => [a.ArtifactID, a.Name, ix().producer[a.ArtifactID] || "", a.Event, a.Memory])]));
+  // registry
+  $("addRow").onclick = addRow;
+  $("gridFind").oninput = renderGrid;
+  $("gridCsv").onclick = () => { const cols = SH[CUR_SHEET].cols.map(c => c.key); copyText(toCSV([cols, ...DB[CUR_SHEET].map(r => cols.map(k => r[k]))])); };
+  // orchestration
+  $("orFile").onchange = renderOrFile;
+  $("orCopy").onclick = () => copyText(orFileText());
+  $("orSh").onclick = () => download(scaffoldSh(), "scaffold-harness.sh", "text/x-shellscript");
+  $("orManCopy").onclick = () => copyText(JSON.stringify(manifest(), null, 2));
+  $("orManDl").onclick = () => download(JSON.stringify(manifest(), null, 2), "harness.workflow.json", "application/json");
+  $("orRouteCsv").onclick = () => copyText(toCSV([["Event", "EmittedBy", "Artifact", "Subscribers"], ...ROUTES]));
+  // checks
+  $("ckSev").querySelectorAll("button").forEach(b => b.onclick = () => { UI.ckSev = b.dataset.s; saveUI(); renderChecks(); });
+  $("ckFind").oninput = renderChecks;
+}
+
+/* ============================ example catalog ============================ */
+function exampleCatalog() {
+  const P = (PersonaID, Team, Name, Accountable, Description) => ({ PersonaID, Team, Name, Accountable, Description });
+  const AG = (AgentID, PersonaID, Name, Model, Tools, MCP, Description) => ({ AgentID, PersonaID, Name, Model, Tools, MCP, Description });
+  const A = (ArtifactID, Name, Format, Path, Fields, Event, Seed, Terminal) => ({ ArtifactID, Name, Format, Path, Fields, Event, Seed: Seed || "N", Terminal: Terminal || "N" });
+  const G = (GateID, Name, Kind, Check, Tool, Blocking) => ({ GateID, Name, Kind, Check, Tool, Blocking: Blocking || "Y" });
+  const K = (SkillID, AgentID, Name, Stage, Purpose, Inputs, Context, Output, Steps, Gates, Approval) => ({ SkillID, AgentID, Name, Stage, Purpose, Inputs, Context, Output, Steps: Steps.join("\n"), Gates, Approval: Approval || "Auto", Mode: "Pipeline" });
+  const OP = "claude-opus-5-5", SO = "claude-sonnet-5-5", DOC = "Read, Write, Edit, Grep, Glob", CODE = "Read, Write, Edit, Bash, Grep, Glob";
+  const db = {
+    Personas: [
+      P("P-PM", "Product", "Product Manager", "Product Owner", "Owns the problem, the outcomes and the scope. Turns a business request into a brief, a PRD and sliced stories, accepts the release and reviews the outcomes against the targets."),
+      P("P-PD", "Product", "Product Designer", "Design Lead", "Owns the experience: journeys, screen specifications with every state, and the tokens and component specs that engineering builds."),
+      P("P-SA", "Architecture", "Solution Architect", "Lead Solution Architect", "Drives the design from key design decisions (KDDs) scored on product priority, engineering effort and ops TCO, then shapes the solution, refines it with ADRs, sets NFRs and breaks it into contract-first engineering work."),
+      P("P-DA", "Architecture", "Data Architect", "Data Governance Lead", "Owns the data model, classification and lineage: systems of record, keys and source-to-target mappings."),
+      P("P-IA", "Architecture", "Integration Architect", "Integration Architect Lead", "Owns how systems talk: the integration catalog (REST, GraphQL, Kafka, gRPC), its rules, and the conformance review of every contract."),
+      P("P-UX", "Engineering", "UX Engineer", "Design System Owner", "Builds the design-system components from the tokens and component spec, with stories for every state and visual baselines."),
+      P("P-WEB", "Engineering", "Web Engineer", "Web Engineering Manager", "Builds web features from stories and screen specs against approved contracts (BFF REST / FedGQL)."),
+      P("P-IOS", "Engineering", "iOS Engineer", "Mobile Engineering Manager", "Builds iOS features in SwiftUI against the FedGQL contract, behind feature flags."),
+      P("P-AND", "Engineering", "Android Engineer", "Mobile Engineering Manager", "Builds Android features in Jetpack Compose against the FedGQL contract, behind feature flags."),
+      P("P-GQL", "Engineering", "GraphQL Engineer", "API Platform Lead", "Designs subgraph schemas (contract first) and implements resolvers over domain REST/gRPC services. A subgraph never calls another GraphQL service."),
+      P("P-API", "Engineering", "REST API Engineer", "Service Engineering Manager", "Designs OpenAPI contracts and implements domain services against them, with provider contract tests."),
+      P("P-EVT", "Engineering", "Kafka / Event Engineer", "Streaming Platform Lead", "Designs event schemas (Avro + AsyncAPI) and implements producers (outbox) and idempotent consumers."),
+      P("P-DB", "Engineering", "Database Engineer", "DBA Lead", "Turns the data model into safe, reversible migrations (expand / contract) with indexes and backfills."),
+      P("P-QA", "Quality", "QA Engineer", "QA Lead", "Plans risk-based testing, designs traceable test cases, automates them at the right level, executes and gives the quality verdict, including performance."),
+      P("P-SRE", "SRE", "Site Reliability Engineer", "SRE Lead", "Defines SLOs and observability, writes runbooks, plans and runs progressive releases, and reports on operations after go-live."),
+      P("P-TD", "Architecture", "Tech Debt Steward", "Lead Solution Architect", "Turns every KDD dispensation into a tracked, prioritised Jira tech-debt ticket with an owner, a repay-by date and its cost of carrying, reviewed by the Product Owner and the Lead Solution Architect."),
+      P("P-KM", "Platform", "Knowledge Steward", "Harness Platform Owner", "Keeps the common graph memory: ingests every approved artifact as nodes and edges with provenance, supersedes old versions and retracts reopened ones, so every agent works from the same facts."),
+    ],
+    Agents: [
+      AG("AG-PM", "P-PM", "pm-agent", OP, DOC + ", WebSearch", "jira, confluence, product-analytics", "Frames opportunities, writes PRDs and stories, accepts releases and reviews outcomes."),
+      AG("AG-PD", "P-PD", "design-agent", OP, DOC, "figma, jira", "Maps journeys, specifies screens and states, defines tokens and component specs."),
+      AG("AG-SA", "P-SA", "solution-architect-agent", OP, DOC, "confluence, jira", "Writes the SAD and ADRs, sets NFRs and produces the engineering work breakdown."),
+      AG("AG-DA", "P-DA", "data-architect-agent", OP, DOC, "data-catalog", "Models data, classifies it and maps lineage into the Data mapping registry."),
+      AG("AG-IA", "P-IA", "integration-architect-agent", OP, CODE, "schema-registry, apollo-studio", "Catalogs integrations, enforces integration rules and reviews contracts for conformance and breaking changes."),
+      AG("AG-UX", "P-UX", "ux-engineer-agent", SO, CODE, "figma, github", "Implements design-system components with Storybook stories, a11y and visual tests."),
+      AG("AG-WEB", "P-WEB", "web-agent", SO, CODE, "github", "Implements web features with unit tests, flags and analytics."),
+      AG("AG-IOS", "P-IOS", "ios-agent", SO, CODE, "github", "Implements iOS features in SwiftUI with unit and UI tests."),
+      AG("AG-AND", "P-AND", "android-agent", SO, CODE, "github", "Implements Android features in Compose with unit and UI tests."),
+      AG("AG-GQL", "P-GQL", "graphql-agent", SO, CODE, "github, apollo-studio", "Designs federated subgraph SDL and implements resolvers and dataloaders."),
+      AG("AG-API", "P-API", "rest-api-agent", SO, CODE, "github", "Designs OpenAPI 3.1 contracts and implements services with provider tests."),
+      AG("AG-EVT", "P-EVT", "kafka-agent", SO, CODE, "github, schema-registry", "Designs Avro/AsyncAPI event contracts and implements outbox producers and idempotent consumers."),
+      AG("AG-DB", "P-DB", "database-agent", SO, CODE, "github", "Writes Flyway migrations with rollback, indexes and backfill plans."),
+      AG("AG-QA", "P-QA", "qa-agent", SO, CODE, "github, test-management", "Writes test plans and Gherkin cases, automates contract/API/E2E/mobile tests, runs them and reports the verdict."),
+      AG("AG-SRE", "P-SRE", "sre-agent", OP, CODE, "observability, github, incident-management", "Writes SLOs, alerts, dashboards and runbooks, plans canary releases and reports on operations."),
+      AG("AG-KDD", "P-SA", "design-decision-agent", OP, DOC, "confluence, jira", "Frames the key design decisions, scores options on product priority, engineering effort and ops TCO, and records KDDs / ADRs with any dispensations."),
+      AG("AG-TD", "P-TD", "tech-debt-agent", SO, DOC, "jira", "Raises and maintains Jira tech-debt tickets for KDD dispensations, with the Product Owner and the Lead Solution Architect as reviewers."),
+      AG("AG-MEM", "P-KM", "memory-steward-agent", SO, CODE, "graph-memory (write), github", "Extracts nodes and edges from approved artifacts, validates them and upserts them into the common graph memory. The only writer."),
+    ],
+    Artifacts: [
+      A("A-REQUEST", "Business request", "Markdown", "docs/{wi}/00-request.md", "problem; requester; business goal; deadline", "request.created", "Y"),
+      A("A-BRIEF", "Opportunity brief", "Markdown + YAML frontmatter", "docs/{wi}/01-brief.md", "id; problem statement; target personas; outcomes OUT-nn (OKR); success metrics with baseline and target; constraints; out of scope; open questions with owner", "brief.approved"),
+      A("A-JOURNEY", "User journeys", "JSON (journeys.schema.json)", "docs/{wi}/03-journeys.json", "journeys JNY-nn; persona; channel (web / ios / android); steps; pain points; OUT-nn refs", "journey.approved"),
+      A("A-PRD", "Product requirements (PRD)", "Markdown + YAML frontmatter", "docs/{wi}/02-prd.md", "scope in / out; requirements REQ-nn with MoSCoW priority; acceptance criteria per REQ; NFR hints; analytics events; OUT-nn refs; open questions = 0", "prd.approved"),
+      A("A-STORIES", "Epics & user stories", "JSON + Jira import CSV", "docs/{wi}/04-stories.json", "epics EP-nn; stories STY-nn (as a / I want / so that); Gherkin acceptance criteria; REQ-nn refs; INVEST check; priority; channel", "stories.approved"),
+      A("A-SCREENS", "Screen specification", "JSON + Figma links", "design/{wi}/screens.json", "screens SCR-nn; channel; states (empty, loading, error, success, partial); components CMP-nn; bound data fields; copy; Figma frame URL; STY-nn refs", "screens.approved"),
+      A("A-UIKIT", "Design tokens & component spec", "W3C design tokens JSON + Markdown", "design/{wi}/tokens.json", "tokens (color, space, type, radius, motion); components CMP-nn with props, variants, states; a11y notes (role, focus, labels)", "uikit.approved"),
+      A("A-KDD", "Key design decisions (KDD / ADR)", "Markdown (MADR) + YAML scores", "docs/{wi}/09-kdd.md", "KDD-nn per decision; context and drivers (REQ-nn); at least 2 options; scores 1–5 on product priority, engineering effort, ops TCO (3-year) with program weights; weighted total; decision and rationale (override reason if not top score); dispensations DSP-nn with deviation, owner, expiry, remediation; consequences; status proposed / accepted / superseded", "kdd.approved"),
+      A("A-TECHDEBT", "Tech debt tickets (Jira)", "Jira issues via Jira MCP + JSON export", "docs/{wi}/16-techdebt.json", "one Jira issue per DSP-nn (key); KDD-nn link; the compromise; interest (cost of carrying per quarter: effort, TCO, risk); remediation plan and estimate; repay-by date = dispensation expiry; owner; priority; reviewers Product Owner + Lead Solution Architect", "techdebt.approved"),
+      A("A-SAD", "Solution architecture (SAD + ADRs)", "Markdown + C4 (Mermaid / Structurizr DSL)", "docs/{wi}/10-sad.md", "context (C4 L1); containers (C4 L2); impacted applications with change New / Modify / Retire; how each accepted KDD-nn is applied; ADR-nn refining a KDD-nn; risks; REQ-nn coverage", "sad.approved"),
+      A("A-NFR", "NFR & SLO targets", "YAML (nfr.schema.json)", "docs/{wi}/11-nfr.yaml", "latency p95 / p99 per operation; availability; throughput; RPO / RTO; security and privacy class; capacity; REQ-nn refs", "nfr.approved"),
+      A("A-DATAMODEL", "Data model", "DBML + JSON", "docs/{wi}/12-data-model.dbml", "entities; attributes with type and nullability; keys and relationships; classification (PII / confidential / public); system of record", "datamodel.approved"),
+      A("A-INTCAT", "Integration catalog", "JSON (Data mapping Flows)", "docs/{wi}/13-integrations.json", "interfaces IF-nn; pattern (REST / GraphQL / Kafka / gRPC); producer app; consumer app; sync / async; SLA; rule checks", "intcat.approved"),
+      A("A-DATAMAP", "Data mapping & lineage", "DataMappingRegistry .xlsx (data-mapping.html)", "docs/{wi}/DataMapping.xlsx", "datasets; attributes; mappings source → target with transform; events; IF-nn refs", "datamap.approved", "N", "Y"),
+      A("A-PLAN", "Engineering work breakdown", "JSON + Jira import CSV", "docs/{wi}/14-plan.json", "tasks TSK-nn with persona, STY-nn and IF-nn refs, depends-on, estimate; contract-first order; critical path; channels in scope", "plan.approved"),
+      A("A-OPENAPI", "REST contract", "OpenAPI 3.1 YAML", "contracts/rest/{wi}/*.yaml", "paths and operations; schemas; RFC 9457 error model; security schemes; an example per operation; x-req-ids", "openapi.approved"),
+      A("A-SDL", "GraphQL subgraph schema", "GraphQL SDL (Federation 2)", "contracts/graphql/{wi}/*.graphql", "types and fields with descriptions; @key entities; queries and mutations; nullability rules; @deprecated with reason; data source per field (REST / gRPC)", "sdl.approved"),
+      A("A-EVENTS", "Event contracts", "Avro (.avsc) + AsyncAPI 3", "contracts/events/{wi}/*.avsc", "topics; key schema; value schema; headers (correlation, causation); compatibility mode; retention; producer and consumers", "events.approved"),
+      A("A-DDL", "Database migration", "SQL (Flyway)", "db/migration/V__{wi}_*.sql", "expand migration; contract migration; undo script; indexes; backfill plan; lock / duration estimate", "ddl.approved"),
+      A("A-CONTRACTOK", "Contract conformance report", "JSON + Markdown summary", "docs/{wi}/15-contract-review.json", "per contract: lint result, breaking-change result, standards violations, integration-rule result, verdict; waivers with ADR refs", "contracts.approved"),
+      A("A-UILIB", "UI component library PR", "Pull request + Storybook", "pr://design-system/{wi}", "components CMP-nn implemented; a story per state; visual baselines; a11y results; changelog", "uilib.merged"),
+      A("A-WEBPR", "Web feature PR", "Pull request", "pr://web-app/{wi}", "code; unit tests; feature flag; analytics events; STY-nn refs in the PR body", "web.merged"),
+      A("A-IOSPR", "iOS feature PR", "Pull request", "pr://ios-app/{wi}", "SwiftUI screens; unit and UI tests; feature flag; analytics; STY-nn refs", "ios.merged"),
+      A("A-ANDPR", "Android feature PR", "Pull request", "pr://android-app/{wi}", "Compose screens; unit and UI tests; feature flag; analytics; STY-nn refs", "android.merged"),
+      A("A-GQLPR", "Subgraph resolver PR", "Pull request", "pr://subgraph/{wi}", "resolvers; dataloaders; error mapping; unit tests; composition check output", "subgraph.merged"),
+      A("A-APIPR", "REST service PR", "Pull request", "pr://service/{wi}", "handlers per operation; validation from the contract; persistence; unit tests; provider contract tests", "service.merged"),
+      A("A-EVTPR", "Event producer / consumer PR", "Pull request", "pr://service/{wi}-events", "outbox producer; idempotent consumers; DLQ and retry policy; tests with an embedded broker", "events.merged"),
+      A("A-TESTPLAN", "Test strategy & plan", "Markdown", "qa/{wi}/test-plan.md", "scope; risk matrix; test levels (unit / contract / API / E2E / mobile / perf); environments; test data; entry and exit criteria; REQ-nn → level traceability", "testplan.approved"),
+      A("A-TESTCASES", "Test cases", "Gherkin .feature files", "qa/{wi}/features/*.feature", "scenarios TC-nn tagged @REQ-nn @STY-nn; data tables; negative and edge cases; channel tags", "testcases.approved"),
+      A("A-AUTOTESTS", "Automated test suites PR", "Pull request", "pr://qa-automation/{wi}", "Pact consumer tests; API tests; Playwright E2E (web); XCUITest / Espresso (mobile); CI job; TC-nn refs", "autotests.merged"),
+      A("A-TESTREPORT", "Test execution report", "JSON + HTML", "qa/{wi}/report.json", "executed / passed / failed per level; defects by severity; REQ coverage %; flaky tests; verdict GO / NO-GO", "qa.verdict"),
+      A("A-PERFREPORT", "Performance & resilience report", "JSON", "qa/{wi}/perf.json", "load profile; p95 / p99 per operation vs A-NFR; error rate; saturation; chaos experiment results; verdict", "perf.verdict"),
+      A("A-SIGNOFF", "Product acceptance", "Markdown", "docs/{wi}/20-signoff.md", "REQ-nn accepted / deferred; known issues accepted; go-live decision; approver and date", "release.accepted"),
+      A("A-OBS", "Observability & SLOs as code", "OpenSLO YAML + dashboard JSON", "ops/{wi}/slo.yaml", "SLIs; SLOs per journey JNY-nn; error-budget policy; burn-rate alerts; dashboards; runbook links", "slo.approved"),
+      A("A-RUNBOOK", "Runbook", "Markdown", "ops/{wi}/runbook.md", "service overview; alert → diagnosis → action; rollback; feature-flag kill switch; escalation; dependencies", "runbook.approved"),
+      A("A-RELEASE", "Release plan", "YAML", "ops/{wi}/release.yaml", "deploy order (DB expand → services → subgraphs → clients → DB contract); feature flags; canary steps and thresholds; rollback triggers; comms", "release.approved"),
+      A("A-DEPLOYREC", "Deployment record", "JSON", "ops/{wi}/deploy.json", "versions deployed; canary analysis score per step; promoted / rolled back; timestamps; flag states", "deploy.completed"),
+      A("A-OPSREPORT", "Operations report", "Markdown + JSON", "ops/{wi}/ops-report.md", "SLO attainment; error-budget burn; incidents and postmortems; cost; toil; follow-up actions", "ops.reported"),
+      A("A-INSIGHTS", "Outcome review", "Markdown", "docs/{wi}/30-outcomes.md", "metric actuals vs targets per OUT-nn; learnings; new backlog items (seed the next A-REQUEST)", "outcomes.reviewed", "N", "Y"),
+      A("A-MEMDELTA", "Graph memory delta", "JSON (memory-delta.schema.json)", "memory/{wi}/<artifact>@<ver>.delta.json", "op (upsert / retract); source artifact@version; nodes upserted; edges upserted; nodes superseded; nodes retracted; provenance (skill, agent, model, approver, timestamp); validation result", "memory.synced", "N", "Y"),
+    ],
+    Gates: [
+      G("G-SCHEMA", "Schema valid", "Schema", "The artifact validates against its JSON Schema or frontmatter schema", "ajv validate -s schemas/<artifact>.schema.json"),
+      G("G-IDS", "ID convention", "Schema", "IDs match ^(REQ|STY|EP|JNY|SCR|CMP|IF|TSK|TC|ADR|KDD|DSP|OUT)-\\d{2,}$ and are unique in the artifact", "harness ids --check"),
+      G("G-TRACE", "Traceability", "Trace", "Every item cites at least one existing upstream ID; no dangling references; every Must REQ is covered downstream", "harness trace --upstream"),
+      G("G-COMPLETE", "No placeholders", "Schema", "No TBD / TODO / ???; every required section is non-empty; open questions have an owner", "grep -nE 'TBD|TODO|\\?\\?\\?' must find nothing"),
+      G("G-GHERKIN", "Gherkin valid", "Lint", "Acceptance criteria and features parse; each scenario has Given / When / Then; no UI-implementation steps", "gherkin-lint"),
+      G("G-A11Y", "Accessibility", "Test", "WCAG 2.2 AA: zero critical or serious axe violations; contrast ≥ 4.5:1; every interactive element has a label and focus order", "axe-core / Storybook a11y addon"),
+      G("G-VISUAL", "Visual regression", "Test", "No unapproved visual diffs against the baselines", "Chromatic / Playwright snapshots"),
+      G("G-PII", "Data classification", "Schema", "Every attribute has a classification; PII has retention and masking rules", "harness pii --check"),
+      G("G-INTRULES", "Integration rules", "Lint", "Each interface has a pattern, producer and consumer; a GraphQL subgraph never calls another GraphQL service; channels reach domains only via BFF or FedGQL", "harness integrations --rules"),
+      G("G-DAG", "Acyclic plan", "Schema", "The task dependency graph is acyclic; every story has at least one task; contracts come before implementation", "harness plan --dag"),
+      G("G-OAS-LINT", "OpenAPI lint", "Lint", "Zero errors against the API standards ruleset (naming, pagination, errors, security)", "spectral lint --ruleset standards.json"),
+      G("G-GQL-COMPOSE", "Subgraph composes", "Lint", "The subgraph composes into the supergraph and passes schema lint and operation checks", "rover subgraph check"),
+      G("G-AVRO-COMPAT", "Event compatibility", "Lint", "The schema is BACKWARD compatible with the registry's latest version for the subject", "schema-registry compatibility API"),
+      G("G-BREAKING", "No breaking change", "Lint", "No breaking change against main unless an ADR approves it with a version bump", "oasdiff breaking / rover / buf breaking"),
+      G("G-DDL", "Migration safe", "Test", "Migrates and undoes on an ephemeral database; expand / contract only; estimated lock time within budget", "flyway migrate + undo on Testcontainers"),
+      G("G-BUILD", "Build & unit tests", "Test", "CI is green; changed-line coverage ≥ 80%; lint clean", "CI pipeline"),
+      G("G-SAST", "Security scan", "Security", "No high or critical SAST, secret or dependency findings", "Semgrep, gitleaks, SCA"),
+      G("G-CONTRACT-TEST", "Contract tests", "Test", "The provider verifies every consumer pact and every contract example", "pact verify / schemathesis"),
+      G("G-EXIT", "Exit criteria", "Test", "0 open Sev1 / Sev2; pass rate ≥ 98%; every Must REQ has a passing test; flaky tests quarantined with tickets", "harness verdict --plan qa/{wi}/test-plan.md"),
+      G("G-PERF", "Performance budget", "Perf", "p95 / p99 and error rate within A-NFR at target load; no saturation above 70%", "k6 / Gatling vs docs/{wi}/11-nfr.yaml"),
+      G("G-SLO", "SLO coverage", "Ops", "Every critical journey has an SLI and SLO; every alert links a runbook section", "openslo validate + harness slo --coverage"),
+      G("G-ROLLBACK", "Rollback ready", "Ops", "Each deploy step has a rollback trigger, and the rollback has been rehearsed in staging", "harness release --lint"),
+      G("G-CANARY", "Canary analysis", "Ops", "Canary score ≥ threshold at each step; no SLO burn-rate alert during the bake", "Argo Rollouts analysis / Kayenta"),
+      G("G-DOR", "Definition of ready", "Trace", "Every story is INVEST-sized, has acceptance criteria and a design reference, and its dependencies are named", "harness stories --dor", "N"),
+      G("G-KDD", "KDD scoring", "Trace", "Each KDD has at least 2 options scored 1–5 on product priority, engineering effort and ops TCO; weights sum to 100 and match program policy; the chosen option has the top weighted score or a recorded override; every deviation from the target architecture is a DSP-nn with an owner and an expiry", "harness kdd --check docs/{wi}/09-kdd.md"),
+      G("G-DEBT", "Tech debt ticket", "Trace", "Exactly one Jira issue per DSP-nn, linked to its KDD; each has an owner, a repay-by date, a remediation estimate, interest and priority, and both reviewers assigned", "harness debt --check (Jira MCP)"),
+      G("G-GRAPH", "Graph memory write", "Schema", "Only node and edge types from the artifact's Memory mapping; upsert idempotent on (type, id, work item); every edge resolves to a node; provenance on every node; superseded versions closed with valid_to", "harness memory --validate"),
+    ],
+    Skills: [
+      // ---------------- Product: Product Manager ----------------
+      K("PM-01", "AG-PM", "frame-opportunity", "Discover", "Turn a business request into an opportunity brief with measurable outcomes.", "A-REQUEST", "", "A-BRIEF",
+        ["Restate the problem in one sentence and name the affected personas", "Pull baseline metrics for the problem from product analytics, and set a target for each outcome (OUT-nn)", "List constraints, assumptions and what is explicitly out of scope", "Fill the brief template; anything unresolved goes to open questions with an owner"], "G-SCHEMA, G-IDS, G-COMPLETE", "Product Owner"),
+      K("PM-02", "AG-PM", "write-prd", "Define", "Write the PRD: scoped, prioritised requirements with acceptance criteria that trace to the brief's outcomes.", "A-BRIEF", "A-JOURNEY", "A-PRD",
+        ["Derive requirements REQ-nn from each outcome OUT-nn and journey step", "Prioritise with MoSCoW and state scope in / out", "Write testable acceptance criteria per requirement, plus NFR hints (latency, availability, privacy)", "List the analytics events that measure each outcome", "Close every open question or escalate it; the PRD ships with zero open questions"], "G-SCHEMA, G-IDS, G-TRACE, G-COMPLETE", "Product Owner"),
+      K("PM-03", "AG-PM", "slice-stories", "Define", "Slice the PRD into INVEST stories with Gherkin acceptance criteria, ready for design and engineering.", "A-PRD, A-JOURNEY", "", "A-STORIES",
+        ["Group requirements into epics EP-nn by journey", "Slice each epic into thin vertical stories STY-nn per channel (web / ios / android)", "Write Gherkin acceptance criteria for each story from the REQ criteria", "Check INVEST and the definition of ready, and record each story's dependencies"], "G-SCHEMA, G-IDS, G-TRACE, G-GHERKIN, G-DOR", "Product Owner"),
+      K("PM-04", "AG-PM", "accept-release", "Verify", "Decide go-live from the test verdict: accept or defer each requirement and record the known issues.", "A-TESTREPORT, A-PRD", "A-PERFREPORT", "A-SIGNOFF",
+        ["Map the test report's coverage and defects to each REQ-nn", "Mark each requirement accepted or deferred, with a reason", "List known issues that are accepted for go-live, with workarounds", "Record the go-live decision for the Product Owner to sign"], "G-TRACE, G-COMPLETE", "Product Owner"),
+      K("PM-05", "AG-PM", "review-outcomes", "Learn", "Compare actual outcomes with the brief's targets and seed the next iteration.", "A-OPSREPORT, A-BRIEF", "A-TECHDEBT", "A-INSIGHTS",
+        ["Pull actuals for each success metric over the review window", "Compare each with its baseline and target, and call it met, partly met or missed", "Record learnings and the new backlog items they imply", "Draft the next A-REQUEST for anything that needs another iteration"], "G-TRACE, G-COMPLETE", "Product Owner"),
+      // ---------------- Product: Product Designer ----------------
+      K("PD-01", "AG-PD", "map-journeys", "Discover", "Map the current and target journeys per persona and channel, tied to the brief's outcomes.", "A-BRIEF", "", "A-JOURNEY",
+        ["List the personas from the brief and the channels each one uses", "Map each target journey JNY-nn as ordered steps with touchpoints", "Mark pain points and the outcome OUT-nn each journey moves", "Validate against research notes and analytics funnels where they exist"], "G-SCHEMA, G-IDS, G-TRACE", "Design Lead"),
+      K("PD-02", "AG-PD", "specify-screens", "Design", "Specify every screen and state per channel, bound to data fields and stories.", "A-PRD, A-STORIES, A-JOURNEY", "", "A-SCREENS",
+        ["Derive the screen inventory SCR-nn from journey steps and stories", "Specify every state for each screen: empty, loading, error, success, partial", "Bind each visible field to a data field name the data model will own", "Reference the Figma frame and the components CMP-nn each screen uses", "Write the final copy, including error messages"], "G-SCHEMA, G-IDS, G-TRACE, G-COMPLETE", "Design Lead"),
+      K("PD-03", "AG-PD", "define-ui-kit", "Design", "Define the design tokens and component specs the screens need, accessibility included.", "A-SCREENS", "", "A-UIKIT",
+        ["Collect the components used across the screens, and reuse existing design-system components first", "Specify new or changed components: props, variants, states, responsive rules", "Export the tokens in W3C design-token format", "Write a11y notes per component: role, label, focus order, contrast"], "G-SCHEMA, G-A11Y", "Design Lead"),
+      // ---------------- Architecture ----------------
+      K("KDD-01", "AG-KDD", "decide-key-design", "Architect", "Decide the key design decisions that drive the solution design. Score each option on product priority, engineering effort and ops TCO, and record the decision, its ADR and any dispensation.", "A-PRD", "A-JOURNEY, A-BRIEF", "A-KDD",
+        ["Identify the decisions that shape the solution (KDD-nn): build vs buy, sync vs async, system of record, channel pattern (BFF / FedGQL), data placement", "List at least two viable options per decision, always including the target-architecture option", "Score each option 1–5 on product priority (value, MoSCoW, time to market), engineering effort and ops TCO over 3 years, using the program weights; use risk, reversibility and strategic fit only to break ties", "Choose the highest weighted option, or record why an override is justified", "Flag every deviation from the target architecture or a standard as a dispensation DSP-nn with an owner, an expiry and a remediation path", "Write each decision as an ADR (MADR) with status proposed, accepted once both reviewers approve"], "G-KDD, G-IDS, G-TRACE, G-COMPLETE", "Lead Solution Architect + Product Owner"),
+      K("TD-01", "AG-TD", "raise-tech-debt", "Plan", "Raise a Jira tech-debt ticket for every dispensation in the approved KDDs, with its cost of carrying and a repay-by date.", "A-KDD", "A-PRD", "A-TECHDEBT",
+        ["Read every dispensation DSP-nn in the accepted KDDs (mark this skill N/A when there are none)", "Create one Jira issue per dispensation in the TECHDEBT project (Jira MCP), linked to its KDD-nn and the work item", "Describe the compromise, its interest (cost of carrying per quarter in effort, ops TCO and risk) and the remediation plan with an estimate", "Set the owner, the repay-by date (the dispensation expiry) and a priority from interest × risk", "Assign the Product Owner and the Lead Solution Architect as reviewers, then export the register"], "G-DEBT, G-TRACE, G-COMPLETE", "Product Owner + Lead Solution Architect"),
+      K("SA-01", "AG-SA", "shape-solution", "Architect", "Shape the solution from the accepted KDDs: the impacted applications, containers and the ADRs that refine the decisions.", "A-PRD, A-KDD", "A-JOURNEY", "A-SAD",
+        ["Apply the accepted KDDs as the frame of the solution, without reopening them here", "Draw the C4 context and the container views for the requirements", "List the impacted applications with their change (New / Modify / Retire)", "Record finer-grained choices as ADR-nn refining a KDD-nn. A choice with major product, effort or TCO impact goes back to KDD-01", "Map every Must REQ to the containers that satisfy it, and list risks with mitigations"], "G-SCHEMA, G-TRACE, G-COMPLETE", "Architecture Review Board"),
+      K("SA-02", "AG-SA", "set-nfrs", "Architect", "Turn NFR hints into measurable targets per operation and journey.", "A-PRD, A-SAD", "", "A-NFR",
+        ["Set p95 / p99 latency targets per user-facing operation", "Set availability, throughput, RPO / RTO and capacity for each container", "Classify security and privacy needs (authN / authZ, PII handling)", "Trace each target to its REQ-nn"], "G-SCHEMA, G-TRACE, G-COMPLETE", "Lead Solution Architect"),
+      K("SA-03", "AG-SA", "plan-work", "Plan", "Break the design into a contract-first engineering plan across personas. Its approval fans out the build.", "A-SAD, A-STORIES, A-INTCAT, A-DATAMODEL", "A-NFR, A-KDD, A-TECHDEBT", "A-PLAN",
+        ["Create tasks TSK-nn per engineering persona for each story and interface", "Order the contracts (OpenAPI, SDL, events, DDL) before the implementation tasks", "Record depends-on links and the critical path", "List the channels and contracts in scope, so out-of-scope skills can be marked N/A", "Schedule remediation tasks for the tech-debt tickets due in this release"], "G-SCHEMA, G-IDS, G-TRACE, G-DAG", "Engineering Manager"),
+      K("DA-01", "AG-DA", "model-data", "Architect", "Model the entities and attributes the requirements and screens need, with classification and systems of record.", "A-PRD, A-SAD", "A-SCREENS, A-KDD", "A-DATAMODEL",
+        ["Derive entities and attributes from the requirements and the screens' bound fields", "Set types, nullability, keys and relationships", "Name the system of record for each entity", "Classify every attribute (PII / confidential / public) with retention"], "G-SCHEMA, G-PII, G-COMPLETE", "Data Governance Lead"),
+      K("DA-02", "AG-DA", "map-lineage", "Architect", "Register source-to-target mappings and lineage in the Data mapping registry.", "A-DATAMODEL, A-INTCAT", "", "A-DATAMAP",
+        ["Create the datasets for each interface payload, table and topic", "Map each target attribute to its source with a transform rule", "Register the events and their payload datasets", "Export the DataMappingRegistry workbook (data-mapping.html)"], "G-SCHEMA, G-TRACE", "Data Governance Lead"),
+      K("IA-01", "AG-IA", "catalog-integrations", "Architect", "Catalog every interface the solution needs, with its pattern, and check it against the integration rules.", "A-SAD", "A-DATAMODEL, A-KDD", "A-INTCAT",
+        ["List the interfaces IF-nn between the impacted applications", "Choose a pattern per interface: REST (BFF / service), GraphQL (FedGQL subgraph), Kafka event or gRPC", "Record sync / async, the SLA and the producer and consumer apps", "Check the rules: no GraphQL → GraphQL calls, and channels go through BFF / FedGQL only"], "G-SCHEMA, G-IDS, G-INTRULES", "Integration Architect Lead"),
+      K("IA-02", "AG-IA", "review-contracts", "Contract", "Review every contract for standards conformance, compatibility and breaking changes before anyone implements it.", "A-OPENAPI, A-SDL, A-EVENTS, A-DDL", "A-INTCAT, A-KDD", "A-CONTRACTOK",
+        ["Run the linters and composition / compatibility checks for each contract", "Diff each contract against main for breaking changes", "Check that each contract covers its IF-nn and TSK-nn, and no more", "Record a verdict per contract, with waivers that cite a KDD dispensation (DSP-nn) or an ADR"], "G-OAS-LINT, G-GQL-COMPOSE, G-AVRO-COMPAT, G-BREAKING, G-INTRULES", "Architecture Review Board"),
+      // ---------------- Engineering: contracts ----------------
+      K("API-01", "AG-API", "design-openapi", "Contract", "Write the OpenAPI 3.1 contract for each REST interface in the plan.", "A-PLAN, A-INTCAT, A-DATAMODEL", "A-NFR", "A-OPENAPI",
+        ["Create the operations for each REST IF-nn in the plan", "Model request and response schemas from the data model, with the standard RFC 9457 error model", "Add security schemes, pagination and idempotency keys where needed", "Add an example per operation, and x-req-ids for traceability"], "G-OAS-LINT, G-TRACE", "Auto"),
+      K("GQL-01", "AG-GQL", "design-subgraph-schema", "Contract", "Write the federated subgraph SDL for each GraphQL interface, contract first.", "A-PLAN, A-INTCAT, A-DATAMODEL", "A-SCREENS", "A-SDL",
+        ["Model the types and fields the screens need, with descriptions", "Declare @key entities and the subgraph that owns each field", "Add queries and mutations; name the REST / gRPC source per field (never another GraphQL service)", "Apply the nullability and deprecation rules"], "G-GQL-COMPOSE, G-INTRULES, G-TRACE", "Auto"),
+      K("EVT-01", "AG-EVT", "design-events", "Contract", "Write the Avro and AsyncAPI contracts for each Kafka interface.", "A-PLAN, A-INTCAT, A-DATAMODEL", "", "A-EVENTS",
+        ["Name the topics by convention, and choose the partition key", "Write the Avro key and value schemas from the data model, with defaults for evolution", "Define the headers (correlation and causation IDs) and set the compatibility mode and retention", "Describe producers and consumers in AsyncAPI 3"], "G-AVRO-COMPAT, G-TRACE", "Auto"),
+      K("DB-01", "AG-DB", "write-migrations", "Contract", "Turn the data model into safe, reversible migrations.", "A-PLAN, A-DATAMODEL", "A-NFR", "A-DDL",
+        ["Write the expand migration (additive only)", "Write the contract migration to run after the clients have cut over", "Add indexes for the query paths, and an undo script", "Plan any backfill, and estimate lock time and duration"], "G-DDL", "DBA Lead"),
+      // ---------------- Engineering: build ----------------
+      K("UX-01", "AG-UX", "build-components", "Build", "Implement the new or changed design-system components with stories, a11y and visual baselines.", "A-UIKIT, A-PLAN", "", "A-UILIB",
+        ["Implement each component CMP-nn from the spec and tokens", "Write a Storybook story for every state and variant", "Run the a11y checks and capture visual baselines", "Publish a pre-release package version"], "G-BUILD, G-A11Y, G-VISUAL", "Design System Owner"),
+      K("WEB-01", "AG-WEB", "build-web-feature", "Build", "Implement the web stories against the approved contracts and components.", "A-STORIES, A-SCREENS, A-UILIB, A-CONTRACTOK", "A-OPENAPI, A-SDL", "A-WEBPR",
+        ["Implement each web story's screens and states with the design-system package", "Call the domains only through the BFF REST / FedGQL contracts, using generated clients", "Put the feature behind a flag, and emit the PRD's analytics events", "Write unit tests per acceptance criterion, and reference STY-nn in the PR"], "G-BUILD, G-SAST, G-A11Y, G-TRACE", "Web Engineering Manager"),
+      K("IOS-01", "AG-IOS", "build-ios-feature", "Build", "Implement the iOS stories in SwiftUI against the FedGQL contract.", "A-STORIES, A-SCREENS, A-UIKIT, A-CONTRACTOK", "A-SDL", "A-IOSPR",
+        ["Generate the Apollo iOS models from the approved SDL operations", "Implement each iOS story's screens and states in SwiftUI with the tokens", "Put the feature behind a remote flag, and emit the analytics events", "Write unit and XCUITest tests per acceptance criterion"], "G-BUILD, G-SAST, G-A11Y, G-TRACE", "Mobile Engineering Manager"),
+      K("AND-01", "AG-AND", "build-android-feature", "Build", "Implement the Android stories in Jetpack Compose against the FedGQL contract.", "A-STORIES, A-SCREENS, A-UIKIT, A-CONTRACTOK", "A-SDL", "A-ANDPR",
+        ["Generate the Apollo Kotlin models from the approved SDL operations", "Implement each Android story's screens and states in Compose with the tokens", "Put the feature behind a remote flag, and emit the analytics events", "Write unit and Espresso / Compose UI tests per acceptance criterion"], "G-BUILD, G-SAST, G-A11Y, G-TRACE", "Mobile Engineering Manager"),
+      K("GQL-02", "AG-GQL", "implement-resolvers", "Build", "Implement the subgraph resolvers over the domain REST / gRPC services.", "A-SDL, A-CONTRACTOK", "A-OPENAPI", "A-GQLPR",
+        ["Implement the resolvers and entity reference resolvers for the approved SDL", "Batch the downstream calls with dataloaders, and map errors to GraphQL errors", "Call only REST / gRPC sources, never another GraphQL service", "Write unit tests, and run the composition check in CI"], "G-BUILD, G-SAST, G-GQL-COMPOSE", "API Platform Lead"),
+      K("API-02", "AG-API", "implement-service", "Build", "Implement the REST service against its approved contract and migrations.", "A-OPENAPI, A-CONTRACTOK, A-DDL", "A-NFR", "A-APIPR",
+        ["Generate the server stubs and validators from the OpenAPI contract", "Implement each operation's handler and persistence on the migrated schema", "Add idempotency, pagination and error mapping as the contract specifies", "Write unit tests and provider contract tests"], "G-BUILD, G-SAST, G-CONTRACT-TEST", "Service Engineering Manager"),
+      K("EVT-02", "AG-EVT", "implement-producers-consumers", "Build", "Implement the outbox producers and idempotent consumers for the approved events.", "A-EVENTS, A-CONTRACTOK", "A-DDL", "A-EVTPR",
+        ["Implement a transactional outbox producer for each event", "Implement idempotent consumers (dedupe on the event ID) with a retry and DLQ policy", "Propagate the correlation and causation headers", "Test against an embedded broker and the schema registry"], "G-BUILD, G-SAST, G-CONTRACT-TEST", "Streaming Platform Lead"),
+      // ---------------- Quality ----------------
+      K("QA-01", "AG-QA", "plan-tests", "Plan", "Write a risk-based test plan that traces every requirement to a test level.", "A-PRD, A-STORIES, A-NFR", "A-SAD", "A-TESTPLAN",
+        ["Score the risk of each REQ-nn by impact × likelihood", "Choose the test levels per requirement (unit, contract, API, E2E, mobile, perf) on the test pyramid", "Define the environments, test data and entry / exit criteria", "Produce the REQ → level traceability matrix"], "G-SCHEMA, G-TRACE, G-COMPLETE", "QA Lead"),
+      K("QA-02", "AG-QA", "design-test-cases", "Verify", "Design Gherkin test cases tagged to requirements and stories, including negative and edge cases.", "A-TESTPLAN, A-STORIES, A-SCREENS", "", "A-TESTCASES",
+        ["Write scenarios TC-nn from each story's acceptance criteria", "Add negative, boundary and state cases from the screen states", "Tag every scenario @REQ-nn @STY-nn and with its channel", "Define the test data tables"], "G-GHERKIN, G-TRACE, G-IDS", "QA Lead"),
+      K("QA-03", "AG-QA", "automate-tests", "Build", "Automate the test cases at the planned levels against the approved contracts.", "A-TESTCASES, A-CONTRACTOK", "A-OPENAPI, A-SDL, A-EVENTS", "A-AUTOTESTS",
+        ["Write Pact consumer tests for each client → BFF / FedGQL interaction", "Write API tests from the OpenAPI and SDL examples", "Automate the E2E web flows (Playwright) and the mobile flows (XCUITest / Espresso)", "Wire the suites into CI with TC-nn in the test names"], "G-BUILD, G-TRACE", "QA Lead"),
+      K("QA-04", "AG-QA", "execute-and-verdict", "Verify", "Run every suite on the integrated build and give the GO / NO-GO verdict against the exit criteria.", "A-AUTOTESTS, A-WEBPR, A-IOSPR, A-ANDPR, A-APIPR, A-GQLPR, A-EVTPR", "A-UILIB", "A-TESTREPORT",
+        ["Deploy the integrated build to the test environment", "Run all suites, and rerun failures once to separate flaky tests from real ones", "Log defects with severity, and link them to TC-nn and REQ-nn", "Compute coverage per REQ and give the verdict against the exit criteria"], "G-EXIT", "QA Lead"),
+      K("QA-05", "AG-QA", "test-performance", "Verify", "Load-test and fault-inject the user-facing operations against the NFR budgets.", "A-NFR, A-APIPR, A-GQLPR", "A-EVTPR", "A-PERFREPORT",
+        ["Build a load profile from the NFR throughput and the analytics mix", "Run the load and soak tests, and record p95 / p99, error rate and saturation", "Run chaos experiments for the dependencies named in the SAD risks", "Compare the results with the NFR budget and give a verdict"], "G-PERF", "SRE Lead"),
+      // ---------------- SRE ----------------
+      K("SRE-01", "AG-SRE", "define-slos", "Plan", "Define SLIs, SLOs, burn-rate alerts and dashboards as code from the NFRs.", "A-NFR, A-SAD", "A-JOURNEY", "A-OBS",
+        ["Define an SLI per critical journey and operation", "Set the SLOs and the error-budget policy from the NFR targets", "Write the multi-window burn-rate alerts", "Generate the dashboards, and reserve a runbook anchor for every alert"], "G-SLO, G-SCHEMA", "SRE Lead"),
+      K("SRE-02", "AG-SRE", "write-runbook", "Release", "Write the runbook that every alert links to.", "A-OBS, A-SAD", "A-NFR", "A-RUNBOOK",
+        ["Describe the service, its dependencies and its owners", "For each alert, write diagnosis steps and actions", "Document the rollback and the feature-flag kill switch", "Define escalation paths and contacts"], "G-COMPLETE, G-SLO", "SRE Lead"),
+      K("SRE-03", "AG-SRE", "plan-release", "Release", "Plan a progressive, reversible release once product has accepted.", "A-SIGNOFF, A-PERFREPORT, A-RUNBOOK, A-DDL", "A-PLAN", "A-RELEASE",
+        ["Order the deploys: DB expand → services → subgraphs → clients → DB contract", "Define the canary steps, bake times and analysis thresholds", "Set the flag rollout and the rollback triggers per step", "Write the communications for stakeholders and support"], "G-SCHEMA, G-ROLLBACK", "Change Advisory Board"),
+      K("SRE-04", "AG-SRE", "deploy-canary", "Release", "Execute the release plan with canary analysis, and record the outcome.", "A-RELEASE", "A-OBS", "A-DEPLOYREC",
+        ["Deploy each step in the planned order", "Run the canary analysis at each step, and promote or roll back on its thresholds", "Ramp the feature flags", "Record the versions, scores, decisions and timestamps"], "G-CANARY", "Release Manager"),
+      K("SRE-05", "AG-SRE", "operate-and-report", "Operate", "Run the service through the review window and report on reliability, incidents and cost.", "A-DEPLOYREC, A-OBS", "A-RUNBOOK", "A-OPSREPORT",
+        ["Track SLO attainment and error-budget burn", "Handle incidents with the runbook, and write a blameless postmortem for each", "Report cost and toil against the baseline", "List follow-up actions with owners"], "G-COMPLETE", "SRE Lead"),
+      { ...K("MEM-01", "AG-MEM", "sync-graph-memory", "Continuous", "Add every approved artifact to the common graph memory, and retract reopened ones, so all agents work from the same facts.", "", "", "A-MEMDELTA",
+        ["Read the approved artifact at the pinned ref and version, and its Memory mapping", "Extract only the node and edge types the mapping allows, keyed by (type, id, work item)", "Attach provenance to every node and edge: artifact ref@version, skill, agent, model, approver, timestamp", "Validate the delta: graph schema, every edge resolves, no PII values, no unmapped types", "Upsert idempotently and close the previous version's nodes (valid_to, SUPERSEDES), or mark nodes retracted for a retract op", "Write the delta file and emit memory.synced"], "G-GRAPH, G-PII"), Mode: "Hook: every approval" },
+    ],
+  };
+  const MEM = {
+    "A-REQUEST": "WorkItem(WI-nnn) {title, requester, goal}",
+    "A-BRIEF": "Outcome(OUT-nn) -PART_OF-> WorkItem; Metric -MEASURES-> Outcome {baseline, target}; Persona -AFFECTED_BY-> WorkItem",
+    "A-JOURNEY": "Journey(JNY-nn) -SERVES-> Outcome; Journey -FOR-> Persona {channel}",
+    "A-PRD": "Requirement(REQ-nn) -TRACES_TO-> Outcome {priority}; Requirement -PART_OF-> WorkItem",
+    "A-STORIES": "Epic(EP-nn) -PART_OF-> WorkItem; Story(STY-nn) -IMPLEMENTS-> Requirement {channel}; Story -PART_OF-> Epic",
+    "A-SCREENS": "Screen(SCR-nn) -REALISES-> Story {channel}; Screen -USES-> Component(CMP-nn); Screen -BINDS-> Attribute",
+    "A-UIKIT": "Component(CMP-nn) -STYLED_BY-> Token",
+    "A-KDD": "Decision(KDD-nn) -ADDRESSES-> Requirement {status, weightedScore}; Option -SCORED_FOR-> Decision {priority, effort, tco}; Decision -CHOSE-> Option; Dispensation(DSP-nn) -GRANTED_BY-> Decision {owner, expiry}",
+    "A-TECHDEBT": "TechDebt(Jira key) -REPAYS-> Dispensation {repayBy, interest, priority}; TechDebt -REVIEWED_BY-> Persona",
+    "A-SAD": "Application -IMPACTED_BY-> WorkItem {change}; ADR(ADR-nn) -REFINES-> Decision; Container -SATISFIES-> Requirement; Risk -THREATENS-> Container",
+    "A-NFR": "NFR -CONSTRAINS-> Operation {p95, p99, availability}; NFR -TRACES_TO-> Requirement",
+    "A-DATAMODEL": "Entity -OWNED_BY-> Application {systemOfRecord}; Attribute -PART_OF-> Entity {classification}",
+    "A-INTCAT": "Interface(IF-nn) -FROM-> Application {pattern, sync}; Interface -TO-> Application",
+    "A-DATAMAP": "Mapping -SOURCE-> Attribute {transform}; Mapping -TARGET-> Attribute; Dataset -CARRIED_BY-> Interface",
+    "A-PLAN": "Task(TSK-nn) -DELIVERS-> Story; Task -DEPENDS_ON-> Task; Task -ASSIGNED_TO-> Persona; Task -REPAYS-> TechDebt",
+    "A-OPENAPI": "Contract -REALISES-> Interface {type: REST, version}; Operation -PART_OF-> Contract",
+    "A-SDL": "Contract -REALISES-> Interface {type: GraphQL, version}; Field -RESOLVED_FROM-> Operation",
+    "A-EVENTS": "Topic -REALISES-> Interface {compatibility}; EventSchema -DESCRIBES-> Entity",
+    "A-DDL": "Migration -CHANGES-> Entity {phase: expand|contract}",
+    "A-CONTRACTOK": "Review -VERIFIES-> Contract {verdict}; Waiver -CITES-> Dispensation",
+    "A-UILIB": "PullRequest -IMPLEMENTS-> Component; PullRequest -CHANGES-> Application",
+    "A-WEBPR": "PullRequest -IMPLEMENTS-> Story {channel: web}; PullRequest -CHANGES-> Application",
+    "A-IOSPR": "PullRequest -IMPLEMENTS-> Story {channel: ios}; PullRequest -CHANGES-> Application",
+    "A-ANDPR": "PullRequest -IMPLEMENTS-> Story {channel: android}; PullRequest -CHANGES-> Application",
+    "A-GQLPR": "PullRequest -IMPLEMENTS-> Contract; PullRequest -CHANGES-> Application",
+    "A-APIPR": "PullRequest -IMPLEMENTS-> Contract; PullRequest -CHANGES-> Application",
+    "A-EVTPR": "PullRequest -IMPLEMENTS-> Topic; PullRequest -CHANGES-> Application",
+    "A-TESTPLAN": "TestLevel -COVERS-> Requirement {risk}",
+    "A-TESTCASES": "TestCase(TC-nn) -VERIFIES-> Story|Requirement",
+    "A-AUTOTESTS": "TestSuite -AUTOMATES-> TestCase",
+    "A-TESTREPORT": "TestRun -EXECUTES-> TestCase {result}; Defect -FOUND_IN-> TestRun {severity}; Verdict -FOR-> WorkItem {go}",
+    "A-PERFREPORT": "PerfResult -MEASURES-> NFR {pass}",
+    "A-SIGNOFF": "Acceptance -ACCEPTS-> Requirement {accepted|deferred}",
+    "A-OBS": "SLO -PROTECTS-> Journey {target}; Alert -GUARDS-> SLO",
+    "A-RUNBOOK": "RunbookSection -HANDLES-> Alert",
+    "A-RELEASE": "Release -DEPLOYS-> Application {order, canary}",
+    "A-DEPLOYREC": "Deployment -OF-> Release {result, score}",
+    "A-OPSREPORT": "Incident -BREACHED-> SLO {severity}; Action -FOLLOWS-> Incident",
+    "A-INSIGHTS": "Learning -ABOUT-> Outcome {met|missed}; BacklogItem -SEEDS-> WorkItem",
+  };
+  db.Artifacts.forEach(a => a.Memory = MEM[a.ArtifactID] || "");
+  db.Agents.forEach(a => { if (!/graph-memory/.test(a.MCP)) a.MCP = (a.MCP ? a.MCP + ", " : "") + "graph-memory"; });
+  return db;
+}
+function exampleRun() {
+  const wi = "WI-001", t = "2026-10-20 09:00:00";
+  const r = { items: [{ id: wi, title: "Guest checkout with saved cards", desc: "Let returning guests check out without an account and reuse a saved card (tokenised) on web, iOS and Android. Requester: Head of Digital. Goal: +4% checkout conversion. Deadline: Q1.", created: t }], steps: { [wi]: {} }, log: [], memq: { [wi]: [] }, cur: wi };
+  const done = (sid, art, ref, by, ts) => { r.steps[wi][sid] = { st: "approved", ref, ver: "v1", by, appr: Object.fromEntries(by.split(" + ").map(x => [x, ts])), gates: {}, mem: "synced", ts };
+    r.memq[wi].unshift({ id: "M" + sid, sid, art, ref, ver: "v1", op: "upsert", st: "done", ts, done: ts }); };
+  done("PM-01", "A-BRIEF", "docs/WI-001/01-brief.md", "Product Owner", "2026-10-20 17:30:00");
+  done("PD-01", "A-JOURNEY", "docs/WI-001/03-journeys.json", "Design Lead", "2026-10-21 11:05:00");
+  done("PM-02", "A-PRD", "docs/WI-001/02-prd.md", "Product Owner", "2026-10-22 15:42:00");
+  r.steps[wi]["PM-03"] = { st: "running", ts: "2026-10-22 16:10:00" };
+  const L = (ts, ev, detail) => r.log.unshift({ ts, wi, ev, detail });
+  L(t, "request.created", "Guest checkout with saved cards"); L(t, "triggered", "PM-01");
+  L("2026-10-20 17:30:00", "brief.approved", "PM-01 frame-opportunity → A-BRIEF"); L("2026-10-20 17:30:00", "memory.upsert.queued", "A-BRIEF@v1 (PM-01)");
+  L("2026-10-20 17:34:00", "memory.synced", "A-BRIEF@v1 → common graph"); L("2026-10-20 17:34:00", "triggered", "PM-02, PD-01");
+  L("2026-10-21 11:05:00", "journey.approved", "PD-01 map-journeys → A-JOURNEY"); L("2026-10-21 11:05:00", "memory.upsert.queued", "A-JOURNEY@v1 (PD-01)");
+  L("2026-10-21 11:09:00", "memory.synced", "A-JOURNEY@v1 → common graph");
+  L("2026-10-22 15:42:00", "prd.approved", "PM-02 write-prd → A-PRD"); L("2026-10-22 15:42:00", "memory.upsert.queued", "A-PRD@v1 (PM-02)");
+  L("2026-10-22 15:47:00", "memory.synced", "A-PRD@v1 → common graph"); L("2026-10-22 15:47:00", "triggered", "PM-03, KDD-01");
+  L("2026-10-22 16:10:00", "skill.started", "PM-03 slice-stories");
+  return r;
+}
+
+/* ============================== BOOT ============================== */
+load(); wire();
+{ const h = location.hash.slice(1); if (VIEWS[h]) UI.view = h; }
+renderAll();
+</script>
+<script src="fullscreen.js"></script>
+<script src="versions.js" defer></script>
+<footer class="site-foot">© 2026 iLabs Tools. All rights reserved.</footer>
+</body>
+</html>

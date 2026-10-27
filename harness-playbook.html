@@ -187,6 +187,19 @@
   .kdd-calc input[type=text]{ width: 100%; min-width: 180px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; font: inherit; }
   .kdd-calc tr.win td{ background: #f0fdf4; }
   .toggle{ display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  /* editor + workbooks */
+  button.dirty::after{ content: " •"; color: #d97706; font-weight: 800; }
+  .modal-card.wide{ width: 920px; }
+  .frm .fl{ display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--muted); min-width: 0; }
+  .frm .fl > span:first-child{ font-weight: 600; color: #374151; }
+  .frm .fl.wide{ grid-column: 1 / -1; }
+  .mp-add{ display: flex; gap: 6px; } .mp-add select{ flex: 1; min-width: 0; } .mp-add button{ font-size: 12px; padding: 3px 10px; }
+  .mp .chips{ margin-bottom: 4px; } .mp .chip .icon-btn{ padding: 0 2px; font-size: 11px; }
+  .ed-err{ color: var(--bad); font-size: 12.5px; margin-top: 8px; }
+  .ed-btn{ font-size: 11px; padding: 1px 8px; margin-left: 6px; }
+  .pb-acts{ display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .pb-side .pb-new{ margin-top: 10px; color: var(--accent); border: 1px dashed #c4b5fd; justify-content: center; }
+  .pb-side .pb-new:hover{ background: var(--accent-soft); }
   /* modal */
   .modal{ position: fixed; inset: 0; background: rgba(15,23,42,.35); display: flex; align-items: flex-start; justify-content: center; padding-top: 5vh; z-index: 80; }
   .modal-card{ background: #fff; border-radius: 12px; width: 780px; max-width: 94vw; max-height: 88vh; overflow: auto; padding: 18px 22px; box-shadow: 0 20px 50px rgba(0,0,0,.25); font-size: 13.5px; line-height: 1.5; }
@@ -211,9 +224,9 @@
   <span class="status" id="status"></span>
   <span class="spacer"></span>
   <a class="btn" href="rtm-mapping.html" target="_blank" rel="noopener">Traceability ↗</a>
-  <label class="btn" for="fileInput">Load .xlsx</label>
-  <input type="file" id="fileInput" accept=".xlsx,.xls" />
-  <button id="exportBtn" title="Personas, agents, skills, artifacts, gates and runs as one workbook">Export .xlsx</button>
+  <label class="btn" for="fileInput" title="Load the master data, work items or memory workbook (recognised by its sheets). You can pick several files at once.">Load .xlsx</label>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" multiple />
+  <span class="seg"><button id="expMaster">⤓ Master data</button><button id="expWork">⤓ Work items</button><button id="expMem">⤓ Memory</button></span>
   <button id="seedBtn" title="Replace the catalog with the SDLC example (runs are kept)">Load example</button>
   <button class="danger" id="clearBtn">Clear</button>
   <button id="guideBtn">❓ How it works</button>
@@ -429,8 +442,8 @@ let RUN = { items: [], steps: {}, log: [], memq: {}, cur: "" };
 let UI = (() => { try { return JSON.parse(localStorage.getItem(LS_UI)) || {}; } catch (e) { return {}; } })();
 function emptyDB() { const d = {}; SH_ORDER.forEach(s => d[s] = []); return d; }
 function ensureIds(db) { SH_ORDER.forEach(s => { db[s] = db[s] || []; db[s].forEach(r => { if (!r._id) r._id = uid(); SH[s].cols.forEach(c => { if (r[c.key] == null) r[c.key] = ""; }); }); }); return db; }
-function save() { IX = null; try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch (e) {} setStatus(); }
-function saveRun() { try { localStorage.setItem(LS_RUN, JSON.stringify(RUN)); } catch (e) {} setStatus(); }
+function save() { IX = null; try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch (e) {} setDirty("master"); setStatus(); }
+function saveRun() { try { localStorage.setItem(LS_RUN, JSON.stringify(RUN)); } catch (e) {} setDirty("work", "memory"); setStatus(); }
 function saveUI() { try { localStorage.setItem(LS_UI, JSON.stringify(UI)); } catch (e) {} }
 function load() {
   try { const raw = localStorage.getItem(LS_KEY); DB = raw ? ensureIds({ ...emptyDB(), ...JSON.parse(raw) }) : ensureIds(exampleCatalog()); } catch (e) { DB = ensureIds(exampleCatalog()); }
@@ -445,6 +458,7 @@ function setStatus() {
   $("status").textContent = `${n("Personas")} personas · ${n("Agents")} agents · ${n("Skills")} skills · ${n("Artifacts")} artifacts · ${n("Gates")} gates · ${RUN.items.length} work item${RUN.items.length === 1 ? "" : "s"}`;
   const c = issueCounts(), el = $("issueCnt");
   el.hidden = !(c.error + c.warning); el.textContent = c.error + c.warning; el.className = "cnt" + (c.error ? " err" : "");
+  markDirty();
 }
 
 /* --------------------------- derived index ---------------------------- */
@@ -692,8 +706,10 @@ function renderPlaybook() {
   });
   const orphan = DB.Personas.filter(p => !TEAMS.includes(p.Team));
   if (orphan.length) { h += `<div class="grp">Other</div>`; orphan.forEach(p => h += `<button data-p="${E(p.PersonaID)}" class="${sel === p.PersonaID ? "active" : ""}">${E(p.Name || p.PersonaID)}</button>`); }
+  h += '<button class="pb-new" id="pbNewP">+ New persona</button>';
   $("pbSide").innerHTML = h;
   $("pbSide").querySelectorAll("button[data-p]").forEach(b => b.onclick = () => { UI.pb = b.dataset.p; saveUI(); renderPlaybook(); $("pbBody").scrollIntoView({ block: "start" }); });
+  $("pbNewP").onclick = () => openEditor("Personas", null, { pid: UI.pb });
   $("pbBody").innerHTML = sel === "_how" || !ix().persona[sel] ? howHtml() : personaHtml(sel);
   wirePbBody();
 }
@@ -731,7 +747,8 @@ function howHtml() {
     <li>Click <b>Record output</b>, paste the envelope (or type the ref) and tick the gates that passed. Auto-approved skills complete right away. The rest wait for the accountable role to <b>Approve</b> or <b>Reject</b>.</li>
     <li>Each approval logs the artifact's event and moves the newly unblocked skills to <b>Ready</b>. Mark a skill <b>N/A</b> when the work item doesn't need it (for example, no Kafka events, or TD-01 when no KDD has a dispensation).</li>
     <li>Under <b>Graph memory sync</b>, copy each queued op's prompt into Claude Code (<code>/sync-graph-memory</code>), then <b>Mark synced</b>. With <em>Trigger only after memory sync</em> on, the next skills become Ready only at that point.</li>
-    <li>Export the workbook to keep the catalog and the run history together. When you're ready to automate, see <b>Orchestration</b>.</li></ol></div>`;
+    <li>Keep three workbooks: <b>⤓ Master data</b> (personas, agents, skills, artifacts, gates), <b>⤓ Work items</b> (runs and the event log) and <b>⤓ Memory</b> (graph memory ops and state). A dot on a button means that workbook has changed since you last exported or loaded it. <b>Load .xlsx</b> recognises each workbook by its sheets. When you're ready to automate, see <b>Orchestration</b>.</li>
+    <li>To change the catalog, open a persona and use <b>+ Skill</b>, <b>+ Agent</b>, <b>+ Artifact</b> or <b>✎ Edit</b> on any skill card. The editor checks IDs, names and single producers, and renaming an ID updates every reference to it.</li></ol></div>`;
 }
 function personaHtml(pid) {
   const X = ix(), p = X.persona[pid], ag = DB.Agents.filter(a => a.PersonaID === pid), sk = skillsOfPersona(pid);
@@ -739,13 +756,15 @@ function personaHtml(pid) {
   const downs = uniq(sk.flatMap(s => nextSkills(s.SkillID)).map(x => personaOf(X.skill[x])).filter(q => q && q.PersonaID !== pid).map(q => q.PersonaID));
   const pchip = id => `<span class="chip lnk" data-p="${E(id)}">${E((X.persona[id] || {}).Name || id)}</span>`;
   let h = `<div class="card"><div class="pb-head"><div><h2>${E(p.Name)} playbook</h2>${teamChip(p.Team)} <span class="hint">${E(p.PersonaID)}</span></div><span class="spacer"></span>
-    ${ag.map(a => `<button class="copy-btn" data-agmd="${E(a.AgentID)}">Copy ${E(a.Name)}.md</button>`).join("")}</div>
+    <div class="pb-acts"><button class="copy-btn" data-ed="Personas" data-pid="${E(pid)}">✎ Edit persona</button><button class="copy-btn" data-ed="Agents" data-pid="${E(pid)}">+ Agent</button><button class="copy-btn primary" data-ed="Skills" data-pid="${E(pid)}">+ Skill</button><button class="copy-btn" data-ed="Artifacts" data-pid="${E(pid)}">+ Artifact</button>
+    ${ag.map(a => `<button class="copy-btn" data-agmd="${E(a.AgentID)}">Copy ${E(a.Name)}.md</button>`).join("")}</div></div>
     <p class="desc" style="margin:8px 0 0">${E(p.Description)}</p>
     <dl class="meta"><dt>Accountable</dt><dd>${E(p.Accountable || "—")}</dd>
-      ${ag.map(a => `<dt>Agent</dt><dd><code>${E(a.Name)}</code> · ${E(a.Model || "model not pinned")}<br><span class="hint">Tools: ${E(a.Tools || "—")}${a.MCP ? " · MCP: " + E(a.MCP) : ""}</span></dd>`).join("") || `<dt>Agent</dt><dd class="hint">No agent plays this persona yet. Add one in Registry → Agents.</dd>`}
+      ${ag.map(a => `<dt>Agent</dt><dd><code>${E(a.Name)}</code> · ${E(a.Model || "model not pinned")}<button class="ed-btn" data-edag="${E(a.AgentID)}">✎ Edit</button><br><span class="hint">Tools: ${E(a.Tools || "—")}${a.MCP ? " · MCP: " + E(a.MCP) : ""}</span></dd>`).join("") || `<dt>Agent</dt><dd class="hint">No agent plays this persona yet. Add one with <b>+ Agent</b>.</dd>`}
       <dt>Receives from</dt><dd><div class="chips">${ups.map(pchip).join("") || '<span class="hint">seed request only</span>'}</div></dd>
       <dt>Hands off to</dt><dd><div class="chips">${downs.map(pchip).join("") || '<span class="hint">none</span>'}</div></dd>
-      <dt>Skills</dt><dd><div class="chips">${sk.map(s => `<a class="chip lnk" href="#sk-${E(s.SkillID)}">${E(s.SkillID)} /${E(s.Name)}</a>`).join("") || '<span class="hint">none</span>'}</div></dd></dl></div>`;
+      <dt>Skills</dt><dd><div class="chips">${sk.map(s => `<a class="chip lnk" href="#sk-${E(s.SkillID)}">${E(s.SkillID)} /${E(s.Name)}</a>`).join("") || '<span class="hint">none</span>'}</div></dd>
+      <dt>Artifacts produced</dt><dd><div class="chips">${uniq(sk.map(s => S(s.Output)).filter(Boolean)).map(a => `<span class="chip lnk" data-edart="${E(a)}" title="Edit this artifact">${E(a)} <small>${E((X.art[a] || {}).Name || "missing")} ✎</small></span>`).join("") || '<span class="hint">none</span>'}</div></dd></dl></div>`;
   sk.forEach(s => h += skillCard(s));
   return h;
 }
@@ -758,13 +777,13 @@ function skillCard(s) {
   const evs = isHook(s) ? ["*.approved", "*.reopened"] : list(s.Inputs).map(a => (X.art[a] || {}).Event || a + ".approved");
   return `<div class="sk" id="sk-${E(s.SkillID)}"><div class="sk-h"><span class="idc">${E(s.SkillID)}</span><b>${E(s.Name)}</b><span class="cmd">/${E(s.Name)}</span>
       <span class="chip">${E(s.Stage)}</span>${isHook(s) ? '<span class="chip ev">hook: after every approval</span>' : ""}${isAuto(s) ? '<span class="chip auto">auto-approve on gates</span>' : approvers(s).map(r => `<span class="chip human">reviewer: ${E(r)}</span>`).join("")}
-      <span class="spacer"></span><button data-skmd="${E(s.SkillID)}">Copy SKILL.md</button><button data-prompt="${E(s.SkillID)}">Prompt</button><button data-flow="${E(s.SkillID)}">In workflow</button></div>
+      <span class="spacer"></span><button class="primary" data-edsk="${E(s.SkillID)}">✎ Edit</button><button data-skmd="${E(s.SkillID)}">Copy SKILL.md</button><button data-prompt="${E(s.SkillID)}">Prompt</button><button data-flow="${E(s.SkillID)}">In workflow</button></div>
     <div class="sk-b">
       <div class="wide"><p>${E(s.Purpose)}</p></div>
       <div><h4>Trigger: when all of</h4><div class="chips">${evs.map(e => `<span class="chip ev">${E(e)}</span>`).join("") || '<span class="hint">no inputs (runs on work item start)</span>'}</div></div>
       <div><h4>Inputs</h4><div class="chips">${isHook(s) ? '<span class="hint">the approved (or reopened) artifact named in the prompt, plus its Memory mapping</span>' : ""}${list(s.Inputs).map(a => artChip(a)).join("")}${list(s.Context).map(a => artChip(a, 1)).join("")}</div>${list(s.Context).length ? '<p class="hint" style="margin:4px 0 0">dashed = optional context</p>' : ""}</div>
       <div><h4>Steps</h4><ol>${lines(s.Steps).map(x => `<li>${E(x)}</li>`).join("")}</ol></div>
-      <div><h4>Output contract</h4><p><span class="idc">${E(s.Output)}</span> <b>${E(out.Name || "?")}</b> · ${E(out.Format || "")}<br><code>${E(out.Path || "")}</code></p><ul>${fields(out.Fields).map(f => `<li>${E(f)}</li>`).join("")}</ul></div>
+      <div><h4>Output contract${S(s.Output) ? `<button class="ed-btn" data-edart="${E(s.Output)}">✎ Edit artifact</button>` : ""}</h4><p><span class="idc">${E(s.Output)}</span> <b>${E(out.Name || "?")}</b> · ${E(out.Format || "")}<br><code>${E(out.Path || "")}</code></p><ul>${fields(out.Fields).map(f => `<li>${E(f)}</li>`).join("")}</ul></div>
       <div><h4>Gates</h4>${list(s.Gates).map(g => { const G = X.gate[g] || {}; return `<div class="gate-row"><span class="idc">${E(g)}</span><span><b>${E(G.Name || "?")}</b> ${G.Blocking === "N" ? '<span class="hint">(advisory)</span>' : ""}<small>${E(G.Check || "")}${G.Tool ? " · " + E(G.Tool) : ""}</small></span></div>`; }).join("") || '<p class="hint">No gates. Add at least a schema gate.</p>'}</div>
       <div><h4>On approval: emits → triggers</h4><div class="flowline"><span class="chip ev">${E(out.Event || "?")}</span><span class="arrow">→</span>${nx.map(x => `<span class="chip lnk" data-sk="${E(x)}">${E(x)} <small>${E((X.skill[x] || {}).Name)}</small></span>`).join("") || (isHook(s) ? '<span class="hint">releases every skill waiting on this artifact (when triggers wait for memory sync)</span>' : out.Terminal === "Y" ? '<span class="hint">terminal: closes the loop</span>' : '<span class="hint">nothing yet</span>')}${cx.length ? `<span class="hint">· context for ${cx.map(E).join(", ")}</span>` : ""}</div></div>
       ${S(s.Output) === "A-KDD" ? kddCalc() : ""}
@@ -784,6 +803,15 @@ function wirePbBody() {
   b.querySelectorAll("[data-prompt]").forEach(x => x.onclick = () => promptModal(RUN.cur, x.dataset.prompt));
   b.querySelectorAll("[data-flow]").forEach(x => x.onclick = () => { UI.flowSel = x.dataset.flow; UI.flowTeam = ""; saveUI(); showView("flow"); });
   b.querySelectorAll('a[href^="#sk-"]').forEach(a => a.onclick = e => { e.preventDefault(); const el = document.getElementById(a.getAttribute("href").slice(1)); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); });
+  b.querySelectorAll("[data-ed]").forEach(x => x.onclick = () => {
+    const sh = x.dataset.ed, pid = x.dataset.pid;
+    if (sh === "Personas") return openEditor("Personas", ix().persona[pid]);
+    if (sh === "Skills" && !DB.Agents.some(a => a.PersonaID === pid)) { toast("Add an agent for this persona first"); return openEditor("Agents", null, { pid }); }
+    openEditor(sh, null, { pid });
+  });
+  b.querySelectorAll("[data-edsk]").forEach(x => x.onclick = () => openEditor("Skills", ix().skill[x.dataset.edsk]));
+  b.querySelectorAll("[data-edag]").forEach(x => x.onclick = () => openEditor("Agents", ix().agent[x.dataset.edag]));
+  b.querySelectorAll("[data-edart]").forEach(x => x.onclick = e => { e.stopPropagation(); const a = ix().art[x.dataset.edart]; if (a) openEditor("Artifacts", a); else toast(`${x.dataset.edart} isn't in Artifacts`); });
   wireKdd();
 }
 
@@ -915,8 +943,8 @@ function card({ s, st, r }) {
     ${stale ? '<span class="badge stale">stale</span>' : ""}${r.rework ? `<span class="badge rw">rework ×${r.rework}</span>` : ""}${st === "na" ? '<span class="badge na">n/a</span>' : ""}${st === "approved" ? (r.mem === "synced" ? '<span class="badge ok">in memory</span>' : r.mem === "pending" ? '<span class="badge mem">memory sync pending</span>' : "") : ""}</div>
     <div class="sub">${E((personaOf(s) || {}).Name || "")} · ${sub}</div><div class="acts">${acts}</div></div>`;
 }
-function modal(html) { $("modalCard").innerHTML = html; $("modal").hidden = false; }
-function closeModal() { $("modal").hidden = true; }
+function modal(html) { $("modalCard").className = "modal-card"; $("modalCard").innerHTML = html; $("modal").hidden = false; }
+function closeModal() { $("modal").hidden = true; ED = null; }
 function promptModal(wi, sid, started) {
   const s = ix().skill[sid], txt = buildPrompt(wi, sid);
   modal(`<h2>${started ? "Started " : ""}${E(sid)} · /${E(s.Name)}</h2><p class="hint">${started ? "Copied to your clipboard. " : ""}Paste this into Claude Code${wi ? "" : ". Pick a work item in Run to fill in real input refs"}. When the agent finishes, choose <b>Record output</b> and paste its envelope.</p>
@@ -994,11 +1022,12 @@ function renderGrid() {
     const l = c.ref || (c.key === "Approval" ? "Approval" : "");
     return `<input ${at} value="${v}" ${w} ${l ? `list="dl-${l}"` : ""} ${c.multi ? `title="Comma list of ${c.multi} IDs"` : ""}/>`;
   };
-  $("gridWrap").innerHTML = `<table><thead><tr>${sh.cols.map(c => `<th>${E(c.key)}</th>`).join("")}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${sh.cols.map(c => `<td>${cell(r, c)}</td>`).join("")}<td><button class="icon-btn" data-del="${r._id}" title="Delete row">✕</button></td></tr>`).join("")}</tbody></table>`;
+  $("gridWrap").innerHTML = `<table><thead><tr>${sh.cols.map(c => `<th>${E(c.key)}</th>`).join("")}<th></th></tr></thead><tbody>${rows.map(r => `<tr>${sh.cols.map(c => `<td>${cell(r, c)}</td>`).join("")}<td style="white-space:nowrap"><button class="icon-btn" data-edit="${r._id}" title="Edit in a form">✎</button><button class="icon-btn" data-del="${r._id}" title="Delete row">✕</button></td></tr>`).join("")}</tbody></table>`;
   $("gridWrap").querySelectorAll("[data-k]").forEach(el => {
     el.onfocus = () => { el._v = el.value; };
     el.onchange = () => { const r = DB[CUR_SHEET].find(x => x._id === el.dataset.r); if (!r || el._v === el.value) return; pushUndo(); r[el.dataset.k] = el.value; save(); el._v = el.value; };
   });
+  $("gridWrap").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => openEditor(CUR_SHEET, DB[CUR_SHEET].find(r => r._id === b.dataset.edit)));
   $("gridWrap").querySelectorAll("[data-del]").forEach(b => b.onclick = () => { pushUndo(); DB[CUR_SHEET] = DB[CUR_SHEET].filter(r => r._id !== b.dataset.del); save(); renderGrid(); });
 }
 function addRow() {
@@ -1198,43 +1227,278 @@ function memPromptModal(wi, opId) {
   $("mSync").onclick = () => { closeModal(); runAct("sync", opId); };
 }
 
-/* =========================== import / export =========================== */
-function exportXlsx() {
-  const wb = XLSX.utils.book_new();
-  SH_ORDER.forEach(s => { const cols = SH[s].cols.map(c => c.key), ws = XLSX.utils.json_to_sheet(DB[s].map(r => Object.fromEntries(cols.map(k => [k, r[k] == null ? "" : r[k]]))), { header: cols });
-    ws["!cols"] = SH[s].cols.map(c => ({ wch: Math.max(12, Math.round((c.w || (c.area ? 320 : 120)) / 7)) })); XLSX.utils.book_append_sheet(wb, ws, s); });
-  const wiCols = ["WorkItemID", "Title", "Request", "Created"], stCols = ["WorkItemID", "SkillID", "Status", "Ref", "Version", "Gates", "ApprovedBy", "Approvals", "Memory", "Rework", "Notes", "Updated"];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(RUN.items.map(w => ({ WorkItemID: w.id, Title: w.title, Request: w.desc, Created: w.created })), { header: wiCols }), "WorkItems");
-  const st = []; Object.entries(RUN.steps).forEach(([wi, m]) => Object.entries(m).forEach(([sid, r]) => st.push({ WorkItemID: wi, SkillID: sid, Status: r.st || "", Ref: r.ref || "", Version: r.ver || "", Gates: Object.entries(r.gates || {}).map(([g, v]) => g + "=" + v).join(", "), ApprovedBy: r.by || "", Approvals: Object.entries(r.appr || {}).map(([k, v]) => k + "@" + v).join(" | "), Memory: r.mem || "", Rework: r.rework || "", Notes: r.notes || "", Updated: r.ts || "" })));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(st, { header: stCols }), "RunSteps");
-  const mo = []; Object.entries(RUN.memq || {}).forEach(([wi, q]) => q.forEach(o => mo.push({ WorkItemID: wi, OpID: o.id, Op: o.op, Artifact: o.art, SkillID: o.sid, Ref: o.ref, Version: o.ver, Status: o.st, Queued: o.ts, Done: o.done || "" })));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mo, { header: ["WorkItemID", "OpID", "Op", "Artifact", "SkillID", "Ref", "Version", "Status", "Queued", "Done"] }), "MemoryOps");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(RUN.log.map(l => ({ Time: l.ts, WorkItemID: l.wi, Event: l.ev, Detail: l.detail })), { header: ["Time", "WorkItemID", "Event", "Detail"] }), "RunLog");
-  XLSX.writeFile(wb, "HarnessPlaybook.xlsx"); toast("Exported HarnessPlaybook.xlsx");
+/* =============================== EDITOR ================================ */
+// Form editor for the master data. New rows start from a draft; renaming an ID updates every reference to it.
+const ED_HELP = {
+  Name: { Skills: "kebab-case: becomes /name and .claude/skills/name/SKILL.md", Agents: "kebab-case: becomes .claude/agents/name.md" },
+  Inputs: "required: the skill triggers when all of these are approved", Context: "optional: read if available, never blocks",
+  Output: "the one artifact this skill writes", Steps: "one step per line", Gates: "deterministic checks the output must pass",
+  Approval: "Auto, a reviewer role, or roles joined with + (all must approve)", Mode: "Hook skills run after every approval, outside the pipeline",
+  Fields: "required fields / sections, separated by semicolons", Path: "use {wi} for the work item ID", Event: "emitted on approval; blank = <id>.approved",
+  Memory: "graph memory mapping: Node(ID) -REL-> Node {props}; …", Tools: "Claude Code tools, comma-separated", MCP: "MCP servers, comma-separated", Model: "pinned model ID",
+  Seed: "Y = provided by the work item request", Terminal: "Y = no consumer expected", Accountable: "the human accountable for this persona's outputs",
+  Check: "the pass / fail rule", Tool: "the command or tool that runs it", Blocking: "N = advisory only",
+};
+const ED_LABEL = { Personas: "persona", Agents: "agent", Skills: "skill", Artifacts: "artifact", Gates: "gate" };
+const edHelp = (sheet, k) => { const h = ED_HELP[k]; return h && typeof h === "object" ? h[sheet] || "" : h || ""; };
+const kebab = v => S(v).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const uniqueVal = (sheet, key, base) => { let v = base, i = 2; while (DB[sheet].some(r => r[key] === v)) v = base + "-" + i++; return v; };
+let ED = null;
+function nextSkillId(agentId) {
+  const own = DB.Skills.filter(s => s.AgentID === agentId).map(s => S(s.SkillID).match(/^(.+)-(\d+)$/)).filter(Boolean);
+  const prefix = own.length ? own[0][1] : (S(agentId).replace(/^AG-/, "") || "SK"), re = new RegExp("^" + prefix.replace(/[^\w]/g, "\\$&") + "-(\\d+)$");
+  return prefix + "-" + String(Math.max(0, ...DB.Skills.map(s => (S(s.SkillID).match(re) || [, 0])[1]).map(Number)) + 1).padStart(2, "0");
 }
-function importXlsx(file) {
-  const rd = new FileReader();
-  rd.onload = e => {
-    try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" }), norm = x => x.replace(/\s+/g, "").toLowerCase(), sheet = n => { const k = wb.SheetNames.find(x => norm(x) === norm(n)); return k ? XLSX.utils.sheet_to_json(wb.Sheets[k], { defval: "", raw: false }) : null; };
-      const db = emptyDB(); let found = 0;
-      SH_ORDER.forEach(s => { const rows = sheet(s); if (!rows) return; found++;
-        db[s] = rows.map(row => { const o = {}; SH[s].cols.forEach(c => { const k = Object.keys(row).find(x => norm(x) === norm(c.key)); o[c.key] = k ? String(row[k]) : ""; }); return o; }).filter(o => Object.values(o).some(v => S(v))); });
-      if (!found) { toast("No Personas / Agents / Skills / Artifacts / Gates sheets found"); return; }
-      pushUndo(); DB = ensureIds(db);
-      const wis = sheet("WorkItems"), sts = sheet("RunSteps"), lg = sheet("RunLog");
-      if (wis) {
-        RUN = { memq: {}, items: wis.map(w => ({ id: S(w.WorkItemID), title: S(w.Title), desc: S(w.Request), created: S(w.Created) })).filter(w => w.id), steps: {}, log: [], cur: "" };
-        (sts || []).forEach(r => { const wi = S(r.WorkItemID), sid = S(r.SkillID); if (!wi || !sid) return; RUN.steps[wi] = RUN.steps[wi] || {};
-          RUN.steps[wi][sid] = { st: S(r.Status), ref: S(r.Ref), ver: S(r.Version), by: S(r.ApprovedBy), rework: +r.Rework || 0, mem: S(r.Memory), appr: Object.fromEntries(S(r.Approvals).split("|").map(S).filter(Boolean).map(x => { const i = x.indexOf("@"); return i < 0 ? [x, ""] : [x.slice(0, i), x.slice(i + 1)]; })), notes: S(r.Notes), ts: S(r.Updated), gates: Object.fromEntries(list(r.Gates).map(x => x.split("=").map(S))) }; });
-        (sheet("MemoryOps") || []).forEach(o => { const wi = S(o.WorkItemID); if (!wi) return; (RUN.memq[wi] = RUN.memq[wi] || []).push({ id: S(o.OpID) || uid(), op: S(o.Op), art: S(o.Artifact), sid: S(o.SkillID), ref: S(o.Ref), ver: S(o.Version), st: S(o.Status), ts: S(o.Queued), done: S(o.Done) }); });
-        RUN.log = (lg || []).map(l => ({ ts: S(l.Time), wi: S(l.WorkItemID), ev: S(l.Event), detail: S(l.Detail) }));
-        RUN.cur = (RUN.items[0] || {}).id || "";
-      }
-      save(); saveRun(); renderAll(); toast(`Loaded ${file.name}`);
-    } catch (err) { toast("Could not read the workbook: " + err.message, 3500); }
+function newDraft(sheet, pid) {
+  const p = ix().persona[pid] || {};
+  if (sheet === "Personas") return { PersonaID: "P-", Team: p.Team || "Engineering", Name: "", Accountable: "", Description: "" };
+  if (sheet === "Agents") return { AgentID: uniqueVal("Agents", "AgentID", "AG-" + S(pid).replace(/^P-/, "")), PersonaID: pid || "", Name: uniqueVal("Agents", "Name", (kebab(p.Name) || "new") + "-agent"), Model: "claude-sonnet-5-5", Tools: "Read, Write, Edit, Grep, Glob", MCP: "graph-memory", Description: "" };
+  if (sheet === "Skills") { const ag = (DB.Agents.find(a => a.PersonaID === pid) || {}).AgentID || "", last = skillsOfPersona(pid).slice(-1)[0];
+    return { SkillID: ag ? nextSkillId(ag) : "", AgentID: ag, Name: "", Stage: last ? last.Stage : "Build", Mode: "Pipeline", Purpose: "", Inputs: "", Context: "", Output: "", Steps: "", Gates: ["G-SCHEMA", "G-COMPLETE"].filter(g => ix().gate[g]).join(", "), Approval: "Auto" }; }
+  if (sheet === "Artifacts") return { ArtifactID: "A-", Name: "", Format: "Markdown", Path: "docs/{wi}/", Fields: "", Event: "", Seed: "N", Terminal: "N", Memory: "" };
+  return { GateID: "G-", Name: "", Kind: "Schema", Check: "", Tool: "", Blocking: "Y" };
+}
+function openEditor(sheet, row, opts) {
+  opts = opts || {};
+  const existing = !!row && DB[sheet].includes(row), draft = { ...(row || newDraft(sheet, opts.pid)) };
+  delete draft._id;
+  ED = { sheet, row: existing ? row : null, draft, onSave: opts.onSave || null, back: opts.back || null };
+  renderEditor();
+}
+function edUsage(sheet, id) {
+  const X = ix(), ids = a => a.map(x => `<span class="idc">${E(x)}</span>`).join(" ") || "none";
+  if (sheet === "Personas") return `Agents: ${ids(DB.Agents.filter(a => a.PersonaID === id).map(a => a.AgentID))}`;
+  if (sheet === "Agents") return `Skills: ${ids(DB.Skills.filter(s => s.AgentID === id).map(s => s.SkillID))}`;
+  if (sheet === "Artifacts") return `Produced by ${ids(X.producers[id] || [])} · required by ${ids(X.consumers[id] || [])} · context for ${ids(X.ctxConsumers[id] || [])}`;
+  if (sheet === "Gates") return `Used by ${ids(DB.Skills.filter(s => list(s.Gates).includes(id)).map(s => s.SkillID))}`;
+  return `Triggers ${ids(nextSkills(id))}`;
+}
+function mpHtml(key, src) {
+  const sel = list(ED.draft[key]), k = SH[src].id, X = ix(), nm = id => (DB[src].find(r => r[k] === id) || {}).Name || "missing";
+  return `<div class="mp"><div class="chips">${sel.map(id => `<span class="chip">${E(id)} <small>${E(nm(id))}</small><button type="button" class="icon-btn" data-mprm="${E(key)}" data-v="${E(id)}" title="Remove">✕</button></span>`).join("") || '<span class="hint">none</span>'}</div>
+    <div class="mp-add"><select data-mpadd="${E(key)}"><option value="">+ Add ${src === "Gates" ? "gate" : "artifact"}…</option>${DB[src].filter(r => !sel.includes(r[k])).map(r => `<option value="${E(r[k])}">${E(r[k])} · ${E(r.Name || "")}${src === "Artifacts" && X.producer[r[k]] ? " (" + E(X.producer[r[k]]) + ")" : ""}</option>`).join("")}</select>
+    <button type="button" data-mpnew="${E(key)}" data-src="${E(src)}">+ New ${src === "Gates" ? "gate" : "artifact"}</button></div></div>`;
+}
+function renderEditor() {
+  const { sheet, row, draft } = ED, sh = SH[sheet], card = $("modalCard"), top = card.scrollTop;
+  const fld = c => {
+    const v = draft[c.key] == null ? "" : String(draft[c.key]), help = edHelp(sheet, c.key);
+    let input;
+    if (c.multi) input = mpHtml(c.key, c.multi);
+    else if (c.opts) input = `<select data-ek="${c.key}"><option value=""></option>${c.opts.map(o => `<option ${o === v ? "selected" : ""}>${E(o)}</option>`).join("")}</select>`;
+    else if (c.ref) { const src = DB[c.ref], k = SH[c.ref].id;
+      input = `<div class="mp-add"><select data-ek="${c.key}"><option value=""></option>${src.map(r => `<option value="${E(r[k])}" ${r[k] === v ? "selected" : ""}>${E(r[k])} · ${E(r.Name || "")}</option>`).join("")}${v && !src.some(r => r[k] === v) ? `<option selected value="${E(v)}">${E(v)} (missing)</option>` : ""}</select>${c.ref !== "Personas" ? `<button type="button" data-ednew="${c.key}" data-src="${c.ref}">+ New</button>` : ""}</div>`; }
+    else if (c.area) input = `<textarea data-ek="${c.key}" rows="${c.key === "Steps" ? 7 : 3}">${E(v)}</textarea>`;
+    else input = `<input data-ek="${c.key}" value="${E(v)}" ${c.key === "Approval" ? 'list="dl-ed-appr"' : ""}/>`;
+    return `<div class="fl${c.area || c.multi ? " wide" : ""}"><span>${E(c.key)}${help ? ` <span class="hint">· ${E(help)}</span>` : ""}</span>${input}</div>`;
   };
-  rd.readAsArrayBuffer(file);
+  const roles = uniq(DB.Skills.flatMap(approvers).concat(DB.Personas.map(p => S(p.Accountable))).filter(Boolean)).sort();
+  const parent = ED.back ? `${ED_LABEL[ED.back.sheet]} ${S(ED.back.draft[SH[ED.back.sheet].id])}` : "";
+  card.className = "modal-card wide";
+  card.innerHTML = `<h2>${row ? "Edit" : "New"} ${ED_LABEL[sheet]}${row ? ` · ${E(row[sh.id])}` : ""}</h2>
+    ${parent ? `<p class="note" style="margin-top:0">Creating it for ${E(parent)}. Saving takes you back there.</p>` : ""}
+    ${row ? `<p class="hint" style="margin:0 0 8px">${edUsage(sheet, S(row[sh.id]))}</p>` : ""}
+    <div class="frm">${sh.cols.map(fld).join("")}</div>
+    <datalist id="dl-ed-appr"><option value="Auto">${roles.map(r => `<option value="${E(r)}">`).join("")}</datalist>
+    <div class="ed-err" id="edErr"></div>
+    <div class="modal-actions">${row ? '<button class="danger" id="edDel" style="margin-right:auto">Delete</button>' : ""}<button id="edCancel">${parent ? "← Back" : "Cancel"}</button><button class="primary" id="edSave">Save</button></div>`;
+  $("modal").hidden = false; card.scrollTop = top;
+  card.querySelectorAll("[data-ek]").forEach(el => {
+    el.oninput = () => { draft[el.dataset.ek] = el.value; };
+    el.onchange = () => {
+      const k = el.dataset.ek;
+      if (k === "Name" && (sheet === "Skills" || sheet === "Agents")) el.value = kebab(el.value);
+      draft[k] = el.value;
+      if (sheet === "Skills" && k === "AgentID" && !row && el.value) { draft.SkillID = nextSkillId(el.value); renderEditor(); }
+    };
+  });
+  card.querySelectorAll("[data-mprm]").forEach(b => b.onclick = () => { const k = b.dataset.mprm; draft[k] = list(draft[k]).filter(x => x !== b.dataset.v).join(", "); renderEditor(); });
+  card.querySelectorAll("[data-mpadd]").forEach(s => s.onchange = () => { if (!s.value) return; const k = s.dataset.mpadd; draft[k] = uniq([...list(draft[k]), s.value]).join(", "); renderEditor(); });
+  card.querySelectorAll("[data-mpnew]").forEach(b => b.onclick = () => edNested(b.dataset.src, (d, r) => { const k = b.dataset.mpnew; d[k] = uniq([...list(d[k]), r[SH[b.dataset.src].id]]).join(", "); }));
+  card.querySelectorAll("[data-ednew]").forEach(b => b.onclick = () => edNested(b.dataset.src, (d, r) => { d[b.dataset.ednew] = r[SH[b.dataset.src].id]; }, b.dataset.src === "Agents" ? draft.PersonaID : (ix().agent[draft.AgentID] || {}).PersonaID));
+  $("edCancel").onclick = () => { if (ED.back) { ED = ED.back; renderEditor(); } else closeModal(); };
+  $("edSave").onclick = saveEditor;
+  if (row) $("edDel").onclick = deleteEditor;
+}
+function edNested(sheet, apply, pid) {
+  const parent = ED;
+  openEditor(sheet, null, { pid, back: parent, onSave: r => { apply(parent.draft, r); ED = parent; renderEditor(); } });
+}
+function renameRefs(sheet, old, nu) {
+  const swap = v => list(v).map(x => x === old ? nu : x).join(", ");
+  if (sheet === "Personas") DB.Agents.forEach(a => { if (a.PersonaID === old) a.PersonaID = nu; });
+  if (sheet === "Agents") DB.Skills.forEach(s => { if (s.AgentID === old) s.AgentID = nu; });
+  if (sheet === "Gates") DB.Skills.forEach(s => { s.Gates = swap(s.Gates); });
+  if (sheet === "Artifacts") { DB.Skills.forEach(s => { s.Inputs = swap(s.Inputs); s.Context = swap(s.Context); if (s.Output === old) s.Output = nu; });
+    Object.values(RUN.memq).forEach(q => q.forEach(o => { if (o.art === old) o.art = nu; })); saveRun(); }
+  if (sheet === "Skills") { Object.values(RUN.steps).forEach(m => { if (m[old]) { m[nu] = m[old]; delete m[old]; } });
+    Object.values(RUN.memq).forEach(q => q.forEach(o => { if (o.sid === old) o.sid = nu; })); if (UI.flowSel === old) UI.flowSel = nu; saveRun(); }
+}
+function saveEditor() {
+  const { sheet, row, draft } = ED, sh = SH[sheet], idk = sh.id, X = ix();
+  sh.cols.forEach(c => { const v = draft[c.key] == null ? "" : String(draft[c.key]); draft[c.key] = c.multi ? list(v).join(", ") : c.area ? v.replace(/\s+$/, "") : S(v); });
+  if (sheet === "Skills" || sheet === "Agents") draft.Name = kebab(draft.Name);
+  if (sheet === "Artifacts" && !draft.Event && /^A-./.test(draft.ArtifactID)) draft.Event = draft.ArtifactID.replace(/^A-/, "").toLowerCase() + ".approved";
+  const id = draft[idk], errs = [];
+  if (!id || /-$/.test(id)) errs.push(`Give it an ${idk} (e.g. ${sh.prefix}XYZ)`);
+  else if (DB[sheet].some(r => r !== row && S(r[idk]) === id)) errs.push(`${id} already exists`);
+  if (!draft.Name) errs.push("Name is required");
+  if (sheet === "Skills") {
+    if (!X.agent[draft.AgentID]) errs.push("Pick the agent that runs this skill");
+    if (DB.Skills.some(r => r !== row && r.Name === draft.Name)) errs.push(`Another skill is already named ${draft.Name}`);
+    if (!draft.Output) errs.push("Pick or create the output artifact");
+    else { const p = X.producer[draft.Output]; if (p && (!row || p !== row.SkillID)) errs.push(`${draft.Output} is already produced by ${p}. Each artifact has exactly one producer`); }
+    if (list(draft.Inputs).includes(draft.Output)) errs.push("A skill can't consume its own output");
+    if (!isHook(draft) && !list(draft.Inputs).length) errs.push("Add at least one required input (use A-REQUEST to run when a work item starts)");
+  }
+  if (sheet === "Agents") { if (!X.persona[draft.PersonaID]) errs.push("Pick the persona this agent plays"); if (DB.Agents.some(r => r !== row && r.Name === draft.Name)) errs.push(`Another agent is already named ${draft.Name}`); }
+  if (sheet === "Personas" && !draft.Team) errs.push("Pick a team");
+  if (errs.length) { $("edErr").innerHTML = errs.map(E).join("<br>"); return; }
+  pushUndo();
+  let saved = row;
+  if (row) { const old = S(row[idk]); Object.assign(row, draft); if (old !== id) renameRefs(sheet, old, id); }
+  else { saved = { _id: uid(), ...draft }; DB[sheet].push(saved); }
+  save();
+  if (ED.onSave) { const cb = ED.onSave; cb(saved); toast(`Created ${id}`); return; }
+  closeModal();
+  if (sheet === "Personas") UI.pb = id;
+  else if (sheet === "Skills" || sheet === "Agents") { const p = sheet === "Skills" ? personaOf(saved) : ix().persona[saved.PersonaID]; if (p && UI.view === "playbook") UI.pb = p.PersonaID; }
+  saveUI(); renderAll();
+  if (sheet === "Skills" && UI.view === "playbook") setTimeout(() => { const el = document.getElementById("sk-" + id); if (el) el.scrollIntoView({ block: "start" }); }, 30);
+  toast(`Saved ${id}. Export master data to keep it in Excel`, 2600);
+}
+function deleteEditor() {
+  const { sheet, row } = ED, id = S(row[SH[sheet].id]), X = ix();
+  if (sheet === "Personas" && DB.Agents.some(a => a.PersonaID === id)) { $("edErr").textContent = "Delete this persona's agents, or move them to another persona, first."; return; }
+  if (sheet === "Agents" && DB.Skills.some(s => s.AgentID === id)) { $("edErr").textContent = "Delete this agent's skills, or move them to another agent, first."; return; }
+  let msg = `Delete ${id}?`;
+  if (sheet === "Artifacts") { const u = uniq([...(X.consumers[id] || []), ...(X.ctxConsumers[id] || [])]), p = X.producers[id] || [];
+    if (u.length) msg += `\nIt is removed from the inputs of ${u.join(", ")}.`; if (p.length) msg += `\n${p.join(", ")} will have no output until you pick one.`; }
+  if (sheet === "Gates") { const u = DB.Skills.filter(s => list(s.Gates).includes(id)).map(s => s.SkillID); if (u.length) msg += `\nIt is removed from ${u.join(", ")}.`; }
+  if (!confirm(msg + "\n(Ctrl/⌘+Z undoes)")) return;
+  pushUndo();
+  if (sheet === "Artifacts") DB.Skills.forEach(s => { s.Inputs = list(s.Inputs).filter(x => x !== id).join(", "); s.Context = list(s.Context).filter(x => x !== id).join(", "); if (s.Output === id) s.Output = ""; });
+  if (sheet === "Gates") DB.Skills.forEach(s => { s.Gates = list(s.Gates).filter(x => x !== id).join(", "); });
+  DB[sheet] = DB[sheet].filter(r => r !== row);
+  if (sheet === "Personas" && UI.pb === id) UI.pb = "_how";
+  save(); closeModal(); saveUI(); renderAll(); toast(`Deleted ${id}`);
+}
+
+/* =========================== import / export =========================== */
+// Three workbooks: master data (the catalog: personas, agents, skills, artifacts, gates), work items (runs and
+// their event log) and memory (graph-memory ops and state). Load .xlsx recognises each one by its sheets.
+const WB = {
+  master: { label: "master data", file: "HarnessMasterData.xlsx", btn: "expMaster" },
+  work: { label: "work items", file: "HarnessWorkItems.xlsx", btn: "expWork" },
+  memory: { label: "memory", file: "HarnessMemory.xlsx", btn: "expMem" },
+};
+let QUIET = false;   // true while importing: loading a workbook doesn't count as an unsaved change
+const wbFile = k => (UI.files || {})[k] || WB[k].file;
+function markDirty() {
+  const d = UI.dirty || {};
+  Object.entries(WB).forEach(([k, w]) => { const b = $(w.btn); if (!b) return; b.classList.toggle("dirty", !!d[k]);
+    b.title = `Export ${w.label} as ${wbFile(k)}${d[k] ? ". Changed since the last export or load" : ""}`; });
+}
+function setDirty(...ks) { if (QUIET) return; UI.dirty = { ...(UI.dirty || {}) }; ks.forEach(k => UI.dirty[k] = true); saveUI(); }
+function addSheet(wb, rows, header, name, widths) {
+  const ws = XLSX.utils.json_to_sheet(rows, { header });
+  ws["!cols"] = header.map((h, i) => ({ wch: (widths && widths[i]) || Math.max(12, Math.min(48, h.length + 8)) }));
+  XLSX.utils.book_append_sheet(wb, ws, name);
+}
+function exported(k, name) { UI.files = { ...(UI.files || {}), [k]: name }; UI.dirty = { ...(UI.dirty || {}), [k]: false }; saveUI(); markDirty(); toast(`Exported ${name}`); }
+function exportMaster() {
+  const wb = XLSX.utils.book_new();
+  addSheet(wb, [
+    ...SH_ORDER.map(s => ({ Sheet: s, Purpose: SH[s].desc, Columns: SH[s].cols.map(c => c.key + (c.opts ? " (list)" : c.ref ? ` (→ ${c.ref})` : c.multi ? ` (comma list → ${c.multi})` : "")).join(", ") })),
+    { Sheet: "Lists", Purpose: "Allowed values for the list columns (Team, Stage, Mode, Kind, Y/N).", Columns: "" },
+    { Sheet: "(other files)", Purpose: "Work items and runs are in HarnessWorkItems.xlsx; graph memory ops and state are in HarnessMemory.xlsx.", Columns: "" },
+  ], ["Sheet", "Purpose", "Columns"], "README", [14, 90, 110]);
+  SH_ORDER.forEach(s => { const cols = SH[s].cols.map(c => c.key);
+    addSheet(wb, DB[s].map(r => Object.fromEntries(cols.map(k => [k, r[k] == null ? "" : r[k]]))), cols, s, SH[s].cols.map(c => Math.max(12, Math.round((c.w || (c.area ? 320 : 120)) / 7)))); });
+  const lists = { Team: TEAMS, Stage: STAGES, Mode: MODES, GateKind: GATE_KINDS, YesNo: YN }, n = Math.max(...Object.values(lists).map(a => a.length));
+  addSheet(wb, Array.from({ length: n }, (_, i) => Object.fromEntries(Object.entries(lists).map(([k, a]) => [k, a[i] || ""]))), Object.keys(lists), "Lists");
+  const name = wbFile("master"); XLSX.writeFile(wb, name); exported("master", name);
+}
+function exportWork() {
+  const wb = XLSX.utils.book_new();
+  addSheet(wb, RUN.items.map(w => ({ WorkItemID: w.id, Title: w.title, Request: w.desc, Created: w.created })), ["WorkItemID", "Title", "Request", "Created"], "WorkItems", [12, 40, 90, 20]);
+  const st = []; Object.entries(RUN.steps).forEach(([wi, m]) => Object.entries(m).forEach(([sid, r]) => st.push({ WorkItemID: wi, SkillID: sid, Status: r.st || "", Ref: r.ref || "", Version: r.ver || "",
+    Gates: Object.entries(r.gates || {}).map(([g, v]) => g + "=" + v).join(", "), ApprovedBy: r.by || "", Approvals: Object.entries(r.appr || {}).map(([k, v]) => k + "@" + v).join(" | "), Rework: r.rework || "", Notes: r.notes || "", Updated: r.ts || "" })));
+  addSheet(wb, st, ["WorkItemID", "SkillID", "Status", "Ref", "Version", "Gates", "ApprovedBy", "Approvals", "Rework", "Notes", "Updated"], "RunSteps");
+  addSheet(wb, RUN.log.map(l => ({ Time: l.ts, WorkItemID: l.wi, Event: l.ev, Detail: l.detail })), ["Time", "WorkItemID", "Event", "Detail"], "RunLog", [20, 12, 26, 80]);
+  const name = wbFile("work"); XLSX.writeFile(wb, name); exported("work", name);
+}
+function exportMemory() {
+  const wb = XLSX.utils.book_new(), X = ix();
+  addSheet(wb, [{ Setting: "TriggerOnMemorySync", Value: memGate() ? "Y" : "N" }, { Setting: "Writer", Value: memHook().SkillID || "" }], ["Setting", "Value"], "Settings", [24, 16]);
+  const state = []; Object.entries(RUN.steps).forEach(([wi, m]) => Object.entries(m).forEach(([sid, r]) => { if (r.st !== "approved") return; const s = X.skill[sid] || {};
+    state.push({ WorkItemID: wi, SkillID: sid, Artifact: S(s.Output), Ref: r.ref || "", Version: r.ver || "", State: r.mem || "not queued" }); }));
+  addSheet(wb, state, ["WorkItemID", "SkillID", "Artifact", "Ref", "Version", "State"], "MemoryState");
+  const mo = []; Object.entries(RUN.memq || {}).forEach(([wi, q]) => q.forEach(o => mo.push({ WorkItemID: wi, OpID: o.id, Op: o.op, Artifact: o.art, SkillID: o.sid, Ref: o.ref, Version: o.ver, Status: o.st, Queued: o.ts, Done: o.done || "" })));
+  addSheet(wb, mo, ["WorkItemID", "OpID", "Op", "Artifact", "SkillID", "Ref", "Version", "Status", "Queued", "Done"], "MemoryOps");
+  const ms = memSchema(), gs = [];
+  Object.keys(ms.nodes).sort().forEach(n => gs.push({ Kind: "Node", From: n, Relation: "", To: "", IDPattern: [...ms.nodes[n].ids].join(", "), WrittenFrom: [...ms.nodes[n].arts].join(", ") }));
+  Object.values(ms.edges).forEach(e => gs.push({ Kind: "Edge", From: e.from, Relation: e.rel, To: e.to, IDPattern: e.props, WrittenFrom: [...e.arts].join(", ") }));
+  addSheet(wb, gs, ["Kind", "From", "Relation", "To", "IDPattern", "WrittenFrom"], "GraphSchema");
+  const name = wbFile("memory"); XLSX.writeFile(wb, name); exported("memory", name);
+}
+// step.mem follows the latest non-cancelled memory op of the step (work items for which no ops are loaded keep their state)
+function reconcileMem() {
+  Object.entries(RUN.steps).forEach(([wi, m]) => {
+    const q = RUN.memq[wi] || []; if (!q.length) return;
+    Object.entries(m).forEach(([sid, r]) => {
+      if (r.st !== "approved") { r.mem = ""; return; }
+      const o = q.map((x, i) => ({ x, i })).filter(({ x }) => x.sid === sid && x.st !== "cancelled").sort((a, b) => String(b.x.done || b.x.ts).localeCompare(String(a.x.done || a.x.ts)) || a.i - b.i)[0];
+      r.mem = !o || o.x.op !== "upsert" ? "" : o.x.st === "done" ? "synced" : "pending";
+    });
+  });
+}
+function importWorkbook(wb, fileName) {
+  const norm = x => String(x).replace(/\s+/g, "").toLowerCase(), sheet = n => { const k = wb.SheetNames.find(x => norm(x) === norm(n)); return k ? XLSX.utils.sheet_to_json(wb.Sheets[k], { defval: "", raw: false }) : null; };
+  const got = [];
+  if (SH_ORDER.some(s => sheet(s))) {
+    const db = emptyDB();
+    SH_ORDER.forEach(s => { const rows = sheet(s); if (!rows) return;
+      db[s] = rows.map(row => { const o = {}; SH[s].cols.forEach(c => { const k = Object.keys(row).find(x => norm(x) === norm(c.key)); o[c.key] = k ? String(row[k]) : ""; }); return o; }).filter(o => Object.values(o).some(v => S(v)));
+      if (s === "Skills") db[s].forEach(r => { if (!r.Mode) r.Mode = "Pipeline"; }); });
+    DB = ensureIds(db); got.push("master");
+  }
+  const wis = sheet("WorkItems");
+  if (wis) {
+    RUN.items = wis.map(w => ({ id: S(w.WorkItemID), title: S(w.Title), desc: S(w.Request), created: S(w.Created) })).filter(w => w.id); RUN.steps = {};
+    (sheet("RunSteps") || []).forEach(r => { const wi = S(r.WorkItemID), sid = S(r.SkillID); if (!wi || !sid) return; RUN.steps[wi] = RUN.steps[wi] || {};
+      RUN.steps[wi][sid] = { st: S(r.Status), ref: S(r.Ref), ver: S(r.Version), by: S(r.ApprovedBy), rework: +r.Rework || 0, mem: S(r.Memory), notes: S(r.Notes), ts: S(r.Updated),
+        appr: Object.fromEntries(S(r.Approvals).split("|").map(S).filter(Boolean).map(x => { const i = x.indexOf("@"); return i < 0 ? [x, ""] : [x.slice(0, i), x.slice(i + 1)]; })),
+        gates: Object.fromEntries(list(r.Gates).map(x => x.split("=").map(S))) }; });
+    RUN.log = (sheet("RunLog") || []).map(l => ({ ts: S(l.Time), wi: S(l.WorkItemID), ev: S(l.Event), detail: S(l.Detail) }));
+    if (!RUN.items.some(w => w.id === RUN.cur)) RUN.cur = (RUN.items[0] || {}).id || "";
+    got.push("work");
+  }
+  const ops = sheet("MemoryOps");
+  if (ops) {
+    RUN.memq = {};
+    ops.forEach(o => { const wi = S(o.WorkItemID); if (!wi) return; (RUN.memq[wi] = RUN.memq[wi] || []).push({ id: S(o.OpID) || uid(), op: S(o.Op), art: S(o.Artifact), sid: S(o.SkillID), ref: S(o.Ref), ver: S(o.Version), st: S(o.Status), ts: S(o.Queued), done: S(o.Done) }); });
+    const set = (sheet("Settings") || []).find(r => norm(r.Setting) === "triggeronmemorysync"); if (set) UI.memGate = S(set.Value).toUpperCase() !== "N";
+    got.push("memory");
+  }
+  return got;
+}
+function importFiles(files) {
+  const read = f => new Promise((ok, bad) => { const rd = new FileReader(); rd.onload = e => ok(e.target.result); rd.onerror = bad; rd.readAsArrayBuffer(f); });
+  (async () => {
+    pushUndo(); const done = [];
+    for (const f of files) {
+      try { const got = importWorkbook(XLSX.read(new Uint8Array(await read(f)), { type: "array" }), f.name);
+        if (!got.length) { toast(`${f.name}: no master data, work item or memory sheets found`, 3500); continue; }
+        got.forEach(k => { UI.files = { ...(UI.files || {}), [k]: f.name }; UI.dirty = { ...(UI.dirty || {}), [k]: false }; });
+        done.push(`${got.map(k => WB[k].label).join(" + ")} from ${f.name}`);
+      } catch (err) { toast(`Could not read ${f.name}: ${err.message}`, 3500); }
+    }
+    if (!done.length) return;
+    reconcileMem(); QUIET = true; save(); saveRun(); QUIET = false; saveUI(); renderAll();
+    const noMem = memGate() && Object.keys(RUN.steps).some(wi => !(RUN.memq[wi] || []).length && Object.values(RUN.steps[wi]).some(r => r.st === "approved" && !r.mem));
+    toast(`Loaded ${done.join("; ")}${noMem ? ". Load the memory workbook too, or turn off Trigger only after memory sync" : ""}`, 4200);
+  })();
 }
 
 /* ================================ shell ================================ */
@@ -1250,8 +1514,8 @@ function renderAll() { setStatus(); showView(UI.view || "playbook"); }
 function wire() {
   document.querySelectorAll("#nav button[data-view]").forEach(b => b.onclick = () => showView(b.dataset.view));
   $("chromeToggle").onclick = () => { document.body.classList.toggle("chrome-collapsed"); $("chromeToggle").textContent = document.body.classList.contains("chrome-collapsed") ? "▸ Toolbar" : "▾ Toolbar"; };
-  $("fileInput").onchange = e => { const f = e.target.files[0]; if (f) importXlsx(f); e.target.value = ""; };
-  $("exportBtn").onclick = exportXlsx;
+  $("fileInput").onchange = e => { const fs = [...e.target.files]; if (fs.length) importFiles(fs); e.target.value = ""; };
+  $("expMaster").onclick = exportMaster; $("expWork").onclick = exportWork; $("expMem").onclick = exportMemory;
   $("seedBtn").onclick = () => { if (DB.Skills.length && !confirm("Replace the catalog with the SDLC example? Runs are kept. (Ctrl/⌘+Z undoes)")) return; pushUndo(); DB = ensureIds(exampleCatalog()); if (!RUN.items.length) RUN = exampleRun(); save(); saveRun(); renderAll(); toast("Example loaded"); };
   $("clearBtn").onclick = () => { if (!confirm("Clear the catalog and every run? (Ctrl/⌘+Z undoes)")) return; pushUndo(); DB = emptyDB(); RUN = { items: [], steps: {}, log: [], memq: {}, cur: "" }; save(); saveRun(); renderAll(); };
   $("guideBtn").onclick = () => { UI.pb = "_how"; showView("playbook"); };

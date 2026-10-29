@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Harness Engineering Tutorial</title>
+<link rel="stylesheet" href="styles.css" />
+<script src="samples/workitems/WI-101/graph.js"></script>
+<script src="harness-kg.js"></script>
+<style>
+  :root{
+    --bg: #f6f7f9; --panel: #fff; --ink: #1f2933; --muted: #6b7280; --line: #e4e7eb;
+    --accent: #7048e8; --accent-soft: #efe9fd; --ok: #15803d; --bad: #b91c1c; --warn: #b45309;
+    --t-product: #7048e8; --t-arch: #0d9488; --t-eng: #2563eb; --t-qa: #c2410c; --t-sre: #b45309; --t-plat: #475569;
+  }
+  body{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.6; height: auto; }
+  header{ position: sticky; top: 0; z-index: 20; background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  header a.btn{ text-decoration: none; font-size: 13px; }
+  header .tag{ font-size: 12px; color: var(--muted); }
+  .layout{ display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 28px; max-width: 1280px; margin: 0 auto; padding: 24px 16px 80px; }
+  nav.toc{ position: sticky; top: 70px; align-self: start; font-size: 13.5px; }
+  nav.toc b{ display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  nav.toc a{ display: block; padding: 4px 10px; border-left: 2px solid var(--line); color: #374151; text-decoration: none; }
+  nav.toc a:hover{ color: var(--accent); }
+  nav.toc a.on{ border-left-color: var(--accent); color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+  main{ min-width: 0; }
+  section{ background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 26px 30px; margin-bottom: 22px; scroll-margin-top: 70px; }
+  section.wide{ padding: 22px 22px 26px; }
+  h1{ font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -.01em; }
+  h2{ font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+  h2 .num{ color: var(--accent); margin-right: 8px; }
+  h3{ font-size: 16px; margin: 22px 0 6px; }
+  .lede{ color: #4b5563; font-size: 16px; margin: 0 0 16px; }
+  .sub{ color: var(--muted); margin: 0 0 16px; }
+  p{ margin: 8px 0; } ul, ol{ margin: 8px 0; padding-left: 22px; } li{ margin: 3px 0; }
+  code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: #f1f3f5; padding: 1px 5px; border-radius: 4px; }
+  pre{ position: relative; background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; margin: 10px 0; }
+  pre code{ background: none; padding: 0; color: inherit; font-size: inherit; }
+  pre .cp{ position: absolute; top: 6px; right: 6px; font-size: 11px; padding: 2px 8px; background: #1e293b; color: #cbd5e1; border-color: #334155; }
+  pre .cm{ color: #7dd3fc; } pre .k{ color: #c4b5fd; }
+  table{ font-size: 13.5px; margin: 10px 0; } th{ background: #f8f9fb; font-weight: 600; }
+  td code, th code{ font-size: 12px; }
+  .grid2{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 14px 0; }
+  .card{ border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; background: #fcfcfd; }
+  .card h4{ margin: 0 0 4px; font-size: 14.5px; }
+  .card p{ margin: 0; font-size: 13.5px; color: #4b5563; }
+  .callout{ border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; font-size: 14px; }
+  .callout.warn{ border-color: var(--warn); background: #fff7ed; }
+  .flow{ display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; margin: 16px 0; }
+  .flow .st{ flex: 1 1 120px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fff; font-size: 12.5px; position: relative; }
+  .flow .st b{ display: block; font-size: 13px; margin-bottom: 2px; }
+  .flow .st small{ color: var(--muted); }
+  .flow .ar{ align-self: center; color: var(--muted); font-size: 18px; }
+  .flow .st.p{ border-top: 3px solid var(--t-product); } .flow .st.a{ border-top: 3px solid var(--t-arch); } .flow .st.e{ border-top: 3px solid var(--t-eng); }
+  .flow .st.q{ border-top: 3px solid var(--t-qa); } .flow .st.s{ border-top: 3px solid var(--t-sre); } .flow .st.m{ border-top: 3px solid var(--t-plat); }
+  .steps{ counter-reset: s; list-style: none; padding: 0; }
+  .steps > li{ counter-increment: s; position: relative; padding: 2px 0 10px 40px; }
+  .steps > li::before{ content: counter(s); position: absolute; left: 0; top: 2px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+  .pill{ display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; color: #fff; vertical-align: 1px; }
+  a{ color: var(--accent); }
+  .qbtn{ font-size: 12.5px; padding: 4px 10px; margin: 3px 4px 3px 0; }
+  .muted{ color: var(--muted); }
+  .dot{ width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+  .kg-hero{ display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; align-items: center; background: #0b1020; color: #e6e9f2; border-radius: 10px; padding: 20px 22px; margin: 12px 0; }
+  .kg-hero h4{ margin: 0 0 6px; font-size: 16px; } .kg-hero ul{ margin: 6px 0 12px; font-size: 13.5px; color: #c9d1e6; }
+  .kg-hero a.go{ display: inline-block; background: var(--accent); color: #fff; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; }
+  .kg-hero svg{ width: 100%; height: auto; }
+  @media (max-width: 760px){ .kg-hero{ grid-template-columns: 1fr; } }
+
+  @media (max-width: 1000px){
+    .layout{ grid-template-columns: 1fr; } nav.toc{ display: none; }
+    section{ padding: 18px 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 style="font-size:16px;margin:0">Harness Engineering Tutorial</h1>
+  <span class="tag">Introduction · building agents and skills · Claude Code scaffold · knowledge graph</span>
+  <span class="spacer"></span>
+  <a class="btn" href="harness-engineering.html" target="_blank" rel="noopener">Open the playbook ↗</a>
+  <a class="btn" href="harness-engineering.html#kg" target="_blank" rel="noopener">Knowledge graph ↗</a>
+  <a class="btn" href="samples/workitems/WI-101/README.md" target="_blank" rel="noopener">Sample WI-101 ↗</a>
+</header>
+
+<div class="layout">
+<nav class="toc" id="toc">
+  <b>Contents</b>
+  <a href="#intro">1. What is harness engineering</a>
+  <a href="#model">2. The harness model</a>
+  <a href="#playbook">3. Tour of the playbook</a>
+  <a href="#create">4. Create agents and skills</a>
+  <a href="#run">5. Run a work item</a>
+  <a href="#scaffold">6. Scaffold in Claude Code</a>
+  <a href="#graph">7. The knowledge graph</a>
+  <a href="#viz">8. Graph visualiser</a>
+  <a href="#sample">9. Sample: retail BOPIS</a>
+  <a href="#next">10. Next steps</a>
+</nav>
+
+<main>
+<!-- ============================================================ 1 -->
+<section id="intro">
+  <h1>Harness engineering for the SDLC</h1>
+  <p class="lede">A harness is everything around an AI agent that makes its work reliable: the instructions it reads, the files it can find, the checks its output must pass and the feedback it gets. Harness engineering is the job of designing that environment, so that people steer and agents execute.</p>
+  <p>OpenAI described the idea in <a href="https://openai.com/index/harness-engineering/" target="_blank" rel="noopener">Harness engineering: leveraging Codex in an agent-first world</a>. A small team shipped a product in which agents wrote nearly all of the code. Their effort moved from writing code to building the scaffolding that let agents work well. The lessons that matter most for this playbook:</p>
+  <div class="grid2">
+    <div class="card"><h4>Give agents a map, not a manual</h4><p>A short <code>AGENTS.md</code> (about 100 lines) points to deeper docs. One giant instruction file crowds out the task and goes stale.</p></div>
+    <div class="card"><h4>The repository is the system of record</h4><p>Specs, plans, decisions and quality scores live as versioned files in <code>docs/</code>. Anything an agent can't see in the repo doesn't exist for it.</p></div>
+    <div class="card"><h4>Enforce rules mechanically</h4><p>Architecture and taste are encoded as linters, structural tests and CI gates, so a rule holds on every run, not only when someone remembers it.</p></div>
+    <div class="card"><h4>Plans are first-class artifacts</h4><p>Execution plans with progress and decision logs are checked in (<code>docs/exec-plans/active</code>, <code>completed</code>, <code>tech-debt-tracker.md</code>).</p></div>
+    <div class="card"><h4>Fight entropy continuously</h4><p>Agents copy whatever patterns exist, good or bad. Recurring clean-up, doc gardening and quality scores keep drift small.</p></div>
+    <div class="card"><h4>Humans steer, agents execute</h4><p>People set intent, review decisions and approve outputs. Agents do the producing, inside guardrails.</p></div>
+  </div>
+  <h3>What this playbook adds</h3>
+  <p>The OpenAI write-up is about one engineering team. This playbook applies the same principles across a whole delivery lifecycle in which product managers, designers, solution / data / integration architects, engineers, QA and SRE each have their own agents. Three properties make the output <b>deterministic</b>:</p>
+  <ul>
+    <li><b>One skill, one artifact, one template.</b> Every skill writes exactly one document from a fixed markdown template, with fixed section ids and table columns, so outputs look the same on every run and can be checked by code.</li>
+    <li><b>Gates before approval.</b> Blocking checks (schema valid, traceability, template conformance, OpenAPI lint, contract tests, etc.) run before a person approves the artifact.</li>
+    <li><b>Events drive the next step.</b> An approved artifact emits an event (<code>prd.approved</code>). Skills subscribe to events, so the workflow is a graph you can read, not a chain of chat prompts.</li>
+  </ul>
+  <p>Every approved artifact is also written to a <b>common knowledge graph</b>, so any agent can ask "which stories implement REQ-03 and which tests verify them?" without rereading every document.</p>
+</section>
+
+<!-- ============================================================ 2 -->
+<section id="model">
+  <h2><span class="num">2</span>The harness model</h2>
+  <p class="sub">Six concepts, all stored as master data in the playbook and exported as <code>HarnessMasterData.xlsx</code>.</p>
+  <table>
+    <tr><th>Concept</th><th>What it is</th><th>Example</th></tr>
+    <tr><td><b>Team</b></td><td>A delivery group: Product, Architecture, Engineering, Quality, SRE, Platform.</td><td>Architecture</td></tr>
+    <tr><td><b>Persona</b></td><td>A role in a team, accountable for decisions. Each persona has a playbook.</td><td>Solution Architect</td></tr>
+    <tr><td><b>Agent</b></td><td>A Claude Code subagent that plays a persona, with its model, tools and MCP servers.</td><td><code>design-decision-agent</code></td></tr>
+    <tr><td><b>Skill</b></td><td>One repeatable task. Reads declared inputs, follows steps, writes one artifact, runs gates, waits for approval.</td><td><code>/decide-key-design</code> (KDD-01)</td></tr>
+    <tr><td><b>Artifact</b></td><td>The output contract: document path, template sections, optional machine definition (JSON, YAML, SDL…), event and graph mapping.</td><td>A-KDD → <code>docs/design-docs/{wi}/09-kdd.md</code></td></tr>
+    <tr><td><b>Gate</b></td><td>A deterministic check, blocking or advisory.</td><td>G-KDD (scores and weights present), G-TEMPLATE</td></tr>
+  </table>
+  <h3>How one step hands off to the next</h3>
+  <div class="flow">
+    <div class="st p"><b>Event fires</b><small>e.g. <code>prd.approved</code></small></div><span class="ar">→</span>
+    <div class="st a"><b>Skill starts</b><small>all its input events have fired (AND-join)</small></div><span class="ar">→</span>
+    <div class="st e"><b>Writes artifact</b><small>from <code>templates/artifacts/A-*.md</code></small></div><span class="ar">→</span>
+    <div class="st q"><b>Gates run</b><small>schema, trace, template…</small></div><span class="ar">→</span>
+    <div class="st s"><b>Approval</b><small>one role or several (<code>A + B</code>)</small></div><span class="ar">→</span>
+    <div class="st m"><b>Graph sync</b><small>MEM-01 writes the delta, emits <code>memory.synced</code></small></div><span class="ar">→</span>
+    <div class="st p"><b>Next event</b><small><code>kdd.approved</code> triggers the solution design</small></div>
+  </div>
+  <p>Each skill reply ends with a <b>handoff envelope</b>, a small JSON block that a person or an orchestrator can read without parsing prose:</p>
+<pre><code>{
+  "envelope": "harness/v1", "workItem": "WI-101", "skill": "KDD-01", "artifact": "A-KDD",
+  "ref": "docs/design-docs/WI-101/09-kdd.md", "template": "templates/artifacts/A-KDD.md", "version": "2",
+  "inputs": { "A-PRD": "docs/product-specs/WI-101/02-prd.md@1" },
+  "gates": { "G-KDD": "pass", "G-TRACE": "pass", "G-TEMPLATE": "pass" },
+  "status": "produced", "openQuestions": [], "next": ["TD-01", "SA-01"]
+}</code></pre>
+  <h3>Key design decisions drive the design</h3>
+  <p>The Solution Architect's <code>/decide-key-design</code> skill scores every option 1–5 on <b>product priority</b>, <b>engineering effort</b> and <b>ops TCO over 3 years</b> (default weights 35 / 30 / 35). The chosen option feeds the solution architecture. When the chosen option deviates from a standard, the KDD records a <b>dispensation</b> (DSP-nn) and <code>/raise-tech-debt</code> opens a Jira ticket, reviewed by the Product Owner and the Lead Solution Architect, so the compromise is paid back later.</p>
+</section>
+
+<!-- ============================================================ 3 -->
+<section id="playbook">
+  <h2><span class="num">3</span>Tour of the playbook</h2>
+  <p class="sub"><a href="harness-engineering.html" target="_blank" rel="noopener">harness-engineering.html</a> is a single page that runs in the browser. Your catalog is saved in the browser and in three Excel workbooks.</p>
+  <table>
+    <tr><th>Tab</th><th>Use it to</th></tr>
+    <tr><td><b>Playbooks</b></td><td>Read the playbook of each persona: its agent, skills, inputs, steps, output contract, gates and approvers. Add or edit personas, agents, skills and artifacts with <b>+ Skill</b>, <b>+ Agent</b>, <b>+ Artifact</b> and <b>✎ Edit</b>. Preview an artifact's template with <b>📄 Template</b>.</td></tr>
+    <tr><td><b>Workflow</b></td><td>See which event triggers which skill, by stage, as a diagram.</td></tr>
+    <tr><td><b>Run (manual)</b></td><td>Create a work item and move it through the skills: copy the prompt, record the output path, tick the gates, approve. Downstream skills become ready automatically.</td></tr>
+    <tr><td><b>Graph memory</b></td><td>See the update process, the queue of upserts and retracts, and the graph schema built from every artifact's mapping.</td></tr>
+    <tr><td><b>Knowledge graph</b></td><td>Explore a work item's graph memory: search, colour by type, team or community, trace and impact, and replay the build in approval order (section 8).</td></tr>
+    <tr><td><b>Registry</b></td><td>Edit the master data as tables (personas, agents, skills, artifacts, gates).</td></tr>
+    <tr><td><b>Orchestration</b></td><td>Download the repository scaffold (<code>scaffold-harness.sh</code>), the workflow manifest and orchestrator recommendations.</td></tr>
+    <tr><td><b>Checks</b></td><td>Find gaps: skills without producers for their inputs, cycles, duplicate producers, missing templates.</td></tr>
+  </table>
+  <p>The header has <b>⤓ Master data</b>, <b>⤓ Work items</b> and <b>⤓ Memory</b>. Each exports its own workbook, and a dot on a button means that workbook has unsaved changes. <b>Load .xlsx</b> recognises each workbook by its sheets. Click <b>Load example</b> first to get the full catalog: 17 personas, 18 agents, 39 skills, 40 artifacts and 28 gates.</p>
+</section>
+
+<!-- ============================================================ 4 -->
+<section id="create">
+  <h2><span class="num">4</span>Create agents and skills</h2>
+  <p class="sub">Worked example: a retail team adds product-search indexing to the Engineering team.</p>
+  <ol class="steps">
+    <li><b>Open the persona.</b> In <b>Playbooks</b>, choose a persona in the sidebar, or click <b>+ New persona</b> (Team: Engineering, Name: Search Engineer, Accountable: Search Engineering Manager).</li>
+    <li><b>Add the agent.</b> Click <b>+ Agent</b>. Name it in kebab-case (<code>search-agent</code>), pin the model, list the Claude Code tools (<code>Read, Write, Edit, Bash, Grep</code>) and MCP servers (<code>graph-memory</code>). The name becomes <code>.claude/agents/search-agent.md</code>.</li>
+    <li><b>Add the artifact first, or from inside the skill form.</b> Click <b>+ Artifact</b>:
+      <table>
+        <tr><th>Field</th><th>Example</th><th>Notes</th></tr>
+        <tr><td>ArtifactID / Name</td><td><code>A-SEARCHIDX</code> Search index definition</td><td>One producer per artifact.</td></tr>
+        <tr><td>Doc</td><td><code>docs/design-docs/{wi}/contracts/search-index.md</code></td><td>The markdown document, from the template.</td></tr>
+        <tr><td>Path</td><td><code>contracts/search/{wi}/index.json</code></td><td>The machine definition, mirrored in the doc's definition block.</td></tr>
+        <tr><td>Event</td><td><code>searchidx.approved</code></td><td>Emitted on approval.</td></tr>
+        <tr><td>Template</td><td>one section per line, see below</td><td>Becomes <code>templates/artifacts/A-SEARCHIDX.md</code>.</td></tr>
+        <tr><td>Memory</td><td><code>SearchIndex -INDEXES-> Entity {analyzer}; SearchIndex -SERVES-> Story</code></td><td>How the artifact is written to the graph.</td></tr>
+      </table>
+    </li>
+    <li><b>Add the skill.</b> Click <b>+ Skill</b>: SkillID <code>SRCH-01</code>, Name <code>design-search-index</code> (the slash command), Stage <i>Contract</i>, Inputs <code>A-DATAMODEL, A-STORIES</code>, Context <code>A-NFR</code>, Output <code>A-SEARCHIDX</code>, Gates <code>G-SCHEMA, G-TRACE, G-TEMPLATE</code>, Approval <code>API Platform Lead</code>. Write the steps as numbered lines; they become the skill's procedure.</li>
+    <li><b>Check the wiring.</b> The toast after saving tells you how many scaffold files are new or changed. <b>Workflow</b> shows the skill triggered by <code>datamodel.approved + stories.approved</code>. <b>Checks</b> should show no issues.</li>
+    <li><b>Export.</b> <b>⤓ Master data</b> saves the catalog. <b>Orchestration → ⤓ Scaffold .sh</b> writes the new files into your repository (section 6).</li>
+  </ol>
+  <h3>Template syntax</h3>
+  <p>Each line in an artifact's Template field is one section, in order. Traceability, Open Questions and Approvals are added at the end automatically.</p>
+<pre><code><span class="k">h:</span> introduction | Introduction | What the index serves and which stories need it
+<span class="k">t:</span> fields | Indexed Fields | Field; Source attribute; Type; Analyzer; Facet (Y / N)
+<span class="k">t:</span> queries | Query Patterns | Query; STY refs; Boost; p95 ms
+<span class="k">c:</span> definition | Index definition | json</code></pre>
+  <p><code>h:</code> is a prose section (<code>&lt;h2 id="introduction_details"&gt;</code>), <code>t:</code> is a table with fixed columns (<code>&lt;div id="fields_table" data-columns&gt;</code>), and <code>c:</code> is a code block in a given format (<code>&lt;div id="definition_block" data-format="json"&gt;</code>). This matches the style of <a href="samples/artifact-templates/prod_business_requirement_document.md" target="_blank" rel="noopener">prod_business_requirement_document.md</a>. All 40 generated templates are in <a href="samples/artifact-templates/README.md" target="_blank" rel="noopener">samples/artifact-templates/</a>.</p>
+  <h3>Graph mapping syntax</h3>
+  <p>The Memory field says which nodes and edges an approved artifact writes. Clauses are separated by <code>;</code>:</p>
+<pre><code>Node(ID-pattern) -RELATION-> Node(ID-pattern) {edge or node properties}
+
+Story(STY-nn) -IMPLEMENTS-> Requirement {channel}; Story -PART_OF-> Epic</code></pre>
+  <p>The playbook builds the graph schema from these clauses (<b>Graph memory → schema</b>, and <code>docs/generated/graph-memory-schema.md</code> in the scaffold).</p>
+  <h3>Editing an existing skill</h3>
+  <p>Click <b>✎ Edit</b> on any skill card. Renaming an ID updates every reference (inputs, outputs, gates). The editor won't let two skills produce the same artifact, and won't delete an artifact that a skill still reads. Changes to a skill's inputs or gates show up in its <code>SKILL.md</code>, in <code>docs/generated/workflow.md</code> and in the upstream skills' "next" lists the next time you run the scaffold.</p>
+</section>
+
+<!-- ============================================================ 5 -->
+<section id="run">
+  <h2><span class="num">5</span>Run a work item (manual mode)</h2>
+  <ol class="steps">
+    <li><b>Create the work item.</b> In <b>Run</b>, click <b>+ Work item</b> and paste the business request. This seeds <code>A-REQUEST</code> and fires <code>request.created</code>.</li>
+    <li><b>Start a ready skill.</b> Ready skills are those whose input events have all fired. Click <b>Prompt</b> to copy a complete prompt: the inputs pinned to their versions, the template to fill, the gates and the envelope to return.</li>
+    <li><b>Produce the artifact in Claude Code.</b> Run the skill (<code>/frame-opportunity WI-101</code>) in your repository. The agent writes the document and returns the envelope.</li>
+    <li><b>Record and check.</b> Paste the document path and version into the step, tick each gate as it passes (or paste the envelope), and send it for approval.</li>
+    <li><b>Approve.</b> Each required role approves. When the last approval is in, the artifact's event fires, MEM-01 queues the graph update, and once <code>memory.synced</code> fires the downstream skills become ready.</li>
+    <li><b>Reopen when something changes.</b> Reopening an approved step marks every downstream step <i>stale</i> and queues a graph retract, so nothing is built on a superseded version.</li>
+  </ol>
+  <div class="callout">Export <b>⤓ Work items</b> (runs and event log) and <b>⤓ Memory</b> (graph ops and state) to keep a record that you can reload later or share with the team.</div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section id="scaffold">
+  <h2><span class="num">6</span>Scaffold the repository in Claude Code</h2>
+  <p class="sub">The scaffold turns the master data into the files Claude Code reads: subagents, skills, templates, the map and the docs layout.</p>
+  <h3>1. Generate the files</h3>
+  <p>In the playbook, open <b>Orchestration → Repository scaffold</b> and click <b>⤓ Scaffold .sh</b>. Run it at the root of your repository:</p>
+<pre><code><span class="cm"># commit first: generated files are overwritten (CLAUDE.md and the tech-debt tracker are kept)</span>
+git add -A &amp;&amp; git commit -m "Before harness scaffold"
+bash scaffold-harness.sh
+git status</code></pre>
+  <p>You get this layout, which follows the OpenAI harness structure plus folders for quality, reliability and graph memory:</p>
+<pre><code>CLAUDE.md                       imports AGENTS.md for Claude Code (yours to extend, never overwritten)
+AGENTS.md                       the map (~70 lines): where things are, agents, how to run a skill, hard rules
+ARCHITECTURE.md                 teams, personas, agents, skills, artifacts, gates, dependency rules
+docs/
+├── design-docs/                index.md, core-beliefs.md, &lt;WI&gt;/ KDD, SAD, NFR, data, integrations, contracts
+├── exec-plans/active/ completed/ tech-debt-tracker.md
+├── generated/                  workflow.md, graph-memory-schema.md, harness.workflow.json, memory/&lt;WI&gt;/
+├── product-specs/ quality/ reliability/ references/harness-llms.txt
+└── PLANS.md · QUALITY_SCORE.md · MEMORY.md
+templates/artifacts/A-*.md      one template per artifact
+.claude/agents/*.md             one subagent per agent (18)
+.claude/skills/&lt;skill&gt;/SKILL.md one skill per skill (39)
+scripts/harness-template-check.mjs</code></pre>
+  <h3>2. How Claude Code uses each file</h3>
+  <table>
+    <tr><th>File</th><th>Read by Claude Code as</th></tr>
+    <tr><td><code>CLAUDE.md</code></td><td>Project memory, loaded at the start of every session. It imports <code>@AGENTS.md</code>, so Claude Code and other agents share one map.</td></tr>
+    <tr><td><code>.claude/agents/&lt;name&gt;.md</code></td><td>A subagent with its own system prompt, tools and model. List them with <code>/agents</code>. Claude delegates to one when a task matches its description, or you ask for it by name.</td></tr>
+    <tr><td><code>.claude/skills/&lt;skill&gt;/SKILL.md</code></td><td>A skill. Run it as a slash command (<code>/write-prd WI-101</code>), or Claude loads it when the request matches its description. It lists the inputs, graph memory use, steps, output contract and gates.</td></tr>
+    <tr><td><code>templates/artifacts/</code></td><td>Copied by the skill to the document path, then filled in. Section ids and columns must stay.</td></tr>
+    <tr><td><code>docs/generated/*</code></td><td>Read-only context: which event triggers which skill, the graph schema, the machine-readable workflow.</td></tr>
+  </table>
+  <h3>3. Run your first skills</h3>
+<pre><code>cd your-repo &amp;&amp; claude
+
+<span class="cm"># inside Claude Code</span>
+/agents                                  <span class="cm"># check the 18 harness subagents are listed</span>
+/frame-opportunity WI-101                <span class="cm"># reads docs/product-specs/WI-101/00-request.md, writes 01-brief.md</span>
+/write-prd WI-101                        <span class="cm"># after the brief is approved</span>
+
+<span class="cm"># check any document against its template (gate G-TEMPLATE)</span>
+node scripts/harness-template-check.mjs docs/product-specs/WI-101/02-prd.md templates/artifacts/A-PRD.md</code></pre>
+  <p>Record each envelope in the playbook's Run tab and approve there. That keeps triggering manual and visible while you build trust in the skills.</p>
+  <h3>4. Optional: check templates automatically with a hook</h3>
+  <p>A <code>PostToolUse</code> hook runs after Claude writes or edits a file. Exit code 2 sends the error back to Claude so it fixes the document straight away. Drafts are skipped.</p>
+<pre><code><span class="cm">// scripts/harness-template-hook.mjs</span>
+import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+const input = JSON.parse(readFileSync(0, "utf8"));
+const file = input.tool_input?.file_path || "";
+if (!/(^|\/)docs\/.+\.md$/.test(file)) process.exit(0);
+const text = readFileSync(file, "utf8"), tpl = (text.match(/^template:\s*(\S+)/m) || [])[1];
+if (!tpl || /^status:\s*draft/m.test(text)) process.exit(0);
+try { execFileSync("node", ["scripts/harness-template-check.mjs", file, tpl], { stdio: "pipe" }); }
+catch (e) { process.stderr.write(String(e.stderr || e.message)); process.exit(2); }</code></pre>
+<pre><code><span class="cm">// .claude/settings.json</span>
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Write|Edit", "hooks": [ { "type": "command", "command": "node scripts/harness-template-hook.mjs" } ] }
+    ]
+  }
+}</code></pre>
+  <h3>5. Give agents the graph memory</h3>
+  <p>Every SKILL.md tells the agent to query the graph memory read-only. Start simple and grow:</p>
+  <ul>
+    <li><b>Files first.</b> Keep the merged graph at <code>docs/generated/memory/&lt;WI&gt;/graph.json</code>, as in the sample. Agents read it with their normal file tools.</li>
+    <li><b>A graph database later.</b> Load the deltas into a graph store (for example Neo4j) and expose it through an MCP server registered as <code>graph-memory</code>, read-only for every agent except <code>memory-steward-agent</code>. Add it with <code>claude mcp add</code> or a checked-in <code>.mcp.json</code>.</li>
+  </ul>
+  <h3>6. Later: run without a person clicking</h3>
+  <p>The same files work headless. Phase 1 of the recommended orchestration is GitHub Actions calling Claude Code in print mode when an event fires:</p>
+<pre><code>claude -p "Run the write-prd skill for WI-101 and finish with the harness/v1 envelope" --output-format json</code></pre>
+  <p>Phase 2 moves the event routing into a durable workflow engine (Temporal with the Claude Agent SDK), driven by <code>docs/generated/harness.workflow.json</code>. See <b>Orchestration</b> in the playbook.</p>
+  <div class="callout warn">Never edit <code>docs/generated/</code>, <code>templates/</code> or <code>.claude/</code> by hand. They're generated from the master data. Change the playbook, export, and run the scaffold again; it marks new and changed files with ●.</div>
+</section>
+
+<!-- ============================================================ 7 -->
+<section id="graph">
+  <h2><span class="num">7</span>The knowledge graph</h2>
+  <p class="sub">The common graph memory is how agents share context across personas without passing whole documents around.</p>
+  <h3>How artifacts become graph</h3>
+  <div class="flow">
+    <div class="st p"><b>1 · Artifact approved</b><small>e.g. A-STORIES v1</small></div><span class="ar">→</span>
+    <div class="st m"><b>2 · Upsert queued</b><small>with provenance <code>A-STORIES@1</code></small></div><span class="ar">→</span>
+    <div class="st m"><b>3 · MEM-01 extracts</b><small>nodes and edges per the Memory clauses</small></div><span class="ar">→</span>
+    <div class="st q"><b>4 · G-GRAPH</b><small>endpoints exist, IDs valid, single writer</small></div><span class="ar">→</span>
+    <div class="st m"><b>5 · Delta merged</b><small><code>docs/generated/memory/&lt;WI&gt;/</code></small></div><span class="ar">→</span>
+    <div class="st a"><b>6 · memory.synced</b><small>downstream skills may start</small></div>
+  </div>
+  <ul>
+    <li><b>Single writer.</b> Only the memory steward (<code>/sync-graph-memory</code>, a hook on every approval) writes the graph. Other agents read it.</li>
+    <li><b>Provenance on everything.</b> Each node and edge records the artifact version that wrote it, so a question can always be answered from the source document.</li>
+    <li><b>Retract on reopen.</b> Reopening an artifact retracts what it wrote and marks dependants stale. A new version supersedes the old one.</li>
+    <li><b>Documents stay the source of truth.</b> The graph is an index for finding context. Skills still read their pinned input documents.</li>
+  </ul>
+  <h3>Schema in the sample work item</h3>
+  <p class="muted" id="schemaNote"></p>
+  <div style="max-height:360px;overflow:auto"><table id="schemaTable"></table></div>
+  <h3>Questions agents ask the graph</h3>
+  <p>Each button opens the answer in the playbook's <b>Knowledge graph</b> tab.</p>
+  <div id="qs"></div>
+</section>
+
+<!-- ============================================================ 8 -->
+<section id="viz" class="wide">
+  <h2><span class="num">8</span>Graph visualiser</h2>
+  <p class="sub">The visualiser is a tab in the playbook: <a href="harness-engineering.html#kg" target="_blank" rel="noopener">harness-engineering.html → Knowledge graph</a>.</p>
+  <div class="kg-hero">
+    <div>
+      <h4>Explore the graph memory of a work item</h4>
+      <ul>
+        <li><b>Sources:</b> the sample WI-101, the playbook catalog (personas, agents, skills, artifacts, gates), or any <code>graph.json</code>. It also reads the format used by the harness-engineering.ai knowledge graph.</li>
+        <li><b>Color Mode:</b> by entity type, by team or by community (Louvain). The left panel filters each group; double-click shows only that group.</li>
+        <li><b>2D / 3D</b>, <b>Search nodes</b>, and <b>Artifact nodes</b> to show which document wrote each node.</li>
+        <li><b>Node details:</b> properties, degree and betweenness centrality, community, relationships and mentions (the artifacts that wrote or reference the node, linked to their documents).</li>
+        <li><b>Trace up / Impact:</b> follow what a node traces to, or what depends on it. Impact lists the artifacts that would go stale if the node changed.</li>
+        <li><b>Replay:</b> the timeline rebuilds the graph in approval order, from the request to the outcome review.</li>
+      </ul>
+      <a class="go" href="harness-engineering.html#kg" target="_blank" rel="noopener">Open the visualiser ↗</a>
+    </div>
+    <svg viewBox="0 0 320 220" aria-hidden="true" id="kgPreview"></svg>
+  </div>
+</section>
+
+<!-- ============================================================ 9 -->
+<section id="sample">
+  <h2><span class="num">9</span>Sample work item: retail BOPIS</h2>
+  <p class="lede"><b>WI-101: Buy online, pick up in store (BOPIS) with real-time store inventory</b> for Harbor &amp; Pine, a fictional retailer with 212 stores, a website and iOS and Android apps.</p>
+  <p>Every skill in the catalog ran once, from the business request on 1 September 2026 to the outcome review on 27 October 2026. Each document was produced from its template and passes <code>harness-template-check.mjs</code>. The files follow the scaffold layout under <a href="samples/workitems/WI-101/README.md" target="_blank" rel="noopener">samples/workitems/WI-101/</a>.</p>
+  <div class="grid2">
+    <div class="card"><h4>Product</h4><p>3 outcomes, 8 requirements (5 Must), 4 journeys, 13 stories across web, iOS, Android and the store handheld, 8 screens, 5 components.</p></div>
+    <div class="card"><h4>Architecture</h4><p>4 KDDs scored on priority, effort and TCO. KDD-02 (soft reservations outside OMS) and KDD-04 (direct SMS vendor) took dispensations DSP-01 and DSP-02, which became tickets PLAT-1423 and PLAT-1424.</p></div>
+    <div class="card"><h4>Engineering</h4><p>9 interfaces (GraphQL, REST, Kafka, gRPC), OpenAPI, federated SDL, Avro and AsyncAPI contracts, expand-only migrations and 7 PRs.</p></div>
+    <div class="card"><h4>Quality and SRE</h4><p>13 Gherkin scenarios, 4 automated suites, a Go verdict, performance at 1.3× peak, 4 SLOs, a canary release and one SEV-3 incident with follow-up actions.</p></div>
+  </div>
+  <h3>Artifacts in approval order</h3>
+  <div style="max-height:480px;overflow:auto"><table id="artTable"></table></div>
+</section>
+
+<!-- ============================================================ 10 -->
+<section id="next">
+  <h2><span class="num">10</span>Next steps</h2>
+  <ol>
+    <li>Open the <a href="harness-engineering.html" target="_blank" rel="noopener">playbook</a>, click <b>Load example</b>, and adapt the personas and skills to your teams.</li>
+    <li>Export the master data and run the scaffold in a trial repository. Run three or four skills by hand and compare the documents with the WI-101 samples.</li>
+    <li>Tighten the templates and gates wherever outputs vary between runs. Every variation you remove makes the harness more deterministic.</li>
+    <li>When the manual flow is stable, move the triggers to GitHub Actions, and later to a workflow engine.</li>
+  </ol>
+  <p class="muted">Further reading: <a href="https://openai.com/index/harness-engineering/" target="_blank" rel="noopener">OpenAI, Harness engineering</a> · <a href="https://harness-engineering.ai/knowledge-graph/" target="_blank" rel="noopener">harness-engineering.ai knowledge graph</a> (the inspiration for the visualiser, which also loads its <code>graph.json</code> format) · <a href="https://docs.claude.com/en/docs/claude-code/overview" target="_blank" rel="noopener">Claude Code docs</a>.</p>
+</section>
+</main>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const E = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const SAMPLE_BASE = "samples/workitems/WI-101/";
+
+/* --------------------------------------------------------------- page chrome */
+document.querySelectorAll("pre").forEach(p => { const b = document.createElement("button"); b.className = "cp"; b.textContent = "Copy";
+  b.onclick = () => { navigator.clipboard && navigator.clipboard.writeText(p.querySelector("code").innerText).then(() => { b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1200); }); }; p.appendChild(b); });
+(() => { const links = [...document.querySelectorAll("#toc a")], secs = links.map(a => $(a.hash.slice(1)));
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle("on", a.hash === "#" + e.target.id)); }), { rootMargin: "-20% 0px -70% 0px" });
+  secs.forEach(s => s && io.observe(s)); })();
+
+const KG = window.HarnessKG || { TYPE_COL: {}, TEAM_COL: {} }, TYPE_COL = KG.TYPE_COL, TEAM_COL = KG.TEAM_COL;
+const kgLink = (id, mode) => `harness-engineering.html#kg?focus=${encodeURIComponent(id)}${mode ? "&mode=" + mode : ""}`;
+
+// a small static preview of the sample graph: the most connected nodes around the work item
+function preview() {
+  const S = window.HX_SAMPLE_GRAPH, svg = $("kgPreview"); if (!S || !svg) return;
+  const deg = {}; S.relationships.forEach(r => { deg[r.source] = (deg[r.source] || 0) + 1; deg[r.target] = (deg[r.target] || 0) + 1; });
+  const top = Object.keys(S.entities).sort((a, b) => (deg[b] || 0) - (deg[a] || 0)).slice(0, 46), pos = {};
+  top.forEach((id, i) => { const ring = i === 0 ? 0 : i < 12 ? 1 : 2, k = ring === 1 ? i - 1 : i - 12, n = ring === 1 ? 11 : 34, a = k / n * Math.PI * 2 + ring;
+    pos[id] = [160 + Math.cos(a) * [0, 55, 100][ring] * 1.25, 110 + Math.sin(a) * [0, 55, 100][ring] * 0.95]; });
+  const lines = S.relationships.filter(r => pos[r.source] && pos[r.target]).map(r => `<line x1="${pos[r.source][0]}" y1="${pos[r.source][1]}" x2="${pos[r.target][0]}" y2="${pos[r.target][1]}" stroke="rgba(148,163,184,.3)" stroke-width=".6"/>`).join("");
+  const dots = top.map(id => `<circle cx="${pos[id][0]}" cy="${pos[id][1]}" r="${2 + Math.sqrt(deg[id] || 0)}" fill="${TYPE_COL[S.entities[id].type] || "#94a3b8"}"><title>${E(S.entities[id].name)}</title></circle>`).join("");
+  svg.innerHTML = lines + dots;
+}
+
+/* --------------------------------------------------------------- tutorial tables from the sample */
+function sampleTables() {
+  const S = window.HX_SAMPLE_GRAPH; if (!S) return;
+  const types = {}; Object.values(S.entities).forEach(e => { const t = types[e.type] = types[e.type] || { n: 0, arts: new Set(), ex: [] }; t.n++; t.arts.add(e.artifact); if (t.ex.length < 3) t.ex.push(e.name.length > 30 ? null : e.name); });
+  Object.entries(S.entities).forEach(([id, e]) => { const t = types[e.type]; if (t.ids === undefined) t.ids = []; if (t.ids.length < 3) t.ids.push(id); });
+  const rels = {}; S.relationships.forEach(r => { const k = `${S.entities[r.source].type} -${r.type}-> ${S.entities[r.target].type}`; rels[k] = (rels[k] || 0) + 1; });
+  $("schemaNote").textContent = `${Object.keys(S.entities).length} nodes of ${Object.keys(types).length} types and ${S.relationships.length} edges of ${Object.keys(rels).length} kinds, written from ${Object.keys(S.artifacts).length} artifacts.`;
+  $("schemaTable").innerHTML = `<tr><th>Node type</th><th>Count</th><th>Examples</th><th>Written from</th><th>Edges out</th></tr>` + Object.entries(types).sort((a, b) => b[1].n - a[1].n).map(([t, o]) =>
+    `<tr><td><span class="dot" style="background:${TYPE_COL[t] || "#94a3b8"};border:1px solid #0002"></span> <b>${E(t)}</b></td><td>${o.n}</td><td>${o.ids.map(i => `<a href="${kgLink(i)}" target="_blank" rel="noopener"><code>${E(i)}</code></a>`).join(" ")}</td><td>${[...o.arts].map(E).join(", ")}</td><td style="font-size:12px">${Object.entries(rels).filter(([k]) => k.startsWith(t + " -")).map(([k, c]) => E(k.replace(t + " ", "")) + (c > 1 ? ` <span class="muted">×${c}</span>` : "")).join("<br>")}</td></tr>`).join("");
+  $("artTable").innerHTML = `<tr><th>Approved</th><th>Artifact</th><th>Document</th><th>Produced by</th><th>v</th><th>Nodes</th></tr>` + Object.entries(S.artifacts).map(([aid, a]) => {
+    const n = Object.values(S.entities).filter(e => e.artifact === aid).length;
+    return `<tr><td>${E(a.approved)}</td><td><span class="pill" style="background:${TEAM_COL[a.team] || "#64748b"}">${E(a.team)}</span> <b>${E(aid)}</b> ${E(a.title)}</td><td><a href="${E(SAMPLE_BASE + a.doc)}" target="_blank" rel="noopener"><code>${E(a.doc)}</code></a>${a.definition && !a.definition.startsWith("pr://") && !a.definition.includes("*") && !a.definition.endsWith(".xlsx") && !a.definition.includes("<") ? `<br><a href="${E(SAMPLE_BASE + a.definition)}" target="_blank" rel="noopener"><code>${E(a.definition)}</code></a>` : ""}</td><td style="font-size:12.5px">${E(a.produced_by.split(" (")[0])}</td><td>${E(a.version)}</td><td>${n}</td></tr>`; }).join("");
+  const QS = [["Which stories implement REQ-03, and which tests verify it?", "REQ-03", "impact"], ["What goes stale if KDD-02 (reservation strategy) changes?", "KDD-02", "impact"],
+    ["Where does the tech debt ticket PLAT-1423 come from?", "PLAT-1423", "up"], ["What does the store availability interface IF-02 connect?", "IF-02", ""],
+    ["Which journey and outcome does the incident INC-2041 hurt?", "INC-2041", "up"], ["What would changing StoreInventory.available affect?", "StoreInventory.available", "impact"]];
+  $("qs").innerHTML = QS.map(([q, id, m]) => `<a class="btn qbtn" href="${kgLink(id, m)}" target="_blank" rel="noopener">${E(q)} ↗</a>`).join("");
+}
+
+sampleTables();
+preview();
+</script>
+</body>
+</html>

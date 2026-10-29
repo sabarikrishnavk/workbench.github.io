@@ -1,0 +1,26 @@
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.5", import: ["@key", "@external"])
+
+type Store @key(fields: "storeId") {
+  storeId: ID!
+  name: String!
+  distanceKm: Float
+}
+
+enum AvailabilityStatus { IN_STOCK LOW OUT UNKNOWN }
+
+type StoreAvailability {
+  store: Store!
+  status: AvailabilityStatus!
+  quantity: Int
+  asOf: String!
+}
+
+type Product @key(fields: "sku") {
+  sku: ID! @external
+  pickupAvailability(near: GeoInput!, first: Int = 5): [StoreAvailability!]!
+}
+
+input GeoInput { lat: Float!, lng: Float! }
+
+type Query { storeAvailability(sku: ID!, near: GeoInput!, first: Int = 5): [StoreAvailability!]! }
+type Mutation { setPreferredStore(storeId: ID!): Store! }

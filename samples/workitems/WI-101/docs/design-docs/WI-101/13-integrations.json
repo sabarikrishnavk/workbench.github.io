@@ -1,0 +1,118 @@
+{
+  "flows": [
+    {
+      "id": "IF-01",
+      "name": "Pickup availability query",
+      "pattern": "GraphQL",
+      "producer": "fulfilment-subgraph",
+      "consumers": [
+        "storefront-web"
+      ],
+      "mode": "sync",
+      "sla": "p95 180 ms",
+      "spec": "contracts/graphql/WI-101/schema.graphql"
+    },
+    {
+      "id": "IF-02",
+      "name": "Store availability API",
+      "pattern": "REST",
+      "producer": "inventory-service",
+      "consumers": [
+        "fulfilment-subgraph"
+      ],
+      "mode": "sync",
+      "sla": "p95 150 ms",
+      "spec": "contracts/rest/WI-101/openapi.yaml"
+    },
+    {
+      "id": "IF-03",
+      "name": "Reservation API",
+      "pattern": "REST",
+      "producer": "inventory-service",
+      "consumers": [
+        "order-service"
+      ],
+      "mode": "sync",
+      "sla": "p99 400 ms",
+      "spec": "contracts/rest/WI-101/openapi.yaml"
+    },
+    {
+      "id": "IF-04",
+      "name": "POS stock changes",
+      "pattern": "Kafka",
+      "producer": "store-pos",
+      "consumers": [
+        "inventory-service"
+      ],
+      "mode": "async",
+      "sla": "lag ≤ 60 s",
+      "spec": "contracts/events/WI-101/events.avsc"
+    },
+    {
+      "id": "IF-05",
+      "name": "Pickup order placed",
+      "pattern": "Kafka",
+      "producer": "order-service",
+      "consumers": [
+        "oms"
+      ],
+      "mode": "async",
+      "sla": "lag ≤ 30 s",
+      "spec": "contracts/events/WI-101/events.avsc"
+    },
+    {
+      "id": "IF-06",
+      "name": "Pickup order ready",
+      "pattern": "Kafka",
+      "producer": "store-associate-app",
+      "consumers": [
+        "notification-service"
+      ],
+      "mode": "async",
+      "sla": "lag ≤ 60 s",
+      "spec": "contracts/events/WI-101/events.avsc"
+    },
+    {
+      "id": "IF-07",
+      "name": "Nearest stores",
+      "pattern": "gRPC",
+      "producer": "store-locator-service",
+      "consumers": [
+        "fulfilment-subgraph"
+      ],
+      "mode": "sync",
+      "sla": "deadline 80 ms",
+      "spec": "proto/storelocator/v2/locator.proto"
+    },
+    {
+      "id": "IF-08",
+      "name": "Collect pickup",
+      "pattern": "REST",
+      "producer": "order-service",
+      "consumers": [
+        "store-associate-app"
+      ],
+      "mode": "sync",
+      "sla": "p95 300 ms",
+      "spec": "contracts/rest/WI-101/openapi.yaml"
+    },
+    {
+      "id": "IF-09",
+      "name": "SMS send (vendor)",
+      "pattern": "REST",
+      "producer": "store-associate-app",
+      "consumers": [
+        "sms-vendor"
+      ],
+      "mode": "sync",
+      "sla": "vendor 99.5%",
+      "spec": "vendor docs (DSP-02)"
+    }
+  ],
+  "rules": {
+    "passed": 3,
+    "waived": [
+      "IF-09 (DSP-02)"
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "artifact": "A-OPSREPORT",
+  "workItem": "WI-101",
+  "version": 1,
+  "incidents": [
+    {
+      "id": "INC-2041",
+      "name": "Stock lag in 14 stores during network outage",
+      "severity": "SEV-3",
+      "breached": [
+        "SLO-04"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "ACT-01",
+      "name": "Show per-store staleness on the store selector",
+      "follows": [
+        "INC-2041"
+      ]
+    },
+    {
+      "id": "ACT-02",
+      "name": "Buffer POS events on the in-store gateway during WAN loss",
+      "follows": [
+        "INC-2041"
+      ]
+    }
+  ]
+}

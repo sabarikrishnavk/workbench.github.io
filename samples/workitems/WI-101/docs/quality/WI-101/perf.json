@@ -1,0 +1,39 @@
+{
+  "artifact": "A-PERFREPORT",
+  "workItem": "WI-101",
+  "version": 1,
+  "perfResults": [
+    {
+      "id": "PERF-01",
+      "name": "Availability lookup p95 ≤ 150 ms: p95 118 ms",
+      "pass": "Y",
+      "measures": [
+        "NFR-01"
+      ]
+    },
+    {
+      "id": "PERF-02",
+      "name": "Reservation p99 ≤ 400 ms: p99 362 ms",
+      "pass": "Y",
+      "measures": [
+        "NFR-03"
+      ]
+    },
+    {
+      "id": "PERF-03",
+      "name": "Store stock age ≤ 60 s: p95 age 41 s",
+      "pass": "Y",
+      "measures": [
+        "NFR-02"
+      ]
+    },
+    {
+      "id": "PERF-04",
+      "name": "1,800 rps peak availability lookups: 2,400 rps sustained",
+      "pass": "Y",
+      "measures": [
+        "NFR-06"
+      ]
+    }
+  ]
+}

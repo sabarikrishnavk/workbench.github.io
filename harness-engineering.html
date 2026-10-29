@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Harness Engineering Playbook</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/force-graph@1.51.4/dist/force-graph.min.js"></script>
+<script src="samples/workitems/WI-101/graph.js"></script>
+<script src="harness-kg.js"></script>
 <link rel="stylesheet" href="styles.css" />
 <style>
   :root{
@@ -23,6 +26,8 @@
   nav .cnt.err{ background: #fde3e3; color: var(--bad); }
   nav .chrome-toggle{ align-self: center; padding: 3px 9px; font-size: 12px; }
   main{ flex: 1; overflow: auto; padding: 16px; }
+  #view-kg .kg{ height: calc(100vh - 190px); min-height: 520px; }
+  body.chrome-collapsed #view-kg .kg{ height: calc(100vh - 130px); }
   [hidden]{ display: none !important; }
   .toolbar-inline{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; }
   .toolbar-inline input[type=search], .toolbar-inline select{ padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12.5px; background: #fff; }
@@ -223,6 +228,7 @@
   <h1><a href="index.html" style="color:inherit;text-decoration:none" title="Workbench home">Harness Engineering Playbook</a></h1>
   <span class="status" id="status"></span>
   <span class="spacer"></span>
+  <a class="btn" href="harness-tutorial.html" target="_blank" rel="noopener" title="Introduction, how-to, scaffold in Claude Code and the knowledge graph visualiser">Tutorial ↗</a>
   <a class="btn" href="rtm-mapping.html" target="_blank" rel="noopener">Traceability ↗</a>
   <label class="btn" for="fileInput" title="Load the master data, work items or memory workbook (recognised by its sheets). You can pick several files at once.">Load .xlsx</label>
   <input type="file" id="fileInput" accept=".xlsx,.xls" multiple />
@@ -237,6 +243,7 @@
   <button data-view="flow">Workflow</button>
   <button data-view="run">Run (manual)</button>
   <button data-view="memory">Graph memory</button>
+  <button data-view="kg">Knowledge graph</button>
   <button data-view="registry">Registry</button>
   <button data-view="orch">Orchestration</button>
   <button data-view="checks">Checks <span class="cnt" id="issueCnt" hidden></span></button>
@@ -316,6 +323,12 @@
     <div class="card"><div class="code-head"><h2 style="margin:0">Memory state</h2><select id="mmWi"></select><span class="spacer"></span><button class="copy-btn" id="mmGo">Manage in Run →</button></div><div id="mmState"></div></div>
   </section>
 
+  <!-- ============ Knowledge graph visualiser ============ -->
+  <section class="view" id="view-kg">
+    <p class="desc" style="margin:0 0 8px">The graph memory of a work item, built from its approved artifacts. Start with the sample retail work item (WI-101, buy online and pick up in store), switch the source to <b>Playbook catalog</b> to see how personas, agents, skills, artifacts and gates connect, or load a <code>graph.json</code> from <code>docs/generated/memory/&lt;WI&gt;/</code>. Click a node, then <b>Impact</b> to see what goes stale if it changes. <a href="harness-tutorial.html#graph" target="_blank" rel="noopener">How the graph is built ↗</a></p>
+    <div id="kgHost"></div>
+  </section>
+
   <!-- ============ Registry ============ -->
   <section class="view" id="view-registry">
     <div class="sheet-tabs" id="sheetTabs"></div>
@@ -352,9 +365,10 @@
     </div>
     <div class="grid2">
       <div class="card" style="min-width:0">
-        <div class="code-head"><h2 style="margin:0">Claude Code scaffold</h2><span class="spacer"></span>
-          <select id="orFile"></select><button class="copy-btn" id="orCopy">Copy</button><button class="copy-btn" id="orSh" title="A shell script that writes every .claude/agents/*.md and .claude/skills/*/SKILL.md">⤓ Scaffold .sh</button></div>
-        <p class="desc">The agent and skill files for <code>.claude/</code>. Run the script at the repo root to create them all at once.</p>
+        <div class="code-head"><h2 style="margin:0">Repository scaffold</h2><span class="spacer"></span><button class="copy-btn" id="orSh" title="A shell script that writes the whole layout at the repo root">⤓ Scaffold .sh</button></div>
+        <p class="desc">A harness layout modelled on OpenAI's <a href="https://openai.com/index/harness-engineering/" target="_blank" rel="noopener">Harness engineering</a>. <code>AGENTS.md</code> is a short map, knowledge lives in <code>docs/</code> (design-docs, exec-plans, generated, product-specs, references, PLANS.md, QUALITY_SCORE.md), and alongside it are <code>templates/artifacts</code>, <code>.claude/agents</code>, <code>.claude/skills</code> and a template checker. It's generated from the master data, so a new skill, agent or artifact is wired into every file that mentions it. <b>●</b> marks files that differ from your last download. <span class="hint" id="orScafN"></span></p>
+        <pre class="code" id="orTree" style="max-height:200px;margin-bottom:8px"></pre>
+        <div class="code-head"><select id="orFile" style="flex:1;min-width:0"></select><button class="copy-btn" id="orCopy">Copy</button><button class="copy-btn" id="orFileDl">⤓ File</button></div>
         <pre class="code" id="orPre"></pre>
       </div>
       <div class="card" style="min-width:0">
@@ -389,7 +403,7 @@
    triggers every skill consuming it. The Run view drives the workflow by hand per work item; the
    Orchestration view exports the same definition for an engine (and Claude Code agent/skill files).
    ===================================================================== */
-const LS_KEY = "hx.catalog.v2", LS_RUN = "hx.run.v2", LS_UI = "hx.ui.v1";
+const LS_KEY = "hx.catalog.v3", LS_RUN = "hx.run.v2", LS_UI = "hx.ui.v1";
 const TEAMS = ["Product", "Architecture", "Engineering", "Quality", "SRE", "Platform"];
 const TEAM_COLOR = { Product: "#7048e8", Architecture: "#0d9488", Engineering: "#2563eb", Quality: "#c2410c", SRE: "#b45309", Platform: "#475569" };
 const STAGES = ["Discover", "Define", "Design", "Architect", "Plan", "Contract", "Build", "Verify", "Release", "Operate", "Learn", "Continuous"];
@@ -406,8 +420,8 @@ const SH = {
     cols: [{ key: "AgentID", w: 90 }, { key: "PersonaID", ref: "Personas", w: 90 }, { key: "Name", w: 190 }, { key: "Model", w: 150 }, { key: "Tools", w: 230 }, { key: "MCP", w: 200 }, { key: "Description", area: 1 }] },
   Skills: { id: "SkillID", prefix: "SK-", desc: "One repeatable unit of work. Inputs are required artifacts (the trigger is all of them approved), Context is optional. Exactly one Output artifact. Steps are one per line. Approval is Auto, a reviewer role, or several roles joined with + (all must approve). Mode Hook skills run after every approval instead of in the pipeline.",
     cols: [{ key: "SkillID", w: 80 }, { key: "AgentID", ref: "Agents", w: 80 }, { key: "Name", w: 190 }, { key: "Stage", opts: STAGES }, { key: "Mode", opts: MODES }, { key: "Purpose", area: 1 }, { key: "Inputs", multi: "Artifacts", w: 240 }, { key: "Context", multi: "Artifacts", w: 180 }, { key: "Output", ref: "Artifacts", w: 120 }, { key: "Steps", area: 1 }, { key: "Gates", multi: "Gates", w: 220 }, { key: "Approval", w: 170 }] },
-  Artifacts: { id: "ArtifactID", prefix: "A-", desc: "The contract between skills: format, path convention ({wi} = work item), required fields and the event emitted on approval. Seed = provided by a human when the work item starts. Terminal = no consumer expected. Memory = the nodes and edges it writes to the common graph memory (Node(ID) -REL-> Node; …).",
-    cols: [{ key: "ArtifactID", w: 110 }, { key: "Name", w: 200 }, { key: "Format", w: 190 }, { key: "Path", w: 230 }, { key: "Fields", area: 1 }, { key: "Event", w: 150 }, { key: "Seed", opts: YN }, { key: "Terminal", opts: YN }, { key: "Memory", area: 1 }] },
+  Artifacts: { id: "ArtifactID", prefix: "A-", desc: "The contract between skills: format, path convention ({wi} = work item), required fields and the event emitted on approval. Seed = provided by a human when the work item starts. Terminal = no consumer expected. Memory = the nodes and edges it writes to the common graph memory (Node(ID) -REL-> Node; …). Path = the definition (JSON, YAML, SDL…) or the document itself; Doc = the markdown document; Template = its sections, one per line (h: prose, t: table, c: code block).",
+    cols: [{ key: "ArtifactID", w: 110 }, { key: "Name", w: 200 }, { key: "Format", w: 190 }, { key: "Path", w: 230 }, { key: "Doc", w: 260 }, { key: "Fields", area: 1 }, { key: "Event", w: 150 }, { key: "Seed", opts: YN }, { key: "Terminal", opts: YN }, { key: "Memory", area: 1 }, { key: "Template", area: 1 }] },
   Gates: { id: "GateID", prefix: "G-", desc: "Deterministic checks that run outside the model. A skill's output is not accepted until every blocking gate passes.",
     cols: [{ key: "GateID", w: 130 }, { key: "Name", w: 170 }, { key: "Kind", opts: GATE_KINDS }, { key: "Check", area: 1 }, { key: "Tool", w: 230 }, { key: "Blocking", opts: YN }] },
 };
@@ -446,7 +460,8 @@ function save() { IX = null; try { localStorage.setItem(LS_KEY, JSON.stringify(D
 function saveRun() { try { localStorage.setItem(LS_RUN, JSON.stringify(RUN)); } catch (e) {} setDirty("work", "memory"); setStatus(); }
 function saveUI() { try { localStorage.setItem(LS_UI, JSON.stringify(UI)); } catch (e) {} }
 function load() {
-  try { const raw = localStorage.getItem(LS_KEY); DB = raw ? ensureIds({ ...emptyDB(), ...JSON.parse(raw) }) : ensureIds(exampleCatalog()); } catch (e) { DB = ensureIds(exampleCatalog()); }
+  try { const raw = localStorage.getItem(LS_KEY), old = raw ? null : localStorage.getItem("hx.catalog.v2");   // v2 = before artifact templates
+    DB = raw ? ensureIds({ ...emptyDB(), ...JSON.parse(raw) }) : old ? migrateCatalog(ensureIds({ ...emptyDB(), ...JSON.parse(old) })) : ensureIds(exampleCatalog()); } catch (e) { DB = ensureIds(exampleCatalog()); }
   try { const raw = localStorage.getItem(LS_RUN); RUN = raw ? JSON.parse(raw) : exampleRun(); } catch (e) { RUN = exampleRun(); }
   RUN.items = RUN.items || []; RUN.steps = RUN.steps || {}; RUN.log = RUN.log || []; RUN.memq = RUN.memq || {};
   if (!RUN.items.some(w => w.id === RUN.cur)) RUN.cur = (RUN.items[0] || {}).id || "";
@@ -582,8 +597,8 @@ function envelope(wi, s, ref) {
   const X = ix(), inputs = {};
   if (isHook(s)) return { envelope: "harness/v1", workItem: wi || "{wi}", skill: s.SkillID, artifact: S(s.Output), op: "upsert | retract", source: "<artifact>@<version>",
     nodesUpserted: [], edgesUpserted: [], superseded: [], retracted: [], gates: Object.fromEntries(list(s.Gates).map(g => [g, "pass | fail"])), status: "synced" };
-  list(s.Inputs).concat(list(s.Context)).forEach(a => { const p = X.producer[a], r = wi && p ? stepRec(wi, p) : {}; inputs[a] = r.ref ? r.ref + (r.ver ? "@" + r.ver : "") : fillPath((X.art[a] || {}).Path, wi); });
-  return { envelope: "harness/v1", workItem: wi || "{wi}", skill: s.SkillID, artifact: S(s.Output), ref: ref || fillPath((X.art[S(s.Output)] || {}).Path, wi), version: "1",
+  list(s.Inputs).concat(list(s.Context)).forEach(a => { const p = X.producer[a], r = wi && p ? stepRec(wi, p) : {}; inputs[a] = r.ref ? r.ref + (r.ver ? "@" + r.ver : "") : fillPath(docPath(X.art[a]), wi); });
+  return { envelope: "harness/v1", workItem: wi || "{wi}", skill: s.SkillID, artifact: S(s.Output), ref: ref || fillPath(docPath(X.art[S(s.Output)]), wi), ...(defPathOf(X.art[S(s.Output)]) ? { definition: fillPath(defPathOf(X.art[S(s.Output)]), wi) } : {}), template: `templates/artifacts/${S(s.Output)}.md`, version: "1",
     inputs, gates: Object.fromEntries(list(s.Gates).map(g => [g, "pass | fail"])), status: "produced", openQuestions: [], next: nextSkills(s.SkillID) };
 }
 function memClauses(m) {
@@ -610,14 +625,15 @@ function buildPrompt(wi, sid) {
   const X = ix(), s = X.skill[sid], ag = X.agent[s.AgentID] || {}, per = personaOf(s) || {}, out = X.art[S(s.Output)] || {}, w = RUN.items.find(x => x.id === wi) || {};
   if (isHook(s)) return buildMemPrompt(wi, { op: "upsert" });
   const inLine = a => { const ar = X.art[a] || {}, p = X.producer[a], r = wi && p ? stepRec(wi, p) : {};
-    return `- ${a} ${ar.Name || "?"}: ${r.ref ? r.ref + (r.ver ? "@" + r.ver : "") : fillPath(ar.Path, wi)}${p ? `  (from ${p})` : ar.Seed === "Y" ? "  (seed: work item request)" : ""}`; };
+    return `- ${a} ${ar.Name || "?"}: ${r.ref ? r.ref + (r.ver ? "@" + r.ver : "") : fillPath(docPath(ar), wi)}${p ? `  (from ${p})` : ar.Seed === "Y" ? "  (seed: work item request)" : ""}`; };
   const L = [];
   L.push(`Run skill /${s.Name} (${s.SkillID}) as the ${ag.Name || "?"} agent (${per.Name || "?"}) for work item ${wi || "{wi}"}${w.title ? ": " + w.title : ""}.`);
   if (w.desc) L.push("", "## Work item", w.desc);
   L.push("", "## Inputs (read these and nothing else, at these versions)", ...list(s.Inputs).map(inLine));
   if (list(s.Context).length) L.push("", "## Optional context", ...list(s.Context).map(inLine));
   L.push("", "## Graph memory", MEM_READ(wi));
-  L.push("", "## Produce exactly one artifact", `${S(s.Output)} ${out.Name || ""} (${out.Format || "?"})`, `Path: ${fillPath(out.Path, wi)}`, "Required fields / sections:", ...fields(out.Fields).map(f => "- " + f));
+  L.push("", "## Produce exactly one artifact", `${S(s.Output)} ${out.Name || ""} (${out.Format || "?"})`, ...outLines(out, wi), "Required fields / sections:", ...fields(out.Fields).map(f => "- " + f));
+  L.push("", "## Document template (keep every section id and table column, in this order; write None where nothing applies)", ...tplOutline(out));
   L.push("", "## Steps", ...lines(s.Steps).map((x, i) => `${i + 1}. ${x}`));
   L.push("", "## Gates (run each check; do not report pass without running it)", ...list(s.Gates).map(g => { const G = X.gate[g] || {}; return `- ${g} ${G.Name || ""}: ${G.Check || ""}${G.Tool ? `  [${G.Tool}]` : ""}`; }));
   if (approvers(s).length) L.push("", "## Reviewers", `After the gates pass, the output goes to ${approvers(s).join(" and ")}. All of them must approve.`);
@@ -634,15 +650,17 @@ function skillMd(s) {
   if (hook) L.push("## When to run", "Once per approved artifact version (`*.approved`) to upsert it, and once per reopened artifact (`*.reopened`) to retract it. The prompt names the artifact, its ref and version, and the operation.", "",
     "## Inputs", "- The approved artifact at the pinned ref and version.", "- Its Memory mapping (the node and edge types it may write), listed in the prompt.", "");
   else L.push("## When to run", `All of these events have fired for the work item: ${evs.map(e => "`" + e + "`").join(", ")}.`, "",
-    "## Inputs", "| Artifact | Path | Produced by |", "|---|---|---|",
-    ...list(s.Inputs).map(a => `| ${a} ${(X.art[a] || {}).Name || ""} | \`${(X.art[a] || {}).Path || ""}\` | ${X.producer[a] || ((X.art[a] || {}).Seed === "Y" ? "seed" : "?")} |`),
-    ...list(s.Context).map(a => `| ${a} ${(X.art[a] || {}).Name || ""} (optional) | \`${(X.art[a] || {}).Path || ""}\` | ${X.producer[a] || "?"} |`), "",
+    "## Inputs", "| Artifact | Document | Produced by |", "|---|---|---|",
+    ...list(s.Inputs).map(a => `| ${a} ${(X.art[a] || {}).Name || ""} | \`${docPath(X.art[a])}\` | ${X.producer[a] || ((X.art[a] || {}).Seed === "Y" ? "seed" : "?")} |`),
+    ...list(s.Context).map(a => `| ${a} ${(X.art[a] || {}).Name || ""} (optional) | \`${docPath(X.art[a])}\` | ${X.producer[a] || "?"} |`), "",
     "## Graph memory", MEM_READ(""), "");
   L.push("## Steps", ...lines(s.Steps).map((x, i) => `${i + 1}. ${x}`), "",
-    "## Output contract", `- Artifact: ${S(s.Output)} ${out.Name || ""}`, `- Format: ${out.Format || ""}`, `- Path: \`${out.Path || ""}\``, "- Required fields / sections:", ...fields(out.Fields).map(f => "  - " + f), `- On approval emits: \`${out.Event || ""}\` → ${nextSkills(s.SkillID).join(", ") || "terminal"}`, "",
+    "## Output contract", `- Artifact: ${S(s.Output)} ${out.Name || ""}`, `- Format: ${out.Format || ""}`, ...outLines(out, "").map(x => "- " + x), "- Required fields / sections:", ...fields(out.Fields).map(f => "  - " + f), `- On approval emits: \`${out.Event || ""}\` → ${nextSkills(s.SkillID).join(", ") || "terminal"}`, "",
+    "## Document template", `Copy \`templates/artifacts/${S(s.Output)}.md\` to the document path. Keep every section id and table column, in this order, and write None where nothing applies. Sections:`, ...tplOutline(out), "",
     "## Gates", ...list(s.Gates).map(g => { const G = X.gate[g] || {}; return `- **${g} ${G.Name || ""}**: ${G.Check || ""}${G.Tool ? ` (\`${G.Tool}\`)` : ""}`; }), "");
   if (approvers(s).length) L.push("## Reviewers", ...approvers(s).map(r => `- ${r}`), "All reviewers must approve before the event fires.", "");
-  L.push("## Rules", ...(hook ? ["- You are the only writer to the common graph memory.", "- Write only the node and edge types in the artifact's Memory mapping.", "- Upserts are idempotent on (type, id, work item). Never delete: supersede or retract."]
+  L.push("## References", "- `AGENTS.md` (the map), `ARCHITECTURE.md` and `docs/design-docs/core-beliefs.md`.", "- `docs/generated/workflow.md` for triggers, and `docs/QUALITY_SCORE.md` for gates.", "",
+    "## Rules", ...(hook ? ["- You are the only writer to the common graph memory.", "- Write only the node and edge types in the artifact's Memory mapping.", "- Upserts are idempotent on (type, id, work item). Never delete: supersede or retract."]
       : ["- Read only the declared inputs, at the versions passed in the prompt.", "- Produce exactly one artifact at the path above. A re-run overwrites it."]),
     "- Never report a gate as pass without running its check. Report fail with the output.", "- Unresolved items go to openQuestions with an owner, never TBD.", "",
     "## Handoff envelope (last fenced block of your reply)", "```json", JSON.stringify(envelope("", s), null, 2), "```", "");
@@ -656,17 +674,10 @@ function agentMd(a) {
     `You are the ${per.Name || ""} agent on the ${per.Team || ""} team. ${S(per.Description)}`, "",
     `Accountable human: ${per.Accountable || "?"}. They approve what you produce${sk.some(s => !isAuto(s)) ? " where a skill says so" : ""}.`, "",
     "## Your skills", ...sk.map(s => `- /${s.Name} (${s.SkillID}, ${s.Stage}): ${S(s.Purpose)} → ${S(s.Output)}`), "",
-    "## Operating rules", "- Run one skill per invocation, and only when its trigger events have fired.", "- Read only the skill's declared inputs. Write only its output artifact.",
+    "## Operating rules", "- Start from AGENTS.md (the map) and docs/design-docs/core-beliefs.md.", "- Run one skill per invocation, and only when its trigger events have fired.", "- Read only the skill's declared inputs. Write only its output artifact.",
     writer ? "- You are the only writer to the common graph memory. Write only what each artifact's Memory mapping allows." : "- Read the common graph memory (MCP graph-memory) for context. Never write to it.",
     "- Run every gate the skill lists before replying, and finish with the handoff envelope.", "- Escalate to the accountable human instead of guessing when an input conflicts with another.",
     S(a.MCP) ? `\nMCP servers this agent expects (configure them in .mcp.json): ${S(a.MCP)}.` : "", ""].join("\n").replace(/\n{3,}/g, "\n\n");
-}
-function scaffoldSh() {
-  const L = ["#!/usr/bin/env bash", "# Generated by harness-playbook.html: writes the Claude Code agents and skills for the SDLC harness.", "set -euo pipefail", ""];
-  DB.Agents.forEach(a => { L.push("mkdir -p .claude/agents", `cat > .claude/agents/${a.Name}.md <<'HARNESS_EOF'`, agentMd(a), "HARNESS_EOF", ""); });
-  DB.Skills.forEach(s => { L.push(`mkdir -p .claude/skills/${s.Name}`, `cat > .claude/skills/${s.Name}/SKILL.md <<'HARNESS_EOF'`, skillMd(s), "HARNESS_EOF", ""); });
-  L.push(`echo "Wrote ${DB.Agents.length} agents and ${DB.Skills.length} skills under .claude/"`);
-  return L.join("\n");
 }
 function memSchema() {
   const nodes = {}, edges = {}, nd = n => nodes[n] = nodes[n] || { ids: new Set(), arts: new Set() };
@@ -727,7 +738,7 @@ function howHtml() {
     <div class="stage-strip" style="grid-template-columns:110px repeat(${STAGES.length}, minmax(70px, 1fr))">${strip}</div>
     <p class="hint" style="margin:6px 0 0">${DB.Skills.length} skills by team and stage. Click an ID to open its playbook.</p></div>
   <div class="card"><h2>What makes the output deterministic</h2><p class="desc">An LLM doesn't produce the same text twice. The harness makes the <b>process</b> deterministic instead: what goes in, what shape comes out, what is checked, and what fires next.</p><div class="prin">
-    <div><b>1 · One skill, one artifact</b><p>Each skill writes exactly one artifact type, at a path derived from the work item (<code>docs/{wi}/02-prd.md</code>). Re-running it overwrites that path, so a rerun is idempotent.</p></div>
+    <div><b>1 · One skill, one artifact</b><p>Each skill writes exactly one artifact type, at a path derived from the work item (<code>docs/product-specs/{wi}/02-prd.md</code>, from <code>templates/artifacts/A-PRD.md</code>). Re-running it overwrites that path, so a rerun is idempotent.</p></div>
     <div><b>2 · Pinned, declared inputs</b><p>A skill reads only its declared inputs, at the versions or commits recorded in the run. It doesn't browse for anything else. The prompt lists the inputs explicitly.</p></div>
     <div><b>3 · Contract-first outputs</b><p>Every artifact has a format and required fields (JSON Schema, OpenAPI, SDL, Avro, Gherkin, OpenSLO). The output is valid only when it validates against that contract.</p></div>
     <div><b>4 · Gates are code, not prompts</b><p>Schema validation, linters, compatibility checks, tests, scans and canary analysis run outside the model and return pass or fail. The agent runs them, and the orchestrator runs them again.</p></div>
@@ -741,7 +752,7 @@ function howHtml() {
     <div><b>12 · One common graph memory</b><p>Every approved artifact is synced into a shared graph by a single writer (MEM-01). Agents read it for context, and the next skills fire only once their inputs are in memory. See <b>Graph memory</b>.</p></div>
   </div></div>
   <div class="card"><h2>Running it by hand today</h2><ol class="how">
-    <li>Load this catalog into Claude Code: <b>Orchestration → ⤓ Scaffold .sh</b> writes every <code>.claude/agents/*.md</code> and <code>.claude/skills/*/SKILL.md</code>. Run it at your repo root.</li>
+    <li>Set up your repo: <b>Orchestration → ⤓ Scaffold .sh</b> writes the harness layout (<code>AGENTS.md</code>, <code>ARCHITECTURE.md</code>, <code>docs/</code>, <code>templates/artifacts/</code>, <code>.claude/agents</code>, <code>.claude/skills</code>, <code>scripts/</code>). Run it at your repo root, and run it again after you change the master data.</li>
     <li>Open <b>Run (manual)</b> and add a work item. Its description is the seed <span class="idc">A-REQUEST</span>.</li>
     <li>For each card in <b>Ready</b>: click <b>▶ Start</b> to copy the pinned prompt, paste it into Claude Code, and let the agent produce the artifact and its envelope.</li>
     <li>Click <b>Record output</b>, paste the envelope (or type the ref) and tick the gates that passed. Auto-approved skills complete right away. The rest wait for the accountable role to <b>Approve</b> or <b>Reject</b>.</li>
@@ -777,13 +788,13 @@ function skillCard(s) {
   const evs = isHook(s) ? ["*.approved", "*.reopened"] : list(s.Inputs).map(a => (X.art[a] || {}).Event || a + ".approved");
   return `<div class="sk" id="sk-${E(s.SkillID)}"><div class="sk-h"><span class="idc">${E(s.SkillID)}</span><b>${E(s.Name)}</b><span class="cmd">/${E(s.Name)}</span>
       <span class="chip">${E(s.Stage)}</span>${isHook(s) ? '<span class="chip ev">hook: after every approval</span>' : ""}${isAuto(s) ? '<span class="chip auto">auto-approve on gates</span>' : approvers(s).map(r => `<span class="chip human">reviewer: ${E(r)}</span>`).join("")}
-      <span class="spacer"></span><button class="primary" data-edsk="${E(s.SkillID)}">✎ Edit</button><button data-skmd="${E(s.SkillID)}">Copy SKILL.md</button><button data-prompt="${E(s.SkillID)}">Prompt</button><button data-flow="${E(s.SkillID)}">In workflow</button></div>
+      <span class="spacer"></span><button class="primary" data-edsk="${E(s.SkillID)}">✎ Edit</button><button data-tpl="${E(s.Output)}">📄 Template</button><button data-skmd="${E(s.SkillID)}">Copy SKILL.md</button><button data-prompt="${E(s.SkillID)}">Prompt</button><button data-flow="${E(s.SkillID)}">In workflow</button></div>
     <div class="sk-b">
       <div class="wide"><p>${E(s.Purpose)}</p></div>
       <div><h4>Trigger: when all of</h4><div class="chips">${evs.map(e => `<span class="chip ev">${E(e)}</span>`).join("") || '<span class="hint">no inputs (runs on work item start)</span>'}</div></div>
       <div><h4>Inputs</h4><div class="chips">${isHook(s) ? '<span class="hint">the approved (or reopened) artifact named in the prompt, plus its Memory mapping</span>' : ""}${list(s.Inputs).map(a => artChip(a)).join("")}${list(s.Context).map(a => artChip(a, 1)).join("")}</div>${list(s.Context).length ? '<p class="hint" style="margin:4px 0 0">dashed = optional context</p>' : ""}</div>
       <div><h4>Steps</h4><ol>${lines(s.Steps).map(x => `<li>${E(x)}</li>`).join("")}</ol></div>
-      <div><h4>Output contract${S(s.Output) ? `<button class="ed-btn" data-edart="${E(s.Output)}">✎ Edit artifact</button>` : ""}</h4><p><span class="idc">${E(s.Output)}</span> <b>${E(out.Name || "?")}</b> · ${E(out.Format || "")}<br><code>${E(out.Path || "")}</code></p><ul>${fields(out.Fields).map(f => `<li>${E(f)}</li>`).join("")}</ul></div>
+      <div><h4>Output contract${S(s.Output) ? `<button class="ed-btn" data-edart="${E(s.Output)}">✎ Edit artifact</button>` : ""}</h4><p><span class="idc">${E(s.Output)}</span> <b>${E(out.Name || "?")}</b> · ${E(out.Format || "")}<br><span class="hint">document</span> <code>${E(docPath(out))}</code>${defPathOf(out) ? `<br><span class="hint">definition</span> <code>${E(defPathOf(out))}</code>` : ""}<br><span class="hint">${tplSections(out, true).length} template sections</span> <button class="ed-btn" data-tpl="${E(s.Output)}">📄 View template</button></p><ul>${fields(out.Fields).map(f => `<li>${E(f)}</li>`).join("")}</ul></div>
       <div><h4>Gates</h4>${list(s.Gates).map(g => { const G = X.gate[g] || {}; return `<div class="gate-row"><span class="idc">${E(g)}</span><span><b>${E(G.Name || "?")}</b> ${G.Blocking === "N" ? '<span class="hint">(advisory)</span>' : ""}<small>${E(G.Check || "")}${G.Tool ? " · " + E(G.Tool) : ""}</small></span></div>`; }).join("") || '<p class="hint">No gates. Add at least a schema gate.</p>'}</div>
       <div><h4>On approval: emits → triggers</h4><div class="flowline"><span class="chip ev">${E(out.Event || "?")}</span><span class="arrow">→</span>${nx.map(x => `<span class="chip lnk" data-sk="${E(x)}">${E(x)} <small>${E((X.skill[x] || {}).Name)}</small></span>`).join("") || (isHook(s) ? '<span class="hint">releases every skill waiting on this artifact (when triggers wait for memory sync)</span>' : out.Terminal === "Y" ? '<span class="hint">terminal: closes the loop</span>' : '<span class="hint">nothing yet</span>')}${cx.length ? `<span class="hint">· context for ${cx.map(E).join(", ")}</span>` : ""}</div></div>
       ${S(s.Output) === "A-KDD" ? kddCalc() : ""}
@@ -809,6 +820,7 @@ function wirePbBody() {
     if (sh === "Skills" && !DB.Agents.some(a => a.PersonaID === pid)) { toast("Add an agent for this persona first"); return openEditor("Agents", null, { pid }); }
     openEditor(sh, null, { pid });
   });
+  b.querySelectorAll("[data-tpl]").forEach(x => x.onclick = () => templateModal(x.dataset.tpl));
   b.querySelectorAll("[data-edsk]").forEach(x => x.onclick = () => openEditor("Skills", ix().skill[x.dataset.edsk]));
   b.querySelectorAll("[data-edag]").forEach(x => x.onclick = () => openEditor("Agents", ix().agent[x.dataset.edag]));
   b.querySelectorAll("[data-edart]").forEach(x => x.onclick = e => { e.stopPropagation(); const a = ix().art[x.dataset.edart]; if (a) openEditor("Artifacts", a); else toast(`${x.dataset.edart} isn't in Artifacts`); });
@@ -956,7 +968,7 @@ function recordModal(sid) {
   const X = ix(), s = X.skill[sid], out = X.art[S(s.Output)] || {}, r = stepRec(RUN.cur, sid);
   modal(`<h2>Record output · ${E(sid)} /${E(s.Name)}</h2>
     <div class="frm"><label class="wide">Paste the handoff envelope (optional, fills the form)<textarea id="rEnv" placeholder='{"envelope":"harness/v1", "artifact":"${E(s.Output)}", "ref":"…", "gates":{…}}'></textarea></label>
-      <label>Artifact ref (path, URL or PR)<input id="rRef" value="${E(r.ref || fillPath(out.Path, RUN.cur))}" /></label>
+      <label>Artifact ref (path, URL or PR)<input id="rRef" value="${E(r.ref || fillPath(docPath(out), RUN.cur))}" /></label>
       <label>Version / commit<input id="rVer" value="${E(r.ver || "")}" placeholder="v1 or a1b2c3d" /></label>
       <label class="wide">Notes / open questions<input id="rNotes" value="${E(r.notes || "")}" /></label></div>
     <h3>Gates. Tick each one that passed</h3><div id="rGates">${list(s.Gates).map(g => { const G = X.gate[g] || {}; return `<label class="gchk"><input type="checkbox" data-g="${E(g)}" ${(r.gates || {})[g] === "pass" ? "checked" : ""}/><span><b>${E(g)} ${E(G.Name || "")}</b>${G.Blocking === "N" ? " <span class='hint'>(advisory)</span>" : ""}<small>${E(G.Check || "")}${G.Tool ? " · " + E(G.Tool) : ""}</small></span></label>`; }).join("") || '<p class="hint">This skill has no gates.</p>'}</div>
@@ -1072,6 +1084,9 @@ function issues() {
     if (!S(a.Event) && a.Seed !== "Y") add("warning", `Artifact ${id} has no event`, id);
     if (!fields(a.Fields).length) add("warning", `Artifact ${id} has no required fields (contract)`, id);
     if (!S(a.Path)) add("info", `Artifact ${id} has no path convention`, id);
+    if (!S(a.Template)) add("info", `Artifact ${id} has no template: its document is generated from Fields`, id);
+    tplBad(a).forEach(l => add("warning", `Artifact ${id} template line "${l}" doesn't parse (use h: / t: / c: id | Label | …)`, id));
+    { const ids = tplSections(a).map(x => x.id), dup = ids.filter((x, i) => ids.indexOf(x) !== i); if (dup.length) add("error", `Artifact ${id} template repeats section ${uniq(dup).join(", ")}`, id); }
     const hk = pr.length && isHook(X.skill[pr[0]] || {});
     if (!hk && !S(a.Memory)) add("warning", `Artifact ${id} has no Memory mapping, so it won't be added to the common graph memory`, id);
     memClauses(a.Memory).filter(c => c.bad).forEach(c => add("warning", `Artifact ${id} Memory clause "${c.raw}" doesn't parse (use Node(ID) -REL-> Node {props})`, id));
@@ -1114,15 +1129,308 @@ function renderOrch() {
   if (memGate()) routes.push(["memory.synced", memHook().SkillID || "—", S(memHook().Output) || "—", "releases each subscription above for that artifact: skills wait for <artifact>.approved AND its memory.synced"]);
   ROUTES = routes;
   $("orRoutes").innerHTML = `<thead><tr><th>Event</th><th>Emitted by</th><th>Artifact</th><th>Subscribed skills</th></tr></thead><tbody>${routes.map(r => `<tr><td><span class="chip ev">${E(r[0])}</span></td><td><span class="idc">${E(r[1])}</span></td><td><span class="idc">${E(r[2])}</span> ${E((X.art[r[2]] || {}).Name || "")}</td><td>${E(r[3])}</td></tr>`).join("")}</tbody>`;
-  const f = $("orFile"), cur = f.value;
-  f.innerHTML = `<optgroup label="Agents">${DB.Agents.map(a => `<option value="a:${E(a.AgentID)}">.claude/agents/${E(a.Name)}.md</option>`).join("")}</optgroup><optgroup label="Skills">${DB.Skills.slice().sort(bySkillOrder).map(s => `<option value="s:${E(s.SkillID)}">.claude/skills/${E(s.Name)}/SKILL.md</option>`).join("")}</optgroup>`;
-  if (cur && [...f.options].some(o => o.value === cur)) f.value = cur;
-  renderOrFile();
+  const files = scaffoldFiles(), st = scaffoldStatus(files), f = $("orFile"), cur = f.value || "AGENTS.md", groups = {};
+  files.forEach(x => { const p = x.path.split("/"), g = p.length === 1 ? "(root)" : p.slice(0, /^(docs|\.claude|templates)$/.test(p[0]) && p.length > 2 ? 2 : 1).join("/"); (groups[g] = groups[g] || []).push(x); });
+  f.innerHTML = Object.entries(groups).map(([g, xs]) => `<optgroup label="${E(g)}">${xs.map(x => `<option value="${E(x.path)}">${E(x.path)}${st.mark[x.path] ? " ● " + st.mark[x.path] : ""}</option>`).join("")}</optgroup>`).join("");
+  f.value = files.some(x => x.path === cur) ? cur : "AGENTS.md";
+  $("orScafN").textContent = `${files.length} files · ${st.new} new · ${st.changed} changed since your last download.`;
+  $("orTree").textContent = scaffoldTree(files);
+  SCAF = files; renderOrFile();
   $("orMan").textContent = JSON.stringify(manifest(), null, 2);
 }
 let ROUTES = [];
-function orFileText() { const v = $("orFile").value || "", X = ix(); if (v.startsWith("a:")) return X.agent[v.slice(2)] ? agentMd(X.agent[v.slice(2)]) : ""; if (v.startsWith("s:")) return X.skill[v.slice(2)] ? skillMd(X.skill[v.slice(2)]) : ""; return ""; }
+let SCAF = [];
+function orFileText() { return (SCAF.find(x => x.path === $("orFile").value) || {}).content || ""; }
 function renderOrFile() { $("orPre").textContent = orFileText(); }
+
+/* ========================== ARTIFACT TEMPLATES ========================== */
+// Each artifact has a markdown document built from a template in the style of
+// samples/artifact-templates/prod_business_requirement_document.md: <h2 id="*_details" data-label> prose
+// sections and <div id="*_table" data-label data-columns> tables, plus <div id="*_block" data-format> blocks
+// that hold (or point to) the machine-readable definition (JSON, YAML, SDL, Avro, SQL, Gherkin).
+// Template syntax (Artifacts.Template, one section per line):
+//   h: id | Label | hint        → <h2 id="id_details">       prose section
+//   t: id | Label | Col; Col    → <div id="id_table">        markdown table with these columns
+//   c: id | Label | format[ | src] → <div id="id_block">     fenced code block (the definition)
+// Every document also ends with Traceability, Open Questions and Approvals tables unless the template has them.
+const TPL_FOOT = [["traceability", "Traceability", "Item; Traces to; Source artifact"], ["open_questions", "Open Questions", "Question; Owner; Due; Status"], ["approvals", "Approvals", "Role; Name; Date; Decision"]];
+const SUFFIX = { h: "_details", t: "_table", c: "_block" };
+function docPath(a) {
+  a = a || {}; const p = S(a.Path);
+  if (S(a.Doc)) return S(a.Doc);
+  if (/\.md$/i.test(p)) return p;
+  if (p && !/^[a-z]+:\/\//i.test(p) && !p.includes("*")) return p.replace(/\.[a-z0-9]+$/i, "") + ".md";
+  return `docs/{wi}/${kebab(a.Name || a.ArtifactID || "artifact")}.md`;
+}
+const defPathOf = a => { const p = S((a || {}).Path); return p && p !== docPath(a) ? p : ""; };
+function defaultTplLines(a) {
+  const fmt = S(a.Format).toLowerCase(), code = /json|yaml|sdl|graphql|avro|sql|dbml|gherkin|openapi|asyncapi/.exec(fmt);
+  return ["h: introduction | Introduction | Purpose of this document and the work item it serves"]
+    .concat(fields(a.Fields).map(f => `h: ${kebab(f).replace(/-/g, "_").slice(0, 40)} | ${f.charAt(0).toUpperCase() + f.slice(1)}`))
+    .concat(code ? [`c: definition | Definition | ${code[0] === "openapi" || code[0] === "asyncapi" ? "yaml" : code[0]}`] : []);
+}
+function tplSections(a, withFoot) {
+  const src = S(a.Template) ? S(a.Template).split(/\n+/) : defaultTplLines(a);
+  const secs = src.map(l => { const m = l.match(/^\s*([htc])\s*:\s*(.+)$/i); if (!m) return null; const p = m[2].split("|").map(S), k = m[1].toLowerCase(), base = p[0].replace(/(_details|_table|_block)$/, "");
+    return base ? { kind: k, id: base + SUFFIX[k], label: p[1] || base, extra: p[2] || "", src: p[3] || "" } : null; }).filter(Boolean);
+  if (withFoot) TPL_FOOT.forEach(([id, label, cols]) => { if (!secs.some(x => x.id === id + "_table")) secs.push({ kind: "t", id: id + "_table", label, extra: cols, src: "" }); });
+  return secs;
+}
+const tplBad = a => S(a.Template).split(/\n+/).map(S).filter(l => l && !/^[htc]\s*:\s*[\w-]+/i.test(l));
+function tplOutline(a) {
+  return tplSections(a, true).map(x => x.kind === "t" ? `- <div id="${x.id}"> ${x.label}: | ${x.extra.split(";").map(S).filter(Boolean).join(" | ")} |`
+    : x.kind === "c" ? `- <div id="${x.id}"> ${x.label}: ${x.extra || "text"} block${x.src || (x.id === "definition_block" && defPathOf(a)) ? " mirroring " + (x.src || defPathOf(a)) : ""}` : `- <h2 id="${x.id}"> ${x.label}${x.extra ? ": " + x.extra : ""}`);
+}
+const outLines = (a, wi) => [`Document: ${fillPath(docPath(a), wi)} (from templates/artifacts/${a.ArtifactID}.md)`].concat(defPathOf(a) ? [`Definition: ${fillPath(defPathOf(a), wi)} (must match the document's definition block)`] : []);
+function templateMd(a, wi) {
+  const X = ix(), id = a.ArtifactID, p = X.producer[id], s = X.skill[p] || {}, ag = X.agent[s.AgentID] || {}, w = wi || "{wi}", def = defPathOf(a);
+  const yl = v => `[${v.join(", ")}]`;
+  const L = ["---", `artifact: ${id}`, `title: ${a.Name}`, `work_item: "${w}"`, "version: 1", "status: draft   # draft | produced | approved | superseded", `template: templates/artifacts/${id}.md`,
+    `doc: ${fillPath(docPath(a), wi)}`, ...(def ? [`definition: ${fillPath(def, wi)}`] : []), `format: ${a.Format}`,
+    `produced_by: ${p ? `${p} /${s.Name} (${ag.Name || "?"})` : a.Seed === "Y" ? "work item request (seed)" : "unassigned"}`,
+    `inputs: ${yl(list(s.Inputs))}`, `context: ${yl(list(s.Context))}`, `approvers: ${yl(approvers(s).length ? approvers(s) : ["Auto (gates)"])}`, `emits: ${a.Event || ""}`, "---", "",
+    `# ${a.Name}: ${w}`, "", `<!-- Keep every section id, table column and the order below; write "None" in a section that doesn't apply. Checked by: node scripts/harness-template-check.mjs <doc> templates/artifacts/${id}.md -->`, ""];
+  tplSections(a, true).forEach(x => {
+    if (x.kind === "h") L.push(`<h2 id="${x.id}" data-label="${E(x.label)}">${E(x.label)}</h2>`, "", x.extra ? `<!-- ${x.extra} -->` : "<!-- write here -->", "");
+    else if (x.kind === "t") { const cols = x.extra.split(";").map(S).filter(Boolean);
+      L.push(`<div id="${x.id}" data-label="${E(x.label)}" data-columns="${E(cols.join("|"))}">`, "", `**${x.label}**`, "", `| ${cols.join(" | ")} |`, `|${cols.map(() => "---").join("|")}|`, `|${cols.map(() => " ").join("|")}|`, "", "</div>", ""); }
+    else { const fmt = x.extra || "text", srcp = x.src || (x.id === "definition_block" ? def : "");
+      L.push(`<div id="${x.id}" data-label="${E(x.label)}" data-format="${E(fmt)}"${srcp ? ` data-src="${E(fillPath(srcp, wi))}"` : ""}>`, "", `**${x.label}**`, "", "```" + fmt,
+        srcp ? (/^json/.test(fmt) ? "{}" : fmt === "mermaid" ? "flowchart LR" : `# mirrors ${fillPath(srcp, wi)}`) : (fmt === "mermaid" ? "flowchart LR" : ""), "```", "", "</div>", ""); }
+  });
+  return L.join("\n");
+}
+function templateModal(aid) {
+  const a = ix().art[aid]; if (!a) { toast(`${aid} isn't in Artifacts`); return; }
+  const wi = RUN.cur || "", md = templateMd(a, wi);
+  modal(`<h2>Template · ${E(aid)} ${E(a.Name)}</h2><p class="hint">Document <code>${E(fillPath(docPath(a), wi))}</code>${defPathOf(a) ? ` · definition <code>${E(fillPath(defPathOf(a), wi))}</code>` : ""}. Edit the sections in ✎ Edit artifact → Template.</p>
+    <pre class="code">${E(md)}</pre><div class="modal-actions"><button id="tCopy">Copy</button><button id="tDl">⤓ ${E(aid)}.md</button><button class="primary" id="tClose">Close</button></div>`);
+  $("tCopy").onclick = () => copyText(md, "Template copied"); $("tDl").onclick = () => download(md, `${aid}.md`, "text/markdown"); $("tClose").onclick = closeModal;
+}
+// Seed: document path, definition path and sections for every example artifact.
+const PR_TPL = extra => ["h: summary | Summary | What changed and why, in two or three sentences", ...extra, "t: changes | Changes | Area; Change; Files", "t: traceability | Traceability | STY / TSK / CMP ID; Implemented by; Notes",
+  "t: tests | Tests | Level; Tests added; Passing; Coverage on changed lines", "t: feature_flags | Feature Flags | Flag; Default; Rollout plan", "t: gate_results | Gate Results | Gate; Result; Evidence link", "h: reviewer_notes | Reviewer Notes | Risks, follow-ups, screenshots"];
+const P_ = "docs/product-specs/{wi}/", D_ = "docs/design-docs/{wi}/", X_ = "docs/exec-plans/active/{wi}/", Q_ = "docs/quality/{wi}/", R_ = "docs/reliability/{wi}/";
+const TPL = {
+  "A-REQUEST": [P_ + "00-request.md", P_ + "00-request.md", ["h: request_summary | Request Summary | The problem in the requester's words", "t: requester | Requester | Name; Role; Team; Contact", "h: business_goal | Business Goal", "t: success_measures | Success Measures | Measure; Baseline; Target", "t: deadline | Deadline & Constraints | Item; Date / limit; Reason"]],
+  "A-BRIEF": [P_ + "01-brief.md", P_ + "01-brief.md", ["h: introduction | Introduction", "h: executive_summary | Executive Summary", "h: problem_statement | Problem Statement | One sentence, then the evidence", "t: personas | Target Personas | Persona; Need; Current pain", "t: outcomes | Outcomes (OKR) | OUT ID; Objective; Key result", "t: success_metrics | Success Metrics | OUT ID; Metric; Baseline; Target; Source", "t: in_scope | In Scope | ID; Item; Notes", "t: out_of_scope | Out of Scope | ID; Item; Reason", "t: assumptions | Assumptions | Assumption; Impact if wrong; Owner", "t: constraints | Constraints | Constraint; Type; Source", "t: stakeholders | Stakeholders | Name; Role; Interest; RACI"]],
+  "A-JOURNEY": [P_ + "03-journeys.json", P_ + "03-journeys.md", ["h: introduction | Introduction", "t: journeys | Journeys | JNY ID; Name; Persona; Channel; OUT refs", "t: journey_steps | Journey Steps | JNY ID; Step; Touchpoint; User action; Pain point; Opportunity", "t: pain_points | Pain Points | JNY ID; Step; Pain; Severity; Evidence", "c: definition | Journeys definition | json"]],
+  "A-PRD": [P_ + "02-prd.md", P_ + "02-prd.md", ["h: introduction | Introduction", "h: executive_summary | Executive Summary", "h: business_problem | Business Problem", "t: in_scope | In Scope | ID; Item; Notes", "t: out_of_scope | Out of Scope | ID; Item; Reason", "t: business_goals | Business Goals | OUT ID; Goal; Metric; Target", "t: functional_requirements | Functional Requirements | REQ ID; Requirement; Priority (MoSCoW); Acceptance criteria; OUT ref", "t: non_functional_requirements | Non-Functional Requirements | NFR ID; Category; Requirement; Target; REQ ref", "t: use_cases | Use Cases | UC ID; Actor; Goal; Main flow; REQ refs", "t: analytics_events | Analytics Events | Event; Trigger; Properties; Measures OUT", "t: assumptions | Assumptions | Assumption; Impact if wrong; Owner", "t: risks | Risks | Risk; Likelihood; Impact; Mitigation; Owner", "t: constraints | Constraints | Constraint; Type; Source", "t: stakeholders | Stakeholders | Name; Role; Responsibility; RACI"]],
+  "A-STORIES": [P_ + "04-stories.json", P_ + "04-stories.md", ["h: introduction | Introduction", "t: epics | Epics | EP ID; Name; Journey; REQ refs", "t: user_stories | User Stories | STY ID; EP ID; As a; I want; So that; Channel; Priority; REQ refs", "t: acceptance_criteria | Acceptance Criteria (Gherkin) | STY ID; Scenario; Given; When; Then", "t: invest_check | INVEST & Definition of Ready | STY ID; Independent; Negotiable; Valuable; Estimable; Small; Testable; Ready", "t: dependencies | Dependencies | STY ID; Depends on; Type", "c: definition | Stories definition (Jira import) | json"]],
+  "A-SCREENS": [P_ + "05-screens.json", P_ + "05-screens.md", ["h: introduction | Introduction", "t: screens | Screen Inventory | SCR ID; Name; Channel; Journey step; STY refs; Figma frame", "t: screen_states | Screen States | SCR ID; State (empty / loading / error / success / partial); Trigger; What the user sees", "t: components_used | Components Used | SCR ID; CMP ID; Variant; Notes", "t: data_bindings | Data Bindings | SCR ID; Field; Data attribute; Format; Required", "t: copy_deck | Copy Deck | SCR ID; Key; Text; Notes", "c: definition | Screens definition | json"]],
+  "A-UIKIT": [P_ + "06-tokens.json", P_ + "06-ui-kit.md", ["h: introduction | Introduction", "t: tokens | Design Tokens | Token; Category; Value; Usage", "t: components | Components | CMP ID; Name; New / changed / reused; Props; Variants; States", "t: accessibility | Accessibility Notes | CMP ID; Role; Label; Focus order; Contrast", "t: responsive_rules | Responsive Rules | CMP ID; Breakpoint; Behaviour", "c: definition | Design tokens (W3C) | json"]],
+  "A-SIGNOFF": [P_ + "20-signoff.md", P_ + "20-signoff.md", ["h: executive_summary | Go-live Summary", "t: requirement_acceptance | Requirement Acceptance | REQ ID; Requirement; Test coverage; Decision (accepted / deferred); Reason", "t: known_issues | Known Issues Accepted | Defect; Severity; Workaround; Fix by", "t: go_live_decision | Go-live Decision | Decision; Date; Conditions"]],
+  "A-INSIGHTS": [P_ + "30-outcomes.md", P_ + "30-outcomes.md", ["h: executive_summary | Executive Summary", "t: outcome_results | Outcome Results | OUT ID; Metric; Baseline; Target; Actual; Verdict (met / partly / missed)", "t: learnings | Learnings | Learning; Evidence; Implication", "t: backlog_items | New Backlog Items | Item; Rationale; Priority; Seeds request", "t: tech_debt_status | Tech Debt Status | Jira key; DSP ID; Repay-by; Status"]],
+  "A-KDD": [D_ + "09-kdd.md", D_ + "09-kdd.md", ["h: introduction | Introduction", "t: decision_log | Decision Log | KDD ID; Decision; Drivers (REQ refs); Status; Chosen option", "t: scoring_weights | Scoring Weights | Criterion; Weight %; Scale (5 = best)", "t: options_scoring | Options Scoring | KDD ID; Option; Product priority (1–5); Engineering effort (1–5); Ops TCO 3y (1–5); Weighted score; Deviates?", "t: decisions | Decisions & Rationale | KDD ID; Decision; Rationale; Override reason; ADR ref", "t: dispensations | Dispensations | DSP ID; KDD ID; Deviation from; Owner; Expiry; Remediation", "t: consequences | Consequences | KDD ID; Positive; Negative; Follow-up"]],
+  "A-TECHDEBT": ["docs/exec-plans/tech-debt/{wi}.json", "docs/exec-plans/tech-debt/{wi}.md", ["h: introduction | Introduction | Which KDD dispensations this work item carries", "t: tech_debt_tickets | Tech Debt Tickets | Jira key; DSP ID; KDD ID; Compromise; Interest / quarter; Remediation; Estimate; Repay-by; Owner; Priority", "t: reviews | Reviews | Jira key; Product Owner; Lead Solution Architect; Date", "c: definition | Jira export | json"]],
+  "A-SAD": [D_ + "10-sad.md", D_ + "10-sad.md", ["h: introduction | Introduction", "h: executive_summary | Executive Summary", "h: system_context | System Context (C4 L1)", "c: context_diagram | Context diagram | mermaid", "h: container_view | Containers (C4 L2)", "c: container_diagram | Container diagram | mermaid", "t: impacted_applications | Impacted Applications | Application; Change (New / Modify / Retire); Responsibility; Owner", "t: kdd_application | How the KDDs Are Applied | KDD ID; Decision; Where applied", "t: adrs | Architecture Decision Records | ADR ID; Refines KDD; Decision; Status", "t: requirement_coverage | Requirement Coverage | REQ ID; Containers; Notes", "t: risks | Risks | Risk; Likelihood; Impact; Mitigation; Owner"]],
+  "A-NFR": [D_ + "11-nfr.yaml", D_ + "11-nfr.md", ["h: introduction | Introduction", "t: latency | Latency Targets | Operation; p95 ms; p99 ms; REQ ref", "t: availability | Availability & Recovery | Container; Availability %; RPO; RTO", "t: throughput | Throughput & Capacity | Operation; Peak rps; Growth; Capacity plan", "t: security_privacy | Security & Privacy | Area; Requirement; Classification; Control", "c: definition | NFR definition | yaml"]],
+  "A-DATAMODEL": [D_ + "12-data-model.dbml", D_ + "12-data-model.md", ["h: introduction | Introduction", "c: erd | Entity relationship diagram | mermaid", "t: entities | Entities | Entity; Description; System of record; Owner app", "t: attributes | Attributes | Entity; Attribute; Type; Nullable; Key; Classification; Retention", "t: relationships | Relationships | From; To; Cardinality; Notes", "c: definition | Data model (DBML) | dbml"]],
+  "A-INTCAT": [D_ + "13-integrations.json", D_ + "13-integrations.md", ["h: introduction | Introduction | Scope of the integration change and the applications involved", "c: landscape | Integration landscape | mermaid", "t: interfaces | Interfaces | IF ID; Name; Pattern (REST / GraphQL / Kafka / gRPC); Producer app; Consumer app; Sync / async; SLA; Spec file", "t: rest_apis | REST APIs | IF ID; Service; Method; Path; Purpose; OpenAPI file; Version; Auth", "t: graphql_operations | GraphQL Operations | IF ID; Subgraph; Operation; Type (query / mutation); Entities; SDL file; REST / gRPC source", "t: kafka_events | Kafka Events | IF ID; Topic; Key; Schema subject; Compatibility; Producer; Consumers", "t: grpc_services | gRPC Services | IF ID; Service; RPC; Proto file; Deadline ms", "t: integration_rules | Integration Rule Checks | Rule; Result (pass / fail); Interfaces; Notes", "c: definition | Integration catalog definition (Data mapping Flows) | json"]],
+  "A-DATAMAP": [D_ + "DataMapping.xlsx", D_ + "14-data-mapping.md", ["h: introduction | Introduction", "t: datasets | Datasets | Dataset ID; Name; Type (API / table / topic / file / screen); Application; IF ref", "t: mappings | Source → Target Mappings | Mapping ID; Source dataset.attribute; Target dataset.attribute; Transform; IF ref", "t: events | Events | Event; Topic; Payload dataset", "h: registry_export | Registry Export | Link the DataMappingRegistry workbook exported from data-mapping.html"]],
+  "A-CONTRACTOK": [D_ + "15-contract-review.json", D_ + "15-contract-review.md", ["h: executive_summary | Verdict Summary", "t: contract_results | Contract Results | Contract file; Type; Lint; Breaking change; Standards; Integration rules; Verdict", "t: violations | Violations | Contract; Rule; Severity; Location; Fix", "t: waivers | Waivers | Contract; Rule; DSP / ADR ref; Expiry", "c: definition | Review results | json"]],
+  "A-OPENAPI": ["contracts/rest/{wi}/openapi.yaml", D_ + "contracts/rest-api.md", ["h: introduction | Introduction | Services and interfaces (IF IDs) this contract covers", "t: operations | Operations | Operation ID; Method; Path; Summary; IF ref; REQ refs; Idempotent", "t: schemas | Schemas | Schema; Field; Type; Required; Source attribute", "t: errors | Error Model (RFC 9457) | Status; Type URI; Title; When", "t: security | Security | Scheme; Scopes; Operations", "c: definition | OpenAPI 3.1 | yaml"]],
+  "A-SDL": ["contracts/graphql/{wi}/schema.graphql", D_ + "contracts/graphql-api.md", ["h: introduction | Introduction | Subgraphs and interfaces (IF IDs) this contract covers", "t: types | Types & Fields | Type; Field; Field type; Nullable; Description; Source (REST / gRPC op)", "t: entities | Federated Entities | Entity; @key; Owning subgraph; Contributing subgraphs", "t: operations | Queries & Mutations | Operation; Type; Arguments; Returns; Screen / STY", "t: deprecations | Deprecations | Field; Reason; Replacement; Removal date", "c: definition | GraphQL SDL (Federation 2) | graphql"]],
+  "A-EVENTS": ["contracts/events/{wi}/events.avsc", D_ + "contracts/events.md", ["h: introduction | Introduction | Topics and interfaces (IF IDs) this contract covers", "t: topics | Topics | Topic; Partition key; Partitions; Retention; Compatibility", "t: schemas | Event Schemas | Subject; Field; Type; Default; Doc", "t: headers | Headers | Header; Purpose; Example", "t: producers_consumers | Producers & Consumers | Topic; Producer; Consumers; Delivery", "c: definition | Avro schema | json", "c: asyncapi | AsyncAPI 3 | yaml | contracts/events/{wi}/asyncapi.yaml"]],
+  "A-DDL": ["db/migration/V__{wi}.sql", D_ + "contracts/db-migrations.md", ["h: introduction | Introduction", "t: migrations | Migrations | Version; Phase (expand / contract); Description; Reversible; Est. lock (s)", "t: indexes | Indexes | Table; Index; Columns; Reason", "t: backfill | Backfill Plan | Table; Rows; Batch size; Duration; Rollback", "c: definition | Migration SQL | sql"]],
+  "A-PLAN": [X_ + "plan.json", X_ + "plan.md", ["h: goal | Goal | What this work item delivers and how we'll know", "t: tasks | Tasks | TSK ID; Persona; Task; STY refs; IF refs; Depends on; Estimate", "t: contract_first_order | Contract-first Order | Order; Contract; Owner; Due", "t: critical_path | Critical Path | Step; TSK ID; Duration", "t: scope | Channels & Contracts in Scope | Item; In scope (Y / N); Skill to mark N/A", "t: debt_repayment | Tech Debt Repayment | Jira key; TSK ID; Release", "t: progress_log | Progress Log | Date; Update; By", "c: definition | Plan definition (Jira import) | json"]],
+  "A-UILIB": ["pr://design-system/{wi}", X_ + "prs/ui-components.md", PR_TPL(["t: components | Components | CMP ID; Component; Stories; Visual baseline; a11y result"])],
+  "A-WEBPR": ["pr://web-app/{wi}", X_ + "prs/web.md", PR_TPL([])],
+  "A-IOSPR": ["pr://ios-app/{wi}", X_ + "prs/ios.md", PR_TPL([])],
+  "A-ANDPR": ["pr://android-app/{wi}", X_ + "prs/android.md", PR_TPL([])],
+  "A-GQLPR": ["pr://subgraph/{wi}", X_ + "prs/subgraph.md", PR_TPL(["t: resolvers | Resolvers | Type.field; Source operation; Dataloader; Error mapping"])],
+  "A-APIPR": ["pr://service/{wi}", X_ + "prs/service.md", PR_TPL(["t: operations | Operations Implemented | Operation ID; Handler; Persistence; Provider test"])],
+  "A-EVTPR": ["pr://service/{wi}-events", X_ + "prs/events.md", PR_TPL(["t: handlers | Producers & Consumers | Topic; Role (producer / consumer); Idempotency key; DLQ; Retry policy"])],
+  "A-AUTOTESTS": ["pr://qa-automation/{wi}", X_ + "prs/test-automation.md", PR_TPL(["t: suites | Suites | Suite; Level; Tool; TC refs; CI job"])],
+  "A-TESTPLAN": [Q_ + "test-plan.md", Q_ + "test-plan.md", ["h: introduction | Introduction", "t: scope | Scope | Item; In / out; Notes", "t: risk_matrix | Risk Matrix | REQ ID; Impact (1–5); Likelihood (1–5); Risk score; Test levels", "t: test_levels | Test Levels | Level; Tool; Owner; Scope", "t: environments | Environments | Environment; Purpose; Data", "t: test_data | Test Data | Data set; Source; Masking", "t: entry_exit | Entry & Exit Criteria | Criterion; Type (entry / exit); Threshold", "t: traceability | REQ → Test Level | REQ ID; Levels; TC count"]],
+  "A-TESTCASES": [Q_ + "features/*.feature", Q_ + "test-cases.md", ["h: introduction | Introduction", "t: scenarios | Scenarios | TC ID; Feature; Scenario; Tags (@REQ @STY @channel); Type (positive / negative / edge)", "t: test_data_tables | Test Data Tables | TC ID; Data set; Values", "c: definition | Feature files | gherkin"]],
+  "A-TESTREPORT": [Q_ + "report.json", Q_ + "test-report.md", ["h: executive_summary | Verdict | GO or NO-GO, and why", "t: results_by_level | Results by Level | Level; Executed; Passed; Failed; Skipped; Pass %", "t: defects | Defects | Defect; Severity; TC ID; REQ ID; Status", "t: requirement_coverage | Requirement Coverage | REQ ID; TCs; Passing; Coverage %", "t: flaky_tests | Flaky Tests | Test; Failure rate; Ticket", "t: exit_criteria | Exit Criteria | Criterion; Threshold; Actual; Met", "c: definition | Report data | json"]],
+  "A-PERFREPORT": [Q_ + "perf.json", Q_ + "perf-report.md", ["h: introduction | Introduction", "t: load_profile | Load Profile | Scenario; Users / rps; Duration; Mix", "t: results | Results vs NFR | Operation; p95 target; p95 actual; p99 target; p99 actual; Error %; Pass", "t: saturation | Saturation | Resource; Peak %; Limit", "t: chaos | Chaos Experiments | Experiment; Dependency; Expected; Observed; Pass", "c: definition | Results data | json"]],
+  "A-OBS": [R_ + "slo.yaml", R_ + "slo.md", ["h: introduction | Introduction", "t: slis | SLIs | SLI; Journey; Query; Good events; Valid events", "t: slos | SLOs | SLO; SLI; Target %; Window; Error budget", "t: alerts | Burn-rate Alerts | Alert; SLO; Windows; Burn rate; Severity; Runbook section", "t: dashboards | Dashboards | Dashboard; Panels; Link", "c: definition | OpenSLO definition | yaml"]],
+  "A-RUNBOOK": [R_ + "runbook.md", R_ + "runbook.md", ["h: service_overview | Service Overview", "t: dependencies | Dependencies | Dependency; Type; Impact if down; Contact", "t: alert_playbooks | Alert Playbooks | Alert; Diagnosis; Action; Escalate after", "t: rollback | Rollback | Step; Command / action; Verification", "t: kill_switches | Feature-flag Kill Switches | Flag; Effect; Who can flip", "t: escalation | Escalation | Level; Team; Contact; SLA"]],
+  "A-RELEASE": [R_ + "release.yaml", R_ + "release-plan.md", ["h: introduction | Introduction", "t: deploy_order | Deploy Order | Step; Component; Version; Depends on", "t: canary_steps | Canary Steps | Step; Traffic %; Bake time; Analysis threshold", "t: feature_flags | Feature Flags | Flag; Ramp; Audience", "t: rollback_triggers | Rollback Triggers | Trigger; Threshold; Action", "t: communications | Communications | Audience; Channel; When; Message", "c: definition | Release definition | yaml"]],
+  "A-DEPLOYREC": [R_ + "deploy.json", R_ + "deploy-record.md", ["h: introduction | Introduction", "t: deployments | Deployments | Step; Component; Version; Start; End; Result", "t: canary_analysis | Canary Analysis | Step; Score; Threshold; Decision", "t: flag_states | Flag States | Flag; State; Time", "c: definition | Deployment data | json"]],
+  "A-OPSREPORT": [R_ + "ops-report.json", R_ + "ops-report.md", ["h: executive_summary | Executive Summary", "t: slo_attainment | SLO Attainment | SLO; Target; Actual; Budget burned %", "t: incidents | Incidents | Incident; Severity; Duration; SLO impact; Postmortem link", "t: cost | Cost | Item; Baseline; Actual; Delta", "t: toil | Toil | Task; Hours / week; Automation candidate", "t: follow_ups | Follow-up Actions | Action; Owner; Due", "c: definition | Report data | json"]],
+  "A-MEMDELTA": ["docs/generated/memory/{wi}/<artifact>@<ver>.delta.json", "docs/generated/memory/{wi}/<artifact>@<ver>.md", ["h: introduction | Introduction | Operation (upsert / retract) and the source artifact version", "t: nodes_upserted | Nodes Upserted | Type; ID; Properties; Provenance", "t: edges_upserted | Edges Upserted | From; Relation; To", "t: superseded | Superseded | Type; ID; Old version; New version", "t: retracted | Retracted | Type; ID; Reason", "t: validation | Validation | Check; Result", "c: definition | Delta | json"]],
+};
+// Older catalogs (before templates): fill Doc / Template from the example for matching artifact IDs, keep their paths.
+function migrateCatalog(db) {
+  if (!(db.Artifacts || []).length || db.Artifacts.some(a => S(a.Template))) return db;
+  db.Artifacts.forEach(a => { const t = TPL[a.ArtifactID]; if (t) { if (!S(a.Doc)) a.Doc = /^docs\/\{wi\}\//.test(S(a.Path)) || !S(a.Path) ? t[1] : docPath(a); a.Template = t[2].join("\n"); } });
+  if (!db.Gates.some(g => g.GateID === "G-TEMPLATE")) db.Gates.push({ _id: uid(), ...GATE_TEMPLATE });
+  db.Skills.forEach(s => { if (S(s.Output) && !list(s.Gates).includes("G-TEMPLATE")) s.Gates = list(s.Gates).concat("G-TEMPLATE").join(", "); });
+  return db;
+}
+const GATE_TEMPLATE = { GateID: "G-TEMPLATE", Name: "Template conformance", Kind: "Schema", Check: "The document keeps every section id of its template, in order; tables keep their declared columns and have at least one row; no empty section (write None); the definition file matches the definition block", Tool: "node scripts/harness-template-check.mjs <doc> templates/artifacts/<artifact>.md", Blocking: "Y" };
+
+/* ======================== REPOSITORY SCAFFOLD ======================== */
+// Harness layout after OpenAI's "Harness engineering": AGENTS.md is a short map, knowledge lives in docs/
+// (design-docs, exec-plans, generated, product-specs, references, PLANS.md, QUALITY_SCORE.md), plus
+// templates/artifacts, .claude/agents, .claude/skills and a template checker. Everything is generated from the
+// master data, so a new skill, agent or artifact is wired into every file that should mention it.
+const AREAS = [
+  ["docs/product-specs", "Product specs", "Requests, briefs, PRDs, journeys, stories, screens, sign-off and outcome reviews."],
+  ["docs/design-docs", "Design docs", "Key design decisions (KDD / ADR), solution architecture, NFRs, data model, integration catalog, data mapping and contract docs."],
+  ["docs/exec-plans", "Execution plans", "Work breakdowns, PR records and tech debt. A work item's folder moves from active/ to completed/ when it closes."],
+  ["docs/quality", "Quality", "Test plans, test cases, test reports and performance reports."],
+  ["docs/reliability", "Reliability", "SLOs, runbooks, release plans, deployment records and operations reports."],
+  ["docs/generated", "Generated", "Graph memory deltas and generated references. Never edit by hand."],
+];
+const CORE_BELIEFS = [
+  ["The repository is the system of record", "Plans, decisions, specs and tech debt live in docs/ next to the code. If an agent can't find it in the repo, it doesn't exist."],
+  ["Maps, not manuals", "AGENTS.md stays a short map. The detail lives in the doc it points to, so an agent loads only what its task needs."],
+  ["One skill, one artifact", "Each skill writes exactly one artifact at a path derived from the work item. Re-running it overwrites that path, so a rerun is idempotent."],
+  ["Pinned, declared inputs", "A skill reads only its declared inputs, at the versions recorded in the run."],
+  ["Templates and definitions are contracts", "Every artifact is a markdown document built from templates/artifacts/<ID>.md, plus its machine-readable definition where it has one. Both must agree."],
+  ["Gates are code, not prompts", "Schema checks, linters, compatibility checks, tests, scans and the template checker run outside the model and return pass or fail."],
+  ["Handoff envelope", "Every skill ends with a JSON envelope (work item, artifact, ref, version, inputs, gate results, open questions, next skills): the machine-readable trigger for the next step."],
+  ["Stable IDs and traceability", "REQ, STY, JNY, SCR, IF, TSK, TC, KDD and DSP IDs follow fixed patterns, and every item cites an upstream ID."],
+  ["Human approval at boundaries", "Stage-boundary artifacts wait for their accountable reviewers. Inner steps are approved automatically once their gates pass."],
+  ["Decisions drive the design", "Key design decisions are scored on product priority, engineering effort and ops TCO before the solution is designed. Every deviation becomes a dispensation and a tech-debt ticket."],
+  ["One common graph memory", "Approved artifacts are synced into a shared graph by a single writer. Agents read it for context, and skills trigger only once their inputs are in memory."],
+  ["Staleness, not drift", "Reopening an approved artifact marks everything downstream stale until it runs again."],
+  ["Pinned models and evals", "Each agent pins a model ID. Each skill keeps golden input / output pairs and ships a change only when they pass."],
+];
+const strip = h => String(h).replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+const mdRow = cells => `| ${cells.map(c => String(c == null ? "" : c).replace(/\|/g, "\\|").replace(/\n+/g, " ")).join(" | ")} |`;
+const mdTable = (head, rows) => [mdRow(head), `|${head.map(() => "---").join("|")}|`, ...rows.map(mdRow)];
+const GEN = "<!-- Generated from the harness master data (harness-engineering.html). Edit the master data, not this file. -->";
+const areaOf = a => (AREAS.find(([d]) => docPath(a).startsWith(d + "/")) || [""])[0];
+function routesRows() {
+  const X = ix(), rows = DB.Artifacts.filter(a => (X.consumers[a.ArtifactID] || []).length).map(a => [a.Event || a.ArtifactID + ".approved", X.producer[a.ArtifactID] || (a.Seed === "Y" ? "seed" : "—"), a.ArtifactID,
+    (X.consumers[a.ArtifactID] || []).map(sid => { const n = list(X.skill[sid].Inputs).length; return n > 1 ? `${sid} (waits for all ${n})` : sid; }).join(", ")]);
+  DB.Skills.filter(isHook).forEach(h => { rows.unshift(["*.reopened", "any skill", "any artifact", `${h.SkillID} (retract in graph memory)`]); rows.unshift(["*.approved", "any skill", "any artifact", `${h.SkillID} (upsert into graph memory)`]); });
+  if (memGate()) rows.push(["memory.synced", memHook().SkillID || "—", S(memHook().Output) || "—", "releases each subscription above for that artifact: skills wait for <artifact>.approved AND its memory.synced"]);
+  return rows;
+}
+function agentsMapMd() {
+  const X = ix(), byTeam = TEAMS.flatMap(t => DB.Agents.filter(a => (X.persona[a.PersonaID] || {}).Team === t).map(a => [t, a]));
+  return ["# AGENTS.md", "", "This repository is delivered by an SDLC agent harness. This file is the map: it says where things are, and the linked docs hold the detail. Read only what your task needs.", "",
+    "## Start here", "- `ARCHITECTURE.md`: teams, personas, agents, skills, artifacts, gates and graph memory, and how they connect.", "- `docs/design-docs/core-beliefs.md`: the rules every agent follows.",
+    "- `docs/PLANS.md`: how a work item moves through execution plans, from active to completed.", "- `docs/QUALITY_SCORE.md`: the gates, and how an output is scored.", "- `docs/MEMORY.md`: the common graph memory (read-only unless you are the memory steward).",
+    "- `docs/generated/workflow.md`: which event triggers which skill (generated).", "- `docs/references/harness-llms.txt`: the whole catalog in one compact file.", "",
+    "## Repository map", "```", "AGENTS.md                         this map", "ARCHITECTURE.md                   harness architecture and dependency rules", "docs/",
+    "├── design-docs/                  index.md, core-beliefs.md, <WI>/ decisions, SAD, NFR, data, integrations, contracts", "├── exec-plans/",
+    "│   ├── active/<WI>/              plan.md and prs/ while the work item is open", "│   ├── completed/<WI>/           moved here when the work item closes", "│   └── tech-debt-tracker.md      every open dispensation ticket",
+    "├── generated/                    workflow.md, graph-memory-schema.md, harness.workflow.json, memory/<WI>/", "├── product-specs/                index.md, <WI>/ request, brief, PRD, journeys, stories, screens",
+    "├── quality/                      index.md, <WI>/ test plan, cases, reports", "├── reliability/                  index.md, <WI>/ SLOs, runbook, release, deploy, ops report", "├── references/                   harness-llms.txt",
+    "└── PLANS.md · QUALITY_SCORE.md · MEMORY.md", `templates/artifacts/               one markdown template per artifact (${DB.Artifacts.length})`, "contracts/                        OpenAPI, GraphQL SDL, Avro / AsyncAPI definitions",
+    "db/migration/                     Flyway migrations", "scripts/harness-template-check.mjs  checks a document against its template", `.claude/agents/ (${DB.Agents.length}) · .claude/skills/<skill>/SKILL.md (${DB.Skills.length})`, "```", "",
+    "## Agents", ...mdTable(["Team", "Agent", "Skills"], byTeam.map(([t, a]) => [t, "`" + a.Name + "`", DB.Skills.filter(s => s.AgentID === a.AgentID).sort(bySkillOrder).map(s => "/" + s.Name).join(", ")])), "",
+    "## Running a skill", "1. Check that the skill's trigger events have fired for the work item (`docs/generated/workflow.md`).", "2. Read only its declared inputs, at the versions pinned in the prompt. Use the graph memory for context.",
+    "3. Copy `templates/artifacts/<ARTIFACT>.md` to the artifact's document path. Keep every section id and table column.", "4. Where the artifact has a definition (JSON, YAML, SDL, Avro, SQL, Gherkin), write it at its path and keep it identical to the document's definition block.",
+    "5. Run the skill's gates, including `node scripts/harness-template-check.mjs`, then finish with the handoff envelope.", "",
+    "## Hard rules", "- One skill, one artifact. Never edit another skill's artifact; reopen it instead.", "- Unresolved items go to Open Questions with an owner. Never write TBD.", "- Only `" + (X.agent[memHook().AgentID] || {}).Name + "` writes to the graph memory.",
+    "- Never edit `docs/generated/`, `templates/` or `.claude/` by hand: they are generated from the master data (HarnessMasterData.xlsx).", "- Contracts come before implementation. A GraphQL subgraph never calls another GraphQL service.", ""].join("\n");
+}
+function architectureMd() {
+  const X = ix(), flows = {};
+  pipeline().forEach(s => list(s.Inputs).forEach(a => { const p = X.skill[X.producer[a]]; if (!p) return; const f = teamOf(p), t = teamOf(s); if (f && t && f !== t) { const k = f + ">" + t; (flows[k] = flows[k] || new Set()).add(a); } }));
+  return ["# ARCHITECTURE.md", "", GEN, "", "How the SDLC harness is put together. For the rules agents follow, see `docs/design-docs/core-beliefs.md`.", "",
+    "## Layers", ...mdTable(["Layer", "What it is", "Defined in"], [["Team", "Product, Architecture, Engineering, Quality, SRE, Platform", "master data · Personas"], ["Persona", "A role with an accountable human", "master data · Personas"],
+      ["Agent", "Plays a persona with a pinned model and tools", "`.claude/agents/*.md`"], ["Skill", "One repeatable unit of work that writes one artifact", "`.claude/skills/*/SKILL.md`"],
+      ["Artifact", "A document (template) plus an optional definition", "`templates/artifacts/*.md`"], ["Gate", "A deterministic pass / fail check", "`docs/QUALITY_SCORE.md`"], ["Graph memory", "Shared facts from approved artifacts", "`docs/MEMORY.md`"]]), "",
+    "## Teams, personas and agents", ...mdTable(["Team", "Persona", "Accountable", "Agents"], DB.Personas.map(p => [p.Team, p.Name, p.Accountable, DB.Agents.filter(a => a.PersonaID === p.PersonaID).map(a => "`" + a.Name + "`").join(", ")])), "",
+    "## Artifact flow between teams", "```mermaid", "flowchart LR", ...Object.entries(flows).map(([k, v]) => { const [f, t] = k.split(">"); return `  ${f} -->|${[...v].join(", ")}| ${t}`; }), "```", "",
+    "## Dependency rules", "- A skill reads only the artifacts in its Inputs (required) and Context (optional).", "- Every artifact has exactly one producing skill. A skill triggers when all of its required inputs are approved" + (memGate() ? " and synced to graph memory." : "."),
+    "- Key design decisions come before the solution design. Contracts are reviewed before anything is implemented against them.", "- Clients reach domains only through the BFF or FedGQL, and a GraphQL subgraph never calls another GraphQL service.",
+    "- Only the memory steward writes to the graph memory. Reopening an artifact retracts its facts and marks downstream steps stale.", "",
+    "## Where artifacts live", ...mdTable(["Folder", "Artifacts"], AREAS.map(([d]) => ["`" + d + "/`", DB.Artifacts.filter(a => areaOf(a) === d).map(a => a.ArtifactID).join(", ") || "—"])), ""].join("\n");
+}
+function areaIndexMd(dir, title, desc) {
+  const X = ix(), arts = DB.Artifacts.filter(a => areaOf(a) === dir);
+  return [`# ${title}`, "", GEN, "", desc, "", `Each work item has its own folder under \`${dir}/\`. Documents start from their template in \`templates/artifacts/\`.`, "",
+    ...(dir === "docs/design-docs" ? ["- [core-beliefs.md](core-beliefs.md): the rules every agent follows.", ""] : []),
+    ...mdTable(["Artifact", "Document", "Definition", "Produced by", "Reviewed by"], arts.map(a => { const s = X.skill[X.producer[a.ArtifactID]] || {};
+      return [`${a.ArtifactID} ${a.Name}`, "`" + docPath(a) + "`", defPathOf(a) ? "`" + defPathOf(a) + "`" : "—", s.SkillID ? `${s.SkillID} /${s.Name}` : a.Seed === "Y" ? "seed" : "—", approvers(s).join(" + ") || "auto (gates)"]; })), ""].join("\n");
+}
+function scaffoldFiles() {
+  const X = ix(), F = [], add = (path, content, keep) => F.push({ path, content, keep: !!keep }), ms = memSchema();
+  add("AGENTS.md", agentsMapMd());
+  // Claude Code reads CLAUDE.md, not AGENTS.md: import the map so both tools share one source. Kept once written, so local notes survive.
+  add("CLAUDE.md", ["# CLAUDE.md", "", "@AGENTS.md", "", "Project-specific notes for Claude Code go below this line. The harness map, rules and skills are in AGENTS.md (generated).", ""].join("\n"), true);
+  add("ARCHITECTURE.md", architectureMd());
+  add("docs/design-docs/index.md", areaIndexMd(...AREAS[1]));
+  add("docs/design-docs/core-beliefs.md", ["# Core beliefs", "", GEN, "", ...CORE_BELIEFS.flatMap(([t, d], i) => [`## ${i + 1}. ${t}`, "", d, ""])].join("\n"));
+  add("docs/product-specs/index.md", areaIndexMd(...AREAS[0]));
+  add("docs/quality/index.md", areaIndexMd(...AREAS[3]));
+  add("docs/reliability/index.md", areaIndexMd(...AREAS[4]));
+  add("docs/exec-plans/active/.gitkeep", ""); add("docs/exec-plans/completed/.gitkeep", "");
+  const td = X.art["A-TECHDEBT"], tdCols = td ? ((tplSections(td).find(x => x.id === "tech_debt_tickets_table") || {}).extra || "") : "";
+  add("docs/exec-plans/tech-debt-tracker.md", ["# Tech debt tracker", "", "Every open dispensation from a key design decision, across work items. The tech-debt agent appends a row when its tickets are approved, and updates the status when a ticket is repaid. Review it every planning cycle.", "",
+    ...mdTable(["Work item"].concat((tdCols || "Jira key; DSP ID; KDD ID; Compromise; Repay-by; Owner; Priority").split(";").map(S)).concat(["Status"]), []), ""].join("\n"), true);
+  add("docs/PLANS.md", ["# Plans", "", GEN, "", "## Lifecycle of a work item", "1. A work item starts from its request (`A-REQUEST`) in `docs/product-specs/<WI>/`.", "2. Each skill writes its document into the folder of its area (see `ARCHITECTURE.md`).",
+    "3. The engineering plan and PR records live in `docs/exec-plans/active/<WI>/` while the work item is open.", `4. When the last skill (${pipeline().filter(s => !nextSkills(s.SkillID).length).map(s => s.SkillID).join(", ")}) is approved, move \`active/<WI>/\` to \`completed/<WI>/\`.`,
+    "5. Dispensations become tickets in `docs/exec-plans/tech-debt-tracker.md` and are scheduled by the plan of a later work item.", "", "## Plan artifacts", ...mdTable(["Artifact", "Document", "Produced by"], DB.Artifacts.filter(a => areaOf(a) === "docs/exec-plans").map(a => [`${a.ArtifactID} ${a.Name}`, "`" + docPath(a) + "`", X.producer[a.ArtifactID] || "—"])), ""].join("\n"));
+  add("docs/QUALITY_SCORE.md", ["# Quality score", "", GEN, "", "An artifact is accepted only when every blocking gate passes. Its quality score is gates passed ÷ gates run, recorded in the handoff envelope. A work item's score is the mean across its approved artifacts.", "",
+    "## Gates", ...mdTable(["Gate", "Name", "Kind", "Check", "Tool", "Blocking", "Used by"], DB.Gates.map(g => [g.GateID, g.Name, g.Kind, g.Check, g.Tool ? "`" + g.Tool + "`" : "", g.Blocking, DB.Skills.filter(s => list(s.Gates).includes(g.GateID)).map(s => s.SkillID).join(", ")])), ""].join("\n"));
+  add("docs/MEMORY.md", ["# Common graph memory", "", GEN, "", "## Update process", ...PROC_NODES.filter(n => n[0].startsWith("n")).map((n, i) => `${i + 1}. **${n[3]}**: ${n[4]}`), "", "Reopening an artifact queues a retract: its nodes are marked retracted and downstream steps go stale.", "",
+    "## Rules", ...MEM_RULES.map(([t, d]) => `- **${t}**: ${strip(d)}`), "", "The node and edge types are in `docs/generated/graph-memory-schema.md`.", ""].join("\n"));
+  add("docs/generated/workflow.md", ["# Workflow", "", GEN, "", "```mermaid", mermaid(), "```", "", "## Event routing", ...mdTable(["Event", "Emitted by", "Artifact", "Subscribed skills"], routesRows()), "",
+    "## Skills", ...mdTable(["Skill", "Agent", "Stage", "Inputs", "Output", "Gates", "Approval"], DB.Skills.slice().sort(bySkillOrder).map(s => [`${s.SkillID} /${s.Name}`, (X.agent[s.AgentID] || {}).Name, s.Stage, isHook(s) ? "*.approved / *.reopened" : list(s.Inputs).join(", "), s.Output, list(s.Gates).join(", "), S(s.Approval) || "Auto"])), ""].join("\n"));
+  add("docs/generated/graph-memory-schema.md", ["# Graph memory schema", "", GEN, "", "## Node types", ...mdTable(["Node", "ID pattern", "Written from"], Object.keys(ms.nodes).sort().map(n => [n, [...ms.nodes[n].ids].join(", "), [...ms.nodes[n].arts].join(", ")])), "",
+    "## Edge types", ...mdTable(["From", "Relation", "To", "Properties", "Written from"], Object.values(ms.edges).map(e => [e.from, e.rel, e.to, e.props, [...e.arts].join(", ")])), ""].join("\n"));
+  add("docs/generated/harness.workflow.json", JSON.stringify({ ...manifest(), generated: undefined }, null, 2) + "\n");
+  add("docs/references/harness-llms.txt", ["# SDLC agent harness", "", "> Teams → personas → agents → skills. Each skill reads declared input artifacts, writes one artifact from its template, passes gates and emits an event that triggers the next skills.", "",
+    "## Agents", ...DB.Agents.map(a => `- ${a.Name} (${(X.persona[a.PersonaID] || {}).Name || "?"}): ${S(a.Description)}`), "", "## Skills", ...DB.Skills.slice().sort(bySkillOrder).map(s => `- /${s.Name} (${s.SkillID}): ${S(s.Purpose)} Inputs: ${isHook(s) ? "any approved artifact" : list(s.Inputs).join(", ") || "none"}. Output: ${s.Output}.`), "",
+    "## Artifacts", ...DB.Artifacts.map(a => `- ${a.ArtifactID} ${a.Name}: ${docPath(a)}${defPathOf(a) ? " + " + defPathOf(a) : ""} (templates/artifacts/${a.ArtifactID}.md), emits ${a.Event}`), ""].join("\n"));
+  DB.Artifacts.forEach(a => add(`templates/artifacts/${a.ArtifactID}.md`, templateMd(a, "")));
+  DB.Agents.forEach(a => add(`.claude/agents/${a.Name}.md`, agentMd(a)));
+  DB.Skills.forEach(s => add(`.claude/skills/${s.Name}/SKILL.md`, skillMd(s)));
+  add("scripts/harness-template-check.mjs", TEMPLATE_CHECK);
+  return F;
+}
+const TEMPLATE_CHECK = [
+  "#!/usr/bin/env node",
+  "// Generated by the harness: checks a filled artifact document against its template (gate G-TEMPLATE).",
+  "// usage: node scripts/harness-template-check.mjs <doc.md> templates/artifacts/<ARTIFACT>.md",
+  'import { readFileSync } from "node:fs";',
+  "const [doc, tpl] = process.argv.slice(2);",
+  'if (!doc || !tpl) { console.error("usage: node scripts/harness-template-check.mjs <doc.md> templates/artifacts/<ARTIFACT>.md"); process.exit(2); }',
+  'const D = readFileSync(doc, "utf8"), T = readFileSync(tpl, "utf8"), errs = [];',
+  "const ids = s => [...s.matchAll(/<(?:h2|div)\\s+id=\"([^\"]+)\"/g)].map(m => m[1]);",
+  "const want = ids(T), got = ids(D);",
+  'want.forEach(id => { if (!got.includes(id)) errs.push("missing section " + id + ": copy it from " + tpl); });',
+  'if (got.filter(id => want.includes(id)).join() !== want.filter(id => got.includes(id)).join()) errs.push("sections are not in template order");',
+  "const part = id => (D.split('id=\"' + id + '\"')[1] || \"\").split(/<h2 |<div id=/)[0];",
+  "for (const m of T.matchAll(/<div id=\"([^\"]+_table)\"[^>]*data-columns=\"([^\"]*)\"/g)) {",
+  "  const rows = part(m[1]).split(\"\\n\").map(l => l.trim()).filter(l => l.startsWith(\"|\"));",
+  "  m[2].split(\"|\").filter(Boolean).forEach(c => { if (!(rows[0] || \"\").includes(c.trim())) errs.push(m[1] + \": column '\" + c.trim() + \"' is missing\"); });",
+  "  if (!rows.slice(2).some(r => r.replace(/[|\\s]/g, \"\"))) errs.push(m[1] + \": no rows (add a row with None if nothing applies)\");",
+  "}",
+  "for (const id of want.filter(i => i.endsWith(\"_details\"))) { const body = part(id).replace(/^[^>]*>[^<]*<\\/h2>/, \"\").replace(/<!--[\\s\\S]*?-->/g, \"\").trim(); if (!body) errs.push(id + \": empty section (write None if nothing applies)\"); }",
+  'if (/^status:\\s*draft/m.test(D)) errs.push("frontmatter status is still draft");',
+  'if (/\\bTBD\\b|\\bTODO\\b/.test(D)) errs.push("TBD / TODO found");',
+  'if (errs.length) { console.error(errs.map(e => "✗ " + e).join("\\n")); process.exit(1); }',
+  'console.log("✓ " + doc + " matches " + tpl);', ""].join("\n");
+const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
+function scaffoldStatus(files) {
+  const H = UI.scafHash || {}, mark = {}; let nw = 0, ch = 0;
+  files.forEach(x => { const h = hash(x.content); if (!H[x.path]) { mark[x.path] = "new"; nw++; } else if (H[x.path] !== h) { mark[x.path] = "changed"; ch++; } });
+  return { mark, new: nw, changed: ch };
+}
+function scaffoldNote() { const st = scaffoldStatus(scaffoldFiles()); return st.new + st.changed ? `Scaffold: ${st.new} new and ${st.changed} changed files to download (Orchestration).` : ""; }
+function scaffoldTree(files) {
+  // one line per folder (skill folders grouped as .claude/skills/<skill>/); folders with many files show a count
+  const dirs = {}; files.forEach(x => { const i = x.path.lastIndexOf("/"), d = i < 0 ? "" : x.path.slice(0, i + 1).replace(/^(\.claude\/skills\/)[^/]+\/$/, "$1<skill>/"); (dirs[d] = dirs[d] || []).push(x.path); });
+  const st = scaffoldStatus(files), L = [];
+  Object.keys(dirs).sort((a, b) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b))).forEach(d => {
+    const ps = dirs[d], marks = ps.map(p => st.mark[p]).filter(Boolean);
+    if (ps.length > 4) L.push(`${d}${d.endsWith("<skill>/") ? "SKILL.md" : ""}  (${ps.length} files${marks.length ? `, ${marks.length} new / changed ●` : ""})`);
+    else ps.forEach(p => L.push(`${p}${st.mark[p] ? "   ● " + st.mark[p] : ""}`));
+  });
+  return L.join("\n");
+}
+function scaffoldSh(files) {
+  files = files || scaffoldFiles();
+  const L = ["#!/usr/bin/env bash", "# Generated by harness-engineering.html: writes the harness repository layout (AGENTS.md, ARCHITECTURE.md, docs/, templates/,", "# .claude/agents, .claude/skills, scripts/). Commit first and review the diff: generated files are overwritten,",
+    "# files that collect work (docs/exec-plans/tech-debt-tracker.md) are only written if missing.", "set -euo pipefail", "keep() { if [ -e \"$1\" ]; then echo \"kept $1\"; cat > /dev/null; else cat > \"$1\"; fi; }", ""];
+  const dirs = uniq(files.map(x => x.path.split("/").slice(0, -1).join("/")).filter(Boolean)).sort();
+  L.push("mkdir -p " + dirs.map(d => `'${d}'`).join(" "), "");
+  files.forEach(x => L.push(`${x.keep ? "keep" : "cat >"} '${x.path}' <<'HARNESS_EOF'`, x.content, "HARNESS_EOF", ""));
+  L.push("chmod +x scripts/harness-template-check.mjs", `echo "Wrote ${files.length} files: ${DB.Agents.length} agents, ${DB.Skills.length} skills, ${DB.Artifacts.length} artifact templates"`);
+  return L.join("\n");
+}
 
 /* ============================ KDD scoring ============================ */
 const KDD_CRIT = [["P", "Product priority", "Business value, MoSCoW priority, time to market. 5 = highest value"], ["E", "Engineering effort", "Build effort, complexity, dependencies, skills. 5 = least effort"], ["T", "Ops TCO (3-year)", "Infra, licences, support and on-call toil. 5 = lowest cost"]];
@@ -1234,9 +1542,11 @@ const ED_HELP = {
   Inputs: "required: the skill triggers when all of these are approved", Context: "optional: read if available, never blocks",
   Output: "the one artifact this skill writes", Steps: "one step per line", Gates: "deterministic checks the output must pass",
   Approval: "Auto, a reviewer role, or roles joined with + (all must approve)", Mode: "Hook skills run after every approval, outside the pipeline",
-  Fields: "required fields / sections, separated by semicolons", Path: "use {wi} for the work item ID", Event: "emitted on approval; blank = <id>.approved",
+  Fields: "required fields / sections, separated by semicolons", Event: "emitted on approval; blank = <id>.approved",
   Memory: "graph memory mapping: Node(ID) -REL-> Node {props}; …", Tools: "Claude Code tools, comma-separated", MCP: "MCP servers, comma-separated", Model: "pinned model ID",
   Seed: "Y = provided by the work item request", Terminal: "Y = no consumer expected", Accountable: "the human accountable for this persona's outputs",
+  Doc: "the markdown document built from the template; blank = derived from Path", Path: "the definition file (JSON, YAML, SDL, Avro, SQL…) or the document; use {wi} for the work item ID",
+  Template: "one section per line. h: id | Label | hint · t: id | Label | Col; Col · c: id | Label | format. Blank = generated from Fields. Traceability, Open Questions and Approvals are added automatically",
   Check: "the pass / fail rule", Tool: "the command or tool that runs it", Blocking: "N = advisory only",
 };
 const ED_LABEL = { Personas: "persona", Agents: "agent", Skills: "skill", Artifacts: "artifact", Gates: "gate" };
@@ -1255,7 +1565,7 @@ function newDraft(sheet, pid) {
   if (sheet === "Agents") return { AgentID: uniqueVal("Agents", "AgentID", "AG-" + S(pid).replace(/^P-/, "")), PersonaID: pid || "", Name: uniqueVal("Agents", "Name", (kebab(p.Name) || "new") + "-agent"), Model: "claude-sonnet-5-5", Tools: "Read, Write, Edit, Grep, Glob", MCP: "graph-memory", Description: "" };
   if (sheet === "Skills") { const ag = (DB.Agents.find(a => a.PersonaID === pid) || {}).AgentID || "", last = skillsOfPersona(pid).slice(-1)[0];
     return { SkillID: ag ? nextSkillId(ag) : "", AgentID: ag, Name: "", Stage: last ? last.Stage : "Build", Mode: "Pipeline", Purpose: "", Inputs: "", Context: "", Output: "", Steps: "", Gates: ["G-SCHEMA", "G-COMPLETE"].filter(g => ix().gate[g]).join(", "), Approval: "Auto" }; }
-  if (sheet === "Artifacts") return { ArtifactID: "A-", Name: "", Format: "Markdown", Path: "docs/{wi}/", Fields: "", Event: "", Seed: "N", Terminal: "N", Memory: "" };
+  if (sheet === "Artifacts") return { ArtifactID: "A-", Name: "", Format: "Markdown", Path: "docs/{wi}/", Doc: "", Fields: "", Event: "", Seed: "N", Terminal: "N", Memory: "", Template: "" };
   return { GateID: "G-", Name: "", Kind: "Schema", Check: "", Tool: "", Blocking: "Y" };
 }
 function openEditor(sheet, row, opts) {
@@ -1365,7 +1675,7 @@ function saveEditor() {
   else if (sheet === "Skills" || sheet === "Agents") { const p = sheet === "Skills" ? personaOf(saved) : ix().persona[saved.PersonaID]; if (p && UI.view === "playbook") UI.pb = p.PersonaID; }
   saveUI(); renderAll();
   if (sheet === "Skills" && UI.view === "playbook") setTimeout(() => { const el = document.getElementById("sk-" + id); if (el) el.scrollIntoView({ block: "start" }); }, 30);
-  toast(`Saved ${id}. Export master data to keep it in Excel`, 2600);
+  toast(`Saved ${id}. ${scaffoldNote()} Export master data to keep it in Excel.`, 4200);
 }
 function deleteEditor() {
   const { sheet, row } = ED, id = S(row[SH[sheet].id]), X = ix();
@@ -1461,7 +1771,7 @@ function importWorkbook(wb, fileName) {
     SH_ORDER.forEach(s => { const rows = sheet(s); if (!rows) return;
       db[s] = rows.map(row => { const o = {}; SH[s].cols.forEach(c => { const k = Object.keys(row).find(x => norm(x) === norm(c.key)); o[c.key] = k ? String(row[k]) : ""; }); return o; }).filter(o => Object.values(o).some(v => S(v)));
       if (s === "Skills") db[s].forEach(r => { if (!r.Mode) r.Mode = "Pipeline"; }); });
-    DB = ensureIds(db); got.push("master");
+    DB = migrateCatalog(ensureIds(db)); got.push("master");
   }
   const wis = sheet("WorkItems");
   if (wis) {
@@ -1502,7 +1812,14 @@ function importFiles(files) {
 }
 
 /* ================================ shell ================================ */
-const VIEWS = { playbook: renderPlaybook, flow: renderFlow, run: renderRun, memory: renderMemory, registry: renderRegistry, orch: renderOrch, checks: renderChecks };
+// the visualiser lives in harness-kg.js; it reads the live catalog for its "Playbook catalog" source
+let KG_FOCUS = null;
+function renderKG() {
+  if (!window.HarnessKG) { $("kgHost").innerHTML = '<p class="desc">harness-kg.js did not load.</p>'; return; }
+  HarnessKG.mount($("kgHost"), { catalog: () => DB, toast: m => toast(m, 3500) }); HarnessKG.reloadCatalog();
+  if (KG_FOCUS) { HarnessKG.go(KG_FOCUS.id, KG_FOCUS.mode); KG_FOCUS = null; }
+}
+const VIEWS = { playbook: renderPlaybook, flow: renderFlow, run: renderRun, memory: renderMemory, kg: renderKG, registry: renderRegistry, orch: renderOrch, checks: renderChecks };
 function showView(v) {
   if (!VIEWS[v]) v = "playbook";
   UI.view = v; saveUI(); try { history.replaceState(null, "", "#" + v); } catch (e) {}
@@ -1553,7 +1870,8 @@ function wire() {
   // orchestration
   $("orFile").onchange = renderOrFile;
   $("orCopy").onclick = () => copyText(orFileText());
-  $("orSh").onclick = () => download(scaffoldSh(), "scaffold-harness.sh", "text/x-shellscript");
+  $("orSh").onclick = () => { const fs = scaffoldFiles(); download(scaffoldSh(fs), "scaffold-harness.sh", "text/x-shellscript"); UI.scafHash = Object.fromEntries(fs.map(x => [x.path, hash(x.content)])); saveUI(); renderOrch(); toast(`Scaffold script: ${fs.length} files. Run it at your repo root`); };
+  $("orFileDl").onclick = () => { const p = $("orFile").value; download(orFileText(), p.split("/").pop(), "text/plain"); };
   $("orManCopy").onclick = () => copyText(JSON.stringify(manifest(), null, 2));
   $("orManDl").onclick = () => download(JSON.stringify(manifest(), null, 2), "harness.workflow.json", "application/json");
   $("orRouteCsv").onclick = () => copyText(toCSV([["Event", "EmittedBy", "Artifact", "Subscribers"], ...ROUTES]));
@@ -1671,14 +1989,15 @@ function exampleCatalog() {
       G("G-BUILD", "Build & unit tests", "Test", "CI is green; changed-line coverage ≥ 80%; lint clean", "CI pipeline"),
       G("G-SAST", "Security scan", "Security", "No high or critical SAST, secret or dependency findings", "Semgrep, gitleaks, SCA"),
       G("G-CONTRACT-TEST", "Contract tests", "Test", "The provider verifies every consumer pact and every contract example", "pact verify / schemathesis"),
-      G("G-EXIT", "Exit criteria", "Test", "0 open Sev1 / Sev2; pass rate ≥ 98%; every Must REQ has a passing test; flaky tests quarantined with tickets", "harness verdict --plan qa/{wi}/test-plan.md"),
-      G("G-PERF", "Performance budget", "Perf", "p95 / p99 and error rate within A-NFR at target load; no saturation above 70%", "k6 / Gatling vs docs/{wi}/11-nfr.yaml"),
+      G("G-EXIT", "Exit criteria", "Test", "0 open Sev1 / Sev2; pass rate ≥ 98%; every Must REQ has a passing test; flaky tests quarantined with tickets", "harness verdict --plan docs/quality/{wi}/test-plan.md"),
+      G("G-PERF", "Performance budget", "Perf", "p95 / p99 and error rate within A-NFR at target load; no saturation above 70%", "k6 / Gatling vs docs/design-docs/{wi}/11-nfr.yaml"),
       G("G-SLO", "SLO coverage", "Ops", "Every critical journey has an SLI and SLO; every alert links a runbook section", "openslo validate + harness slo --coverage"),
       G("G-ROLLBACK", "Rollback ready", "Ops", "Each deploy step has a rollback trigger, and the rollback has been rehearsed in staging", "harness release --lint"),
       G("G-CANARY", "Canary analysis", "Ops", "Canary score ≥ threshold at each step; no SLO burn-rate alert during the bake", "Argo Rollouts analysis / Kayenta"),
       G("G-DOR", "Definition of ready", "Trace", "Every story is INVEST-sized, has acceptance criteria and a design reference, and its dependencies are named", "harness stories --dor", "N"),
-      G("G-KDD", "KDD scoring", "Trace", "Each KDD has at least 2 options scored 1–5 on product priority, engineering effort and ops TCO; weights sum to 100 and match program policy; the chosen option has the top weighted score or a recorded override; every deviation from the target architecture is a DSP-nn with an owner and an expiry", "harness kdd --check docs/{wi}/09-kdd.md"),
+      G("G-KDD", "KDD scoring", "Trace", "Each KDD has at least 2 options scored 1–5 on product priority, engineering effort and ops TCO; weights sum to 100 and match program policy; the chosen option has the top weighted score or a recorded override; every deviation from the target architecture is a DSP-nn with an owner and an expiry", "harness kdd --check docs/design-docs/{wi}/09-kdd.md"),
       G("G-DEBT", "Tech debt ticket", "Trace", "Exactly one Jira issue per DSP-nn, linked to its KDD; each has an owner, a repay-by date, a remediation estimate, interest and priority, and both reviewers assigned", "harness debt --check (Jira MCP)"),
+      G(GATE_TEMPLATE.GateID, GATE_TEMPLATE.Name, GATE_TEMPLATE.Kind, GATE_TEMPLATE.Check, GATE_TEMPLATE.Tool),
       G("G-GRAPH", "Graph memory write", "Schema", "Only node and edge types from the artifact's Memory mapping; upsert idempotent on (type, id, work item); every edge resolves to a node; provenance on every node; superseded versions closed with valid_to", "harness memory --validate"),
     ],
     Skills: [
@@ -1810,7 +2129,8 @@ function exampleCatalog() {
     "A-OPSREPORT": "Incident -BREACHED-> SLO {severity}; Action -FOLLOWS-> Incident",
     "A-INSIGHTS": "Learning -ABOUT-> Outcome {met|missed}; BacklogItem -SEEDS-> WorkItem",
   };
-  db.Artifacts.forEach(a => a.Memory = MEM[a.ArtifactID] || "");
+  db.Artifacts.forEach(a => { a.Memory = MEM[a.ArtifactID] || ""; const t = TPL[a.ArtifactID]; if (t) { a.Path = t[0]; a.Doc = t[1]; a.Template = t[2].join("\n"); } });
+  db.Skills.forEach(s => { if (!list(s.Gates).includes("G-TEMPLATE")) s.Gates = list(s.Gates).concat("G-TEMPLATE").join(", "); });
   db.Agents.forEach(a => { if (!/graph-memory/.test(a.MCP)) a.MCP = (a.MCP ? a.MCP + ", " : "") + "graph-memory"; });
   return db;
 }
@@ -1819,9 +2139,9 @@ function exampleRun() {
   const r = { items: [{ id: wi, title: "Guest checkout with saved cards", desc: "Let returning guests check out without an account and reuse a saved card (tokenised) on web, iOS and Android. Requester: Head of Digital. Goal: +4% checkout conversion. Deadline: Q1.", created: t }], steps: { [wi]: {} }, log: [], memq: { [wi]: [] }, cur: wi };
   const done = (sid, art, ref, by, ts) => { r.steps[wi][sid] = { st: "approved", ref, ver: "v1", by, appr: Object.fromEntries(by.split(" + ").map(x => [x, ts])), gates: {}, mem: "synced", ts };
     r.memq[wi].unshift({ id: "M" + sid, sid, art, ref, ver: "v1", op: "upsert", st: "done", ts, done: ts }); };
-  done("PM-01", "A-BRIEF", "docs/WI-001/01-brief.md", "Product Owner", "2026-10-20 17:30:00");
-  done("PD-01", "A-JOURNEY", "docs/WI-001/03-journeys.json", "Design Lead", "2026-10-21 11:05:00");
-  done("PM-02", "A-PRD", "docs/WI-001/02-prd.md", "Product Owner", "2026-10-22 15:42:00");
+  done("PM-01", "A-BRIEF", "docs/product-specs/WI-001/01-brief.md", "Product Owner", "2026-10-20 17:30:00");
+  done("PD-01", "A-JOURNEY", "docs/product-specs/WI-001/03-journeys.md", "Design Lead", "2026-10-21 11:05:00");
+  done("PM-02", "A-PRD", "docs/product-specs/WI-001/02-prd.md", "Product Owner", "2026-10-22 15:42:00");
   r.steps[wi]["PM-03"] = { st: "running", ts: "2026-10-22 16:10:00" };
   const L = (ts, ev, detail) => r.log.unshift({ ts, wi, ev, detail });
   L(t, "request.created", "Guest checkout with saved cards"); L(t, "triggered", "PM-01");
@@ -1837,7 +2157,8 @@ function exampleRun() {
 
 /* ============================== BOOT ============================== */
 load(); wire();
-{ const h = location.hash.slice(1); if (VIEWS[h]) UI.view = h; }
+{ const [h, q] = location.hash.slice(1).split("?"); if (VIEWS[h]) UI.view = h;
+  const p = new URLSearchParams(q || ""); if (h === "kg" && p.get("focus")) KG_FOCUS = { id: p.get("focus"), mode: p.get("mode") || "" }; }
 renderAll();
 </script>
 <script src="fullscreen.js"></script>

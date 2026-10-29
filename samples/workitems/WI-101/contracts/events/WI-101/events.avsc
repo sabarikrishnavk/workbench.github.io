@@ -1,0 +1,26 @@
+{
+  "type": "record",
+  "name": "PosInventoryChanged",
+  "namespace": "com.harborpine.inventory",
+  "fields": [
+    {
+      "name": "storeId",
+      "type": "string"
+    },
+    {
+      "name": "sku",
+      "type": "string"
+    },
+    {
+      "name": "qtyOnHand",
+      "type": "int"
+    },
+    {
+      "name": "changedAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}

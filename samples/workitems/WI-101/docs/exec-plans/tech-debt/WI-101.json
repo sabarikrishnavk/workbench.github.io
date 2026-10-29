@@ -1,0 +1,53 @@
+{
+  "artifact": "A-TECHDEBT",
+  "workItem": "WI-101",
+  "version": 1,
+  "techDebts": [
+    {
+      "id": "PLAT-1423",
+      "name": "Reservations held in inventory-service instead of OMS",
+      "repayBy": "2027-03-31",
+      "interest": "~2 days / quarter reconciling OMS and inventory reservations",
+      "priority": "High",
+      "owner": "Marcus Bell",
+      "estimate": "8 days",
+      "dsp": "DSP-01",
+      "kdd": "KDD-02",
+      "repays": [
+        "DSP-01"
+      ],
+      "reviewed_by": [
+        "PER-PO",
+        "PER-LSA"
+      ]
+    },
+    {
+      "id": "PLAT-1424",
+      "name": "Store backend calls the SMS vendor directly",
+      "repayBy": "2027-01-31",
+      "interest": "~1 day / quarter maintaining templates in code",
+      "priority": "Medium",
+      "owner": "Hannah Lee",
+      "estimate": "3 days",
+      "dsp": "DSP-02",
+      "kdd": "KDD-04",
+      "repays": [
+        "DSP-02"
+      ],
+      "reviewed_by": [
+        "PER-PO",
+        "PER-LSA"
+      ]
+    }
+  ],
+  "personas": [
+    {
+      "id": "PER-PO",
+      "name": "Product Owner"
+    },
+    {
+      "id": "PER-LSA",
+      "name": "Lead Solution Architect"
+    }
+  ]
+}

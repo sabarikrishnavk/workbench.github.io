@@ -1,0 +1,196 @@
+{
+  "artifact": "A-STORIES",
+  "workItem": "WI-101",
+  "version": 1,
+  "epics": [
+    {
+      "id": "EP-01",
+      "name": "Pickup discovery",
+      "part_of": [
+        "WI-101"
+      ]
+    },
+    {
+      "id": "EP-02",
+      "name": "Pickup checkout and reservation",
+      "part_of": [
+        "WI-101"
+      ]
+    },
+    {
+      "id": "EP-03",
+      "name": "Store fulfilment",
+      "part_of": [
+        "WI-101"
+      ]
+    },
+    {
+      "id": "EP-04",
+      "name": "Notify and collect",
+      "part_of": [
+        "WI-101"
+      ]
+    }
+  ],
+  "storys": [
+    {
+      "id": "STY-01",
+      "name": "See which nearby stores have the item on the product page",
+      "channel": "web",
+      "priority": "Must",
+      "part_of": [
+        "EP-01"
+      ],
+      "implements": [
+        "REQ-01"
+      ]
+    },
+    {
+      "id": "STY-02",
+      "name": "See store availability in the iOS app",
+      "channel": "ios",
+      "priority": "Must",
+      "part_of": [
+        "EP-01"
+      ],
+      "implements": [
+        "REQ-01"
+      ]
+    },
+    {
+      "id": "STY-03",
+      "name": "See store availability in the Android app",
+      "channel": "android",
+      "priority": "Must",
+      "part_of": [
+        "EP-01"
+      ],
+      "implements": [
+        "REQ-01"
+      ]
+    },
+    {
+      "id": "STY-04",
+      "name": "Pick and remember my preferred store",
+      "channel": "web",
+      "priority": "Should",
+      "part_of": [
+        "EP-01"
+      ],
+      "implements": [
+        "REQ-01"
+      ]
+    },
+    {
+      "id": "STY-05",
+      "name": "Choose pickup at checkout on the web",
+      "channel": "web",
+      "priority": "Must",
+      "part_of": [
+        "EP-02"
+      ],
+      "implements": [
+        "REQ-02",
+        "REQ-03"
+      ]
+    },
+    {
+      "id": "STY-06",
+      "name": "Choose pickup at checkout in the iOS app",
+      "channel": "ios",
+      "priority": "Must",
+      "part_of": [
+        "EP-02"
+      ],
+      "implements": [
+        "REQ-02",
+        "REQ-03"
+      ]
+    },
+    {
+      "id": "STY-07",
+      "name": "Choose pickup at checkout in the Android app",
+      "channel": "android",
+      "priority": "Must",
+      "part_of": [
+        "EP-02"
+      ],
+      "implements": [
+        "REQ-02",
+        "REQ-03"
+      ]
+    },
+    {
+      "id": "STY-08",
+      "name": "See new pickup orders on my handheld",
+      "channel": "android",
+      "priority": "Must",
+      "part_of": [
+        "EP-03"
+      ],
+      "implements": [
+        "REQ-04"
+      ]
+    },
+    {
+      "id": "STY-09",
+      "name": "Scan each item on the pick list and stage the order",
+      "channel": "android",
+      "priority": "Must",
+      "part_of": [
+        "EP-03"
+      ],
+      "implements": [
+        "REQ-04"
+      ]
+    },
+    {
+      "id": "STY-10",
+      "name": "Be told when my order is ready",
+      "channel": "ios",
+      "priority": "Must",
+      "part_of": [
+        "EP-04"
+      ],
+      "implements": [
+        "REQ-05"
+      ]
+    },
+    {
+      "id": "STY-11",
+      "name": "Show a QR code at the pickup desk",
+      "channel": "ios",
+      "priority": "Should",
+      "part_of": [
+        "EP-04"
+      ],
+      "implements": [
+        "REQ-06"
+      ]
+    },
+    {
+      "id": "STY-12",
+      "name": "Have uncollected orders cancelled and refunded after 5 days",
+      "channel": "web",
+      "priority": "Should",
+      "part_of": [
+        "EP-04"
+      ],
+      "implements": [
+        "REQ-07"
+      ]
+    },
+    {
+      "id": "STY-13",
+      "name": "Offer a substitute when an item is missing",
+      "channel": "android",
+      "priority": "Could",
+      "part_of": [
+        "EP-03"
+      ],
+      "implements": [
+        "REQ-08"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,245 @@
+{
+  "artifact": "A-PLAN",
+  "workItem": "WI-101",
+  "version": 1,
+  "personas": [
+    {
+      "id": "PER-API",
+      "name": "REST API Engineer"
+    },
+    {
+      "id": "PER-GQL",
+      "name": "GraphQL Engineer"
+    },
+    {
+      "id": "PER-EVT",
+      "name": "Kafka Engineer"
+    },
+    {
+      "id": "PER-DB",
+      "name": "Database Engineer"
+    },
+    {
+      "id": "PER-UX",
+      "name": "UX Engineer"
+    },
+    {
+      "id": "PER-WEB",
+      "name": "Web Engineer"
+    },
+    {
+      "id": "PER-IOS",
+      "name": "iOS Engineer"
+    },
+    {
+      "id": "PER-AND",
+      "name": "Android Engineer"
+    },
+    {
+      "id": "PER-QA",
+      "name": "QA Engineer"
+    },
+    {
+      "id": "PER-SRE",
+      "name": "Site Reliability Engineer"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TSK-01",
+      "name": "OpenAPI contract for availability, reservation, collect",
+      "estimate": "2d",
+      "delivers": [
+        "STY-01",
+        "STY-05"
+      ],
+      "assigned_to": [
+        "PER-API"
+      ]
+    },
+    {
+      "id": "TSK-02",
+      "name": "Fulfilment subgraph SDL",
+      "estimate": "2d",
+      "delivers": [
+        "STY-01",
+        "STY-02",
+        "STY-03"
+      ],
+      "assigned_to": [
+        "PER-GQL"
+      ]
+    },
+    {
+      "id": "TSK-03",
+      "name": "Avro and AsyncAPI contracts",
+      "estimate": "2d",
+      "delivers": [
+        "STY-08",
+        "STY-10"
+      ],
+      "assigned_to": [
+        "PER-EVT"
+      ]
+    },
+    {
+      "id": "TSK-04",
+      "name": "store_inventory and reservation migrations",
+      "estimate": "1d",
+      "delivers": [
+        "STY-05"
+      ],
+      "assigned_to": [
+        "PER-DB"
+      ]
+    },
+    {
+      "id": "TSK-05",
+      "name": "inventory-service availability and reservations",
+      "estimate": "6d",
+      "delivers": [
+        "STY-01",
+        "STY-05"
+      ],
+      "depends_on": [
+        "TSK-01",
+        "TSK-04"
+      ],
+      "assigned_to": [
+        "PER-API"
+      ]
+    },
+    {
+      "id": "TSK-06",
+      "name": "POS CDC consumer and pickup events",
+      "estimate": "5d",
+      "delivers": [
+        "STY-08",
+        "STY-10"
+      ],
+      "depends_on": [
+        "TSK-03"
+      ],
+      "assigned_to": [
+        "PER-EVT"
+      ]
+    },
+    {
+      "id": "TSK-07",
+      "name": "Subgraph resolvers",
+      "estimate": "4d",
+      "delivers": [
+        "STY-01",
+        "STY-02",
+        "STY-03"
+      ],
+      "depends_on": [
+        "TSK-02",
+        "TSK-05"
+      ],
+      "assigned_to": [
+        "PER-GQL"
+      ]
+    },
+    {
+      "id": "TSK-08",
+      "name": "Pickup components",
+      "estimate": "4d",
+      "delivers": [
+        "STY-01",
+        "STY-04"
+      ],
+      "assigned_to": [
+        "PER-UX"
+      ]
+    },
+    {
+      "id": "TSK-09",
+      "name": "Web PDP, store selector, checkout",
+      "estimate": "6d",
+      "delivers": [
+        "STY-01",
+        "STY-04",
+        "STY-05",
+        "STY-12"
+      ],
+      "depends_on": [
+        "TSK-07",
+        "TSK-08"
+      ],
+      "assigned_to": [
+        "PER-WEB"
+      ]
+    },
+    {
+      "id": "TSK-10",
+      "name": "iOS availability, checkout, QR",
+      "estimate": "7d",
+      "delivers": [
+        "STY-02",
+        "STY-06",
+        "STY-10",
+        "STY-11"
+      ],
+      "depends_on": [
+        "TSK-07",
+        "TSK-08"
+      ],
+      "assigned_to": [
+        "PER-IOS"
+      ]
+    },
+    {
+      "id": "TSK-11",
+      "name": "Android shopper app and store handheld",
+      "estimate": "8d",
+      "delivers": [
+        "STY-03",
+        "STY-07",
+        "STY-08",
+        "STY-09"
+      ],
+      "depends_on": [
+        "TSK-07",
+        "TSK-06"
+      ],
+      "assigned_to": [
+        "PER-AND"
+      ]
+    },
+    {
+      "id": "TSK-12",
+      "name": "Automated suites",
+      "estimate": "5d",
+      "delivers": [
+        "STY-01",
+        "STY-05",
+        "STY-09",
+        "STY-11"
+      ],
+      "depends_on": [
+        "TSK-09",
+        "TSK-10",
+        "TSK-11"
+      ],
+      "assigned_to": [
+        "PER-QA"
+      ]
+    },
+    {
+      "id": "TSK-13",
+      "name": "SLOs, alerts, runbook",
+      "estimate": "3d",
+      "delivers": [
+        "STY-01",
+        "STY-08"
+      ],
+      "depends_on": [
+        "TSK-05"
+      ],
+      "assigned_to": [
+        "PER-SRE"
+      ]
+    }
+  ]
+}

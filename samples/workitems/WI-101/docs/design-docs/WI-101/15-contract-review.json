@@ -1,0 +1,8 @@
+{
+  "verdict": "pass",
+  "contracts": 4,
+  "violations": 1,
+  "waived": [
+    "WVR-01"
+  ]
+}

@@ -1,0 +1,12 @@
+apiVersion: openslo/v1
+kind: SLO
+metadata: { name: slo-01-availability-lookups }
+spec:
+  service: inventory-service
+  indicator:
+    spec:
+      ratioMetric:
+        good: { metricSource: { spec: { query: 'sum(rate(http_requests_total{route="getAvailability",code!~"5..",le="0.15"}[5m]))' } } }
+        total: { metricSource: { spec: { query: 'sum(rate(http_requests_total{route="getAvailability"}[5m]))' } } }
+  timeWindow: [ { duration: 28d, isRolling: true } ]
+  objectives: [ { target: 0.999 } ]

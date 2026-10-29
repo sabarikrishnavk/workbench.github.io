@@ -1,0 +1,110 @@
+{
+  "artifact": "A-SCREENS",
+  "workItem": "WI-101",
+  "version": 1,
+  "screens": [
+    {
+      "id": "SCR-01",
+      "name": "PDP pickup availability",
+      "channel": "web",
+      "realises": [
+        "STY-01"
+      ],
+      "uses": [
+        "CMP-01"
+      ],
+      "binds": [
+        "StoreInventory.available"
+      ]
+    },
+    {
+      "id": "SCR-02",
+      "name": "Store selector",
+      "channel": "web",
+      "realises": [
+        "STY-04"
+      ],
+      "uses": [
+        "CMP-02",
+        "CMP-01"
+      ]
+    },
+    {
+      "id": "SCR-03",
+      "name": "Checkout fulfilment step",
+      "channel": "web",
+      "realises": [
+        "STY-05"
+      ],
+      "uses": [
+        "CMP-03"
+      ]
+    },
+    {
+      "id": "SCR-04",
+      "name": "PDP pickup availability (iOS)",
+      "channel": "ios",
+      "realises": [
+        "STY-02"
+      ],
+      "uses": [
+        "CMP-01"
+      ]
+    },
+    {
+      "id": "SCR-05",
+      "name": "Checkout pickup (iOS)",
+      "channel": "ios",
+      "realises": [
+        "STY-06"
+      ],
+      "uses": [
+        "CMP-03",
+        "CMP-02"
+      ]
+    },
+    {
+      "id": "SCR-06",
+      "name": "PDP and checkout pickup (Android)",
+      "channel": "android",
+      "realises": [
+        "STY-03",
+        "STY-07"
+      ],
+      "uses": [
+        "CMP-01",
+        "CMP-03"
+      ]
+    },
+    {
+      "id": "SCR-07",
+      "name": "Pick list (store handheld)",
+      "channel": "android",
+      "realises": [
+        "STY-08",
+        "STY-09"
+      ],
+      "uses": [
+        "CMP-05"
+      ],
+      "binds": [
+        "PickupOrder.status"
+      ]
+    },
+    {
+      "id": "SCR-08",
+      "name": "Order ready and QR code",
+      "channel": "ios",
+      "realises": [
+        "STY-10",
+        "STY-11"
+      ],
+      "uses": [
+        "CMP-04"
+      ],
+      "binds": [
+        "PickupOrder.collectCode"
+      ]
+    }
+  ]
+}

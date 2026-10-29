@@ -1,0 +1,18 @@
+Table store_inventory {
+  store_id varchar [pk]
+  sku varchar [pk]
+  on_hand int
+  reserved int
+  available int
+  updated_at timestamptz
+}
+Table reservation {
+  reservation_id uuid [pk]
+  order_id varchar
+  store_id varchar
+  sku varchar
+  qty int
+  expires_at timestamptz
+  status varchar
+}
+Ref: reservation.(store_id, sku) > store_inventory.(store_id, sku)

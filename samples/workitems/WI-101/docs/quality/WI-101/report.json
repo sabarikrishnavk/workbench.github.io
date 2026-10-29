@@ -1,0 +1,55 @@
+{
+  "artifact": "A-TESTREPORT",
+  "workItem": "WI-101",
+  "version": 1,
+  "testRuns": [
+    {
+      "id": "RUN-2026-10-04",
+      "name": "Release candidate run 2026-10-04",
+      "result": "pass",
+      "executes": [
+        "TC-01",
+        "TC-02",
+        "TC-03",
+        "TC-04",
+        "TC-05",
+        "TC-06",
+        "TC-07",
+        "TC-08",
+        "TC-09",
+        "TC-10",
+        "TC-11",
+        "TC-12",
+        "TC-13"
+      ]
+    }
+  ],
+  "defects": [
+    {
+      "id": "DEF-311",
+      "name": "Availability badge shows In stock after store closes",
+      "severity": "major",
+      "found_in": [
+        "RUN-2026-10-04"
+      ]
+    },
+    {
+      "id": "DEF-314",
+      "name": "Android QR code not shown at full brightness",
+      "severity": "minor",
+      "found_in": [
+        "RUN-2026-10-04"
+      ]
+    }
+  ],
+  "verdicts": [
+    {
+      "id": "VER-WI-101",
+      "name": "Go",
+      "go": "Y",
+      "for": [
+        "WI-101"
+      ]
+    }
+  ]
+}

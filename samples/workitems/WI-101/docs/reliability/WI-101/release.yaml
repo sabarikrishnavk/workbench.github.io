@@ -1,0 +1,10 @@
+release: REL-2026.10.1
+workItem: WI-101
+steps:
+  - { order: 1, component: inventory-service, version: 1.4.0, canary: [5, 25, 100] }
+  - { order: 2, component: fulfilment-subgraph, version: 1.0.0, canary: [5, 25, 100] }
+  - { order: 6, component: storefront-web, version: 2026.10.1 }
+flags:
+  ful.pickupAvailability: { ramp: [10, 50, 100] }
+rollback:
+  - { trigger: slo-01-burn, threshold: 14.4 }

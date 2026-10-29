@@ -1,0 +1,13 @@
+nfr:
+  workItem: WI-101
+  latency:
+    - { id: NFR-01, operation: getAvailability, p95_ms: 150, p99_ms: 300 }
+    - { id: NFR-03, operation: createReservation, p95_ms: 200, p99_ms: 400 }
+  freshness:
+    - { id: NFR-02, data: StoreInventory, max_age_s: 60 }
+  availability:
+    - { id: NFR-04, container: CTR-05, target: 99.9 }
+  throughput:
+    - { id: NFR-06, operation: getAvailability, peak_rps: 1800 }
+  privacy:
+    - { id: NFR-05, attributes: [Customer.phone, Customer.email], classification: Confidential }

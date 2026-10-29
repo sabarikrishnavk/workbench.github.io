@@ -1,0 +1,53 @@
+{
+  "artifact": "A-JOURNEY",
+  "workItem": "WI-101",
+  "version": 1,
+  "journeys": [
+    {
+      "id": "JNY-01",
+      "name": "Choose store pickup on the web",
+      "channel": "web",
+      "serves": [
+        "OUT-01",
+        "OUT-02"
+      ],
+      "for": [
+        "PER-SHOPPER"
+      ]
+    },
+    {
+      "id": "JNY-02",
+      "name": "Choose store pickup in the app",
+      "channel": "ios / android",
+      "serves": [
+        "OUT-01",
+        "OUT-02"
+      ],
+      "for": [
+        "PER-SHOPPER"
+      ]
+    },
+    {
+      "id": "JNY-03",
+      "name": "Pick and stage a pickup order",
+      "channel": "android (store handheld)",
+      "serves": [
+        "OUT-03"
+      ],
+      "for": [
+        "PER-ASSOC"
+      ]
+    },
+    {
+      "id": "JNY-04",
+      "name": "Collect the order at the store",
+      "channel": "ios / android / web",
+      "serves": [
+        "OUT-03"
+      ],
+      "for": [
+        "PER-SHOPPER"
+      ]
+    }
+  ]
+}

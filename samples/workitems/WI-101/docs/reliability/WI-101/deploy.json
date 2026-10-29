@@ -1,0 +1,16 @@
+{
+  "artifact": "A-DEPLOYREC",
+  "workItem": "WI-101",
+  "version": 1,
+  "deployments": [
+    {
+      "id": "DEP-2026-10-07",
+      "name": "Production deployment 2026-10-07",
+      "result": "success",
+      "score": 0.97,
+      "of": [
+        "REL-2026.10.1"
+      ]
+    }
+  ]
+}

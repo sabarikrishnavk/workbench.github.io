@@ -1,0 +1,60 @@
+{
+  "artifact": "A-UIKIT",
+  "workItem": "WI-101",
+  "version": 1,
+  "components": [
+    {
+      "id": "CMP-01",
+      "name": "StoreAvailabilityBadge",
+      "styled_by": [
+        "color.status.instock",
+        "color.status.low",
+        "color.status.out"
+      ]
+    },
+    {
+      "id": "CMP-02",
+      "name": "StorePicker",
+      "styled_by": [
+        "space.pickup.card"
+      ]
+    },
+    {
+      "id": "CMP-03",
+      "name": "FulfilmentToggle"
+    },
+    {
+      "id": "CMP-04",
+      "name": "PickupQRCode"
+    },
+    {
+      "id": "CMP-05",
+      "name": "PickListItem",
+      "styled_by": [
+        "space.pickup.card"
+      ]
+    }
+  ],
+  "tokens": [
+    {
+      "id": "color.status.instock",
+      "name": "color.status.instock",
+      "value": "#1B7F3B"
+    },
+    {
+      "id": "color.status.low",
+      "name": "color.status.low",
+      "value": "#B45309"
+    },
+    {
+      "id": "color.status.out",
+      "name": "color.status.out",
+      "value": "#6B7280"
+    },
+    {
+      "id": "space.pickup.card",
+      "name": "space.pickup.card",
+      "value": "16px"
+    }
+  ]
+}

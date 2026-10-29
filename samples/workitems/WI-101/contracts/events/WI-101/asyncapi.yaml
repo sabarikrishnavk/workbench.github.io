@@ -1,0 +1,8 @@
+asyncapi: 3.0.0
+info: { title: BOPIS events, version: 1.0.0 }
+channels:
+  posInventoryChanged: { address: pos.inventory.changed.v1, messages: { PosInventoryChanged: { $ref: '#/components/messages/PosInventoryChanged' } } }
+  pickupPlaced: { address: order.pickup.placed.v1 }
+  pickupReady: { address: order.pickup.ready.v1 }
+operations:
+  consumeStock: { action: receive, channel: { $ref: '#/channels/posInventoryChanged' } }

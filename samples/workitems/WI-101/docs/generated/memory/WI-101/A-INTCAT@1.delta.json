@@ -1,0 +1,185 @@
+{
+  "artifact": "A-INTCAT",
+  "version": 1,
+  "workItem": "WI-101",
+  "upsert": {
+    "nodes": [
+      {
+        "id": "IF-01",
+        "type": "Interface",
+        "pattern": "GraphQL",
+        "sync": "sync",
+        "sla": "p95 180 ms"
+      },
+      {
+        "id": "IF-02",
+        "type": "Interface",
+        "pattern": "REST",
+        "sync": "sync",
+        "sla": "p95 150 ms"
+      },
+      {
+        "id": "IF-03",
+        "type": "Interface",
+        "pattern": "REST",
+        "sync": "sync",
+        "sla": "p99 400 ms"
+      },
+      {
+        "id": "IF-04",
+        "type": "Interface",
+        "pattern": "Kafka",
+        "sync": "async",
+        "sla": "lag ≤ 60 s"
+      },
+      {
+        "id": "IF-05",
+        "type": "Interface",
+        "pattern": "Kafka",
+        "sync": "async",
+        "sla": "lag ≤ 30 s"
+      },
+      {
+        "id": "IF-06",
+        "type": "Interface",
+        "pattern": "Kafka",
+        "sync": "async",
+        "sla": "lag ≤ 60 s"
+      },
+      {
+        "id": "IF-07",
+        "type": "Interface",
+        "pattern": "gRPC",
+        "sync": "sync",
+        "sla": "deadline 80 ms"
+      },
+      {
+        "id": "IF-08",
+        "type": "Interface",
+        "pattern": "REST",
+        "sync": "sync",
+        "sla": "p95 300 ms"
+      },
+      {
+        "id": "IF-09",
+        "type": "Interface",
+        "pattern": "REST",
+        "sync": "sync",
+        "sla": "vendor 99.5%"
+      }
+    ],
+    "edges": [
+      {
+        "from": "IF-01",
+        "rel": "FROM",
+        "to": "APP-FULSG"
+      },
+      {
+        "from": "IF-01",
+        "rel": "TO",
+        "to": "APP-WEB"
+      },
+      {
+        "from": "IF-02",
+        "rel": "FROM",
+        "to": "APP-INV"
+      },
+      {
+        "from": "IF-02",
+        "rel": "TO",
+        "to": "APP-FULSG"
+      },
+      {
+        "from": "IF-03",
+        "rel": "FROM",
+        "to": "APP-INV"
+      },
+      {
+        "from": "IF-03",
+        "rel": "TO",
+        "to": "APP-ORD"
+      },
+      {
+        "from": "IF-04",
+        "rel": "FROM",
+        "to": "APP-POS"
+      },
+      {
+        "from": "IF-04",
+        "rel": "TO",
+        "to": "APP-INV"
+      },
+      {
+        "from": "IF-05",
+        "rel": "FROM",
+        "to": "APP-ORD"
+      },
+      {
+        "from": "IF-05",
+        "rel": "TO",
+        "to": "APP-OMS"
+      },
+      {
+        "from": "IF-06",
+        "rel": "FROM",
+        "to": "APP-STORE"
+      },
+      {
+        "from": "IF-06",
+        "rel": "TO",
+        "to": "APP-NOTIF"
+      },
+      {
+        "from": "IF-07",
+        "rel": "FROM",
+        "to": "APP-LOC"
+      },
+      {
+        "from": "IF-07",
+        "rel": "TO",
+        "to": "APP-FULSG"
+      },
+      {
+        "from": "IF-08",
+        "rel": "FROM",
+        "to": "APP-ORD"
+      },
+      {
+        "from": "IF-08",
+        "rel": "TO",
+        "to": "APP-STORE"
+      },
+      {
+        "from": "IF-09",
+        "rel": "FROM",
+        "to": "APP-STORE"
+      },
+      {
+        "from": "IF-09",
+        "rel": "TO",
+        "to": "APP-SMS"
+      },
+      {
+        "from": "IF-01",
+        "rel": "TO",
+        "to": "APP-IOS"
+      },
+      {
+        "from": "IF-01",
+        "rel": "TO",
+        "to": "APP-AND"
+      },
+      {
+        "from": "IF-05",
+        "rel": "TO",
+        "to": "APP-STORE"
+      },
+      {
+        "from": "IF-06",
+        "rel": "TO",
+        "to": "APP-ORD"
+      }
+    ]
+  },
+  "retract": []
+}
